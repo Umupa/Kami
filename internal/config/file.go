@@ -86,3 +86,26 @@ func writeIfChanged(path string, data []byte) error {
 	}
 	return WriteFile(path, data)
 }
+
+// Edit changes config.json with fn, as the settings window does. It reads the
+// file as written, without defaults, so that only what fn changes is written
+// back; the result must be valid, or nothing is written.
+func Edit(path string, fn func(*Config)) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var c Config
+	if err := json.Unmarshal(data, &c); err != nil {
+		return &Error{Problems: []Problem{{Message: syntaxMessage(data, err)}}}
+	}
+	fn(&c)
+	out, err := Encode(&c)
+	if err != nil {
+		return err
+	}
+	if _, err := Decode(out); err != nil {
+		return err
+	}
+	return WriteFile(path, out)
+}

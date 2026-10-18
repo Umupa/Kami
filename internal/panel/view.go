@@ -19,6 +19,9 @@ func (p *Panel) view(c *ui.Context) {
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
+	if p.deps.OpenSettings != nil {
+		c.OnShortcut(ui.Cmd, ui.KeyComma, p.deps.OpenSettings)
+	}
 	// Cmd-C copies the latest reply, unless the focused input has a
 	// selection, which it copies itself.
 	c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })
@@ -47,13 +50,23 @@ func (p *Panel) view(c *ui.Context) {
 				p.followView(c, pal)
 			}
 		})
-	p.fit(panel.Bounds())
+	p.fit(panel)
 }
 
-// fit makes the window as tall as the panel was laid out in the last frame.
-func (p *Panel) fit(r ui.Rect) {
-	h := int(math.Ceil(float64(r.H)))
-	if h <= 0 || h == p.height {
+// fit makes the window follow the height the panel was laid out at in the
+// last frame, easing over 150 ms (F1.3); the first fit is immediate, so the
+// panel appears at once. The window is transparent, so while it eases the
+// panel is cut off at its bottom or has nothing below it.
+func (p *Panel) fit(panel ui.Element) {
+	target := float32(math.Ceil(float64(panel.Bounds().H)))
+	if target <= 0 {
+		return
+	}
+	h := int(target)
+	if p.height != 0 {
+		h = int(math.Ceil(float64(panel.Animate("height", target, design.MotionHeight))))
+	}
+	if h == p.height {
 		return
 	}
 	p.height = h
