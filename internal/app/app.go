@@ -77,7 +77,7 @@ func (a *app) ready(ctx context.Context) {
 	a.panel = panel.New(panel.Deps{
 		Store:   a.store,
 		Keyring: keyring.System(),
-		Client:  func(config.Model) llm.Client { return llm.Demo{} },
+		Client:  func(config.Model) llm.Client { return llm.HTTP{} },
 		Log:     a.log,
 		Demo:    mygo.IsDev(),
 	})
