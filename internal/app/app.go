@@ -16,6 +16,7 @@ import (
 	"github.com/Umupa/cida-next/internal/hotkey"
 	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
+	"github.com/Umupa/cida-next/internal/macos"
 	"github.com/Umupa/cida-next/internal/mode"
 	"github.com/Umupa/cida-next/internal/panel"
 )
@@ -30,6 +31,10 @@ type app struct {
 	menu      *mygo.Menu
 	panel     *panel.Panel
 	hotkeys   *hotkey.Manager
+	// doubleTap watches for the panel's double tap; nil when the panel
+	// shortcut is a key combination. Main thread only.
+	doubleTap *hotkey.DoubleTap
+	tapping   bool
 }
 
 // Run starts the app and returns when it quits. A second launch returns at
@@ -82,12 +87,12 @@ func (a *app) ready(ctx context.Context) {
 		Demo:    mygo.IsDev(),
 	})
 	a.hotkeys = hotkey.NewManager(a.log)
-	a.applyShortcuts(a.store.Snapshot().Config)
 
 	a.menu = mygo.NewMenu([]*mygo.MenuItem{
 		{ID: "config-error", Hidden: true, Click: a.revealConfig},
 		{ID: "config-error-sep", Type: mygo.MenuItemSeparator, Hidden: true},
 		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
+		{ID: "listen-access", Label: "允许「输入监控」，以双击 ⌥ 打开面板…", Hidden: true, Click: a.requestListenAccess},
 		mygo.Separator(),
 		{Label: "打开配置文件夹", Click: a.revealConfig},
 		mygo.Separator(),
@@ -107,6 +112,7 @@ func (a *app) ready(ctx context.Context) {
 	}
 	a.tray = tray
 	a.showSnapshot(a.store.Snapshot())
+	a.applyShortcuts(a.store.Snapshot().Config)
 	a.store.Subscribe(func(s config.Snapshot) {
 		a.logSnapshot(s)
 		a.showSnapshot(s)
@@ -123,6 +129,44 @@ func (a *app) applyShortcuts(c *config.Config) {
 		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
 		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.panel.Toggle},
 	})
+	a.doubleTap = nil
+	if sc, err := config.ParseShortcut(c.Shortcuts.Panel); err == nil && sc.Double != 0 {
+		a.doubleTap = &hotkey.DoubleTap{Mod: sc.Double, Window: hotkey.DoubleTapWindow}
+		a.watchKeys()
+	}
+	a.menu.ItemByID("listen-access").SetVisible(a.doubleTap != nil && !a.tapping)
+}
+
+// watchKeys starts the event tap that sees double taps, once Input
+// Monitoring is granted.
+func (a *app) watchKeys() {
+	if a.tapping {
+		return
+	}
+	err := macos.WatchKeys(func(ev macos.KeyEvent) {
+		if d := a.doubleTap; d != nil && d.Feed(time.Now(), hotkey.ModifiersOf(ev.Flags), ev.KeyDown) {
+			a.panel.Toggle()
+		}
+	})
+	if err != nil {
+		a.log.Warn("watch keys", "err", err)
+		return
+	}
+	a.tapping = true
+}
+
+// requestListenAccess asks for Input Monitoring. macOS applies a new grant
+// to an event tap only after the app restarts, so the item says so.
+func (a *app) requestListenAccess(item *mygo.MenuItem, _ *mygo.Window) {
+	if !macos.RequestListenAccess() {
+		_ = mygo.Shell.OpenExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+	}
+	a.watchKeys()
+	if a.tapping {
+		item.SetVisible(false)
+		return
+	}
+	item.SetLabel("授权「输入监控」后，退出并重新打开 cida-next")
 }
 
 // watchConfig reloads the store whenever config.json changes, until ctx ends.
