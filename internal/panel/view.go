@@ -25,7 +25,9 @@ func (p *Panel) view(c *ui.Context) {
 	if maxHeight <= 0 {
 		maxHeight = math.MaxFloat32
 	}
-	panel := ui.Column(c).Width(design.PanelWidth).MaxHeight(maxHeight).
+	// The panel takes its own height, never the window's: the window
+	// follows it, so a window still too short must not squeeze it.
+	panel := ui.Column(c).Width(design.PanelWidth).MaxHeight(maxHeight).Shrink(0).
 		Background(pal.Surface).Radius(design.RadiusPanel).Border(1, pal.PanelEdge).Clip().
 		Children(func() {
 			p.sourceView(c, pal)

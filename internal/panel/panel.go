@@ -72,6 +72,10 @@ type Panel struct {
 	height int
 }
 
+// initialHeight is about the height of the empty panel: the source's line
+// and the mode bar.
+const initialHeight = 110
+
 // New creates the hidden panel window. Call it once the app is ready.
 func New(d Deps) *Panel {
 	p := newPanel(d)
@@ -86,7 +90,7 @@ func New(d Deps) *Panel {
 		DisableMaximize:   true,
 		DisableFullScreen: true,
 		Width:             design.PanelWidth,
-		Height:            160,
+		Height:            initialHeight,
 		Content:           ui.View(p.view),
 	})
 	// Escape and Cmd-W close a panel; hiding keeps its state and shows it
@@ -127,6 +131,11 @@ func (p *Panel) Toggle() {
 func (p *Panel) Show() {
 	d := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
 	p.place = placeOn(d.WorkArea)
+	if p.height == 0 {
+		// Until the view has measured the panel, the window takes the
+		// height of an empty one.
+		p.height = initialHeight
+	}
 	p.win.SetBounds(p.place.bounds(p.height))
 	p.win.Show()
 	p.sourceIn.Focus()

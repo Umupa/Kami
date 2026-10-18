@@ -227,3 +227,15 @@ func TestBusy(t *testing.T) {
 		t.Errorf("busy = %v, want [true false]", busy)
 	}
 }
+
+func TestShortWindowGrowsToPanel(t *testing.T) {
+	// A window shorter than the panel, as before the first measurement,
+	// must still let the panel take its own height for the window to follow.
+	h := newHarness(t, script{})
+	h.tt.SetSize(800, 1)
+	h.tt.Frame()
+	h.tt.Frame()
+	if h.p.height < 80 {
+		t.Errorf("panel measured %d high in a 1-high window; the window would never grow", h.p.height)
+	}
+}
