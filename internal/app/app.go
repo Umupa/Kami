@@ -13,6 +13,11 @@ import (
 	"github.com/egoist/mygo"
 
 	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/cida-next/internal/hotkey"
+	"github.com/Umupa/cida-next/internal/keyring"
+	"github.com/Umupa/cida-next/internal/llm"
+	"github.com/Umupa/cida-next/internal/mode"
+	"github.com/Umupa/cida-next/internal/panel"
 )
 
 // app is the running application. Menu and tray methods are safe from any
@@ -23,6 +28,8 @@ type app struct {
 	store     *config.Store
 	tray      *mygo.Tray
 	menu      *mygo.Menu
+	panel     *panel.Panel
+	hotkeys   *hotkey.Manager
 }
 
 // Run starts the app and returns when it quits. A second launch returns at
@@ -47,10 +54,15 @@ func Run() error {
 	if err := config.Prepare(dataDir); err != nil {
 		a.log.Error("prepare config", "err", err)
 	}
-	a.store = config.NewStore(filepath.Join(dataDir, config.FileName), nil)
+	a.store = config.NewStore(filepath.Join(dataDir, config.FileName), mode.Check)
 	a.logSnapshot(a.store.Snapshot())
 
 	ctx, stop := context.WithCancel(context.Background())
+	mygo.App.OnSecondInstance(func([]string, string) {
+		if a.panel != nil {
+			a.panel.Show()
+		}
+	})
 	mygo.App.WhenReady(func() { a.ready(ctx) })
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
 		stop()
@@ -62,9 +74,21 @@ func Run() error {
 }
 
 func (a *app) ready(ctx context.Context) {
+	a.panel = panel.New(panel.Deps{
+		Store:   a.store,
+		Keyring: keyring.System(),
+		Client:  func(config.Model) llm.Client { return llm.Demo{} },
+		Log:     a.log,
+		Demo:    mygo.IsDev(),
+	})
+	a.hotkeys = hotkey.NewManager(a.log)
+	a.applyShortcuts(a.store.Snapshot().Config)
+
 	a.menu = mygo.NewMenu([]*mygo.MenuItem{
 		{ID: "config-error", Hidden: true, Click: a.revealConfig},
 		{ID: "config-error-sep", Type: mygo.MenuItemSeparator, Hidden: true},
+		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
+		mygo.Separator(),
 		{Label: "打开配置文件夹", Click: a.revealConfig},
 		mygo.Separator(),
 		{Label: "退出 cida-next", Role: mygo.RoleQuit},
@@ -86,8 +110,19 @@ func (a *app) ready(ctx context.Context) {
 	a.store.Subscribe(func(s config.Snapshot) {
 		a.logSnapshot(s)
 		a.showSnapshot(s)
+		mygo.RunOnMain(func() { a.applyShortcuts(s.Config) })
 	})
 	go a.watchConfig(ctx)
+}
+
+// applyShortcuts registers the global shortcuts of c. Until selection import
+// lands, the selection shortcut shows the panel as it does without a
+// selection.
+func (a *app) applyShortcuts(c *config.Config) {
+	a.hotkeys.Apply([]hotkey.Binding{
+		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
+		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.panel.Toggle},
+	})
 }
 
 // watchConfig reloads the store whenever config.json changes, until ctx ends.
