@@ -99,9 +99,10 @@ func (p *Panel) fit(panel ui.Element) {
 		return
 	}
 	h := int(target)
-	// Following the divider or the user's size is immediate; growing with
-	// a reply eases.
-	if p.height != 0 && !p.split.active && p.fixedHeight == 0 {
+	// Only a reply growing as it streams eases; what a key or the pointer
+	// opens or moves (a menu, the divider, the user's size) changes the
+	// height at once, or the window would uncover it a row at a time.
+	if p.height != 0 && p.sess != nil && p.sess.Busy() && !p.split.active && p.fixedHeight == 0 {
 		h = int(math.Ceil(float64(panel.Animate("height", target, design.MotionHeight))))
 	}
 	if h == p.height {

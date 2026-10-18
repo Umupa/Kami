@@ -292,7 +292,7 @@ func TestStaleAfterEditingSource(t *testing.T) {
 }
 
 func TestHeightEases(t *testing.T) {
-	h := newHarness(t, script{pieces: []string{"line\n\nline\n\nline\n\nline\n\nline"}})
+	h := newHarness(t, script{pieces: []string{"line"}})
 	h.p.height = initialHeight // as Show sets it before the first measurement
 	h.tt.Frame()
 	for _, r := range h.sizes {
@@ -304,16 +304,19 @@ func TestHeightEases(t *testing.T) {
 	h.tt.Type("x")
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
+	h.tt.Advance(time.Second)
+
+	// A reply still streaming grows the window gradually.
+	turn := h.p.sess.Last()
+	turn.Status = session.Streaming
+	turn.Reply += strings.Repeat("\n\nmore", 6)
 	h.sizes = nil
+	h.tt.Frame()
 	h.tt.Advance(40 * time.Millisecond)
 	mid := h.p.height
 	h.tt.Advance(time.Second)
-	end := h.p.height
-	if !(mid < end) {
-		t.Errorf("height went %d then %d; want it to ease up", mid, end)
-	}
-	if len(h.sizes) < 2 {
-		t.Errorf("resized %d times while easing, want several", len(h.sizes))
+	if end := h.p.height; !(mid < end) || len(h.sizes) < 2 {
+		t.Errorf("height went %d then %d in %d steps; a streaming reply should ease", mid, end, len(h.sizes))
 	}
 }
 
@@ -496,5 +499,23 @@ func TestSplitterResizesSource(t *testing.T) {
 	h.tt.Frame()
 	if h.p.sourceHeight != 0 {
 		t.Error("a double click did not restore the default")
+	}
+}
+
+func TestMenuOpensAtOnce(t *testing.T) {
+	h := newHarness(t, script{})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	before := h.p.height
+	h.sizes = nil
+	h.tt.Type("/")
+	h.tt.Frame()
+	if len(h.sizes) == 0 {
+		t.Fatal("the window did not grow for the menu")
+	}
+	first := h.sizes[0].Height
+	h.tt.Advance(time.Second)
+	if last := h.sizes[len(h.sizes)-1].Height; first != last || first <= before {
+		t.Errorf("the window went %d → %d → %d; the menu should open in one step", before, first, last)
 	}
 }
