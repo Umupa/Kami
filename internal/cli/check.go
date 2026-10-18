@@ -23,7 +23,7 @@ const checkTimeout = 60 * time.Second
 type checkResult struct {
 	Model   string     `json:"model"`
 	OK      bool       `json:"ok"`
-	Millis  int64      `json:"ms,omitempty"`
+	Millis  int64      `json:"ms"`
 	Reply   string     `json:"reply,omitempty"`
 	Problem *checkFail `json:"error,omitempty"`
 }
@@ -126,7 +126,7 @@ func checkModel(env *Env, client llm.Client, m config.Model, verbose bool) check
 	start := time.Now()
 	err = client.Stream(ctx, req, func(s string) { reply.WriteString(s) })
 	r.Millis = time.Since(start).Milliseconds()
-	r.Reply = strings.ReplaceAll(strings.TrimSpace(reply.String()), key, "••••")
+	r.Reply = maskKey(strings.TrimSpace(reply.String()), key)
 	if err == nil && r.Reply == "" {
 		err = &llm.Error{Kind: llm.KindConfig, Detail: "the service answered with no text"}
 	}
@@ -138,11 +138,19 @@ func checkModel(env *Env, client llm.Client, m config.Model, verbose bool) check
 		} else if ctx.Err() != nil {
 			r.Problem = &checkFail{Kind: "timeout", Message: "the service did not answer within a minute"}
 		}
-		r.Problem.Message = strings.ReplaceAll(r.Problem.Message, key, "••••")
+		r.Problem.Message = maskKey(r.Problem.Message, key)
 		return r
 	}
 	r.OK = true
 	return r
+}
+
+// maskKey hides the key wherever a service echoes it back.
+func maskKey(s, key string) string {
+	if key == "" {
+		return s
+	}
+	return strings.ReplaceAll(s, key, "••••")
 }
 
 func printCheck(w io.Writer, r checkResult) {
