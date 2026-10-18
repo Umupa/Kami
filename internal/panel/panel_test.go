@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/cida-next/internal/config"
@@ -284,5 +285,18 @@ func TestHeightEases(t *testing.T) {
 	}
 	if len(h.sizes) < 2 {
 		t.Errorf("resized %d times while easing, want several", len(h.sizes))
+	}
+}
+
+func TestCodeBlockSpeaksChinese(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{"```go\nx := 1\n```\n"}})
+	h.tt.SetLocale("zh-Hans")
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	if h.tt.HasText("Copy") {
+		t.Errorf("the code block's button is in English: %q", h.tt.Texts())
 	}
 }

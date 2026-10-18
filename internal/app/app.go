@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	// MyGo's own strings in Simplified Chinese.
+	_ "github.com/egoist/mygo/locales/zh-Hans"
 
 	"github.com/Umupa/cida-next/internal/capture"
 	"github.com/Umupa/cida-next/internal/config"
@@ -52,6 +54,9 @@ func Run() error {
 		return nil
 	}
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
+	// The app is written in Simplified Chinese only, so MyGo's own controls
+	// and menu items speak it too.
+	mygo.App.SetLanguages("zh-Hans")
 
 	dataDir, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
