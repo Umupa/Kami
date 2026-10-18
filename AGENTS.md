@@ -9,6 +9,7 @@
 | `docs/` | 目标、需求、技术栈、架构、路线图、决策记录 |
 | `internal/` | 应用代码，模块划分见 [docs/architecture.md](docs/architecture.md) §一（M0 建立） |
 | `main.go` | 入口：带子命令（`key`、`check`）时是命令行，否则启动应用（M0 建立） |
+| `scripts/` | `build.sh` 构建签名的 `.app`；`dev-cert.sh` 创建本机签名身份（每台 Mac 一次） |
 | `scripts/dst/` | 把任务交给 dst 的脚本与配置（见「协作开发」） |
 | `.dst/` | 任务书与运行日志，不提交 |
 

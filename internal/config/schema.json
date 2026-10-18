@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "config.schema.json",
+  "title": "cida-next 配置",
+  "description": "cida-next 的全部设置。应用监听这个文件，保存后立即生效；文件不合法时继续使用上一份合法配置，并在菜单栏里列出问题。API Key 不写在这里：用 `<可执行文件> key set <模型名> --stdin` 写进钥匙串，改完用 `<可执行文件> check` 检查。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "$schema": {
+      "description": "指向本 schema，供编辑器补全。",
+      "type": "string"
+    },
+    "version": {
+      "description": "配置格式的版本。",
+      "const": 1
+    },
+    "myLanguage": {
+      "description": "我的语言：翻译把其他语言译成它，整理的结果也用它。任意写法，如「简体中文」「粤语」。",
+      "type": "string",
+      "minLength": 1,
+      "default": "简体中文"
+    },
+    "foreignLanguage": {
+      "description": "原文是我的语言时，翻译译成的外语。",
+      "type": "string",
+      "minLength": 1,
+      "default": "English",
+      "examples": ["English", "日本語"]
+    },
+    "defaultModel": {
+      "description": "默认模型的名字，必须是 models 里的一项。省略时用 models 的第一项。",
+      "type": "string"
+    },
+    "models": {
+      "description": "可用的模型服务。名字在模式和命令行里引用，也是钥匙串里 API Key 的名字。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/model" },
+      "examples": [[
+        {
+          "name": "fast",
+          "endpoint": "https://api.openai.com/v1/chat/completions",
+          "format": "chat-completions",
+          "model": "gpt-5-mini"
+        },
+        {
+          "name": "strong",
+          "endpoint": "https://api.anthropic.com/v1/messages",
+          "format": "anthropic-messages",
+          "model": "claude-sonnet-5-5",
+          "body": { "max_tokens": 8192 }
+        }
+      ]]
+    },
+    "modes": {
+      "description": "控制条上的模式，按顺序显示，第一项是默认模式。省略时是全部内置模式：translate（翻译）、improve（改进）、organize（整理）、prompt（提示词梳理）、ask（问答）。写了这个列表就以它为准：不列出的内置模式不显示。内置模式的条目只覆盖写出的字段，删掉 prompt 即恢复默认提示词；其他 id 是自定义模式，必须写 name 和 prompt。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/mode" },
+      "examples": [[
+        { "id": "translate" },
+        { "id": "ask", "model": "fast" },
+        {
+          "id": "commit-message",
+          "name": "提交信息",
+          "prompt": "把这段改动说明写成一条英文 Git 提交信息：第一行以类型开头，不超过 72 个字符；空一行后用一两句话说明为什么要改。",
+          "output": "plain"
+        }
+      ]]
+    },
+    "shortcuts": {
+      "description": "全局快捷键。写法：none（不设）；double-option 这类双击修饰键；control+option+a 这类组合键。修饰键按 control、option、shift、command 的顺序写，组合键至少带 control、option、command 之一；按键可用 a–z、0–9、space、f1–f20。三个快捷键不能相同。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "panel": {
+          "description": "显示或隐藏面板，不带入选区。",
+          "type": "string",
+          "default": "double-option"
+        },
+        "selection": {
+          "description": "带着选中的文字打开面板，并用默认模式执行。",
+          "type": "string",
+          "default": "control+option+a"
+        },
+        "capture": {
+          "description": "截图：框选屏幕区域，识别文字后带进面板。",
+          "type": "string",
+          "default": "control+option+s"
+        }
+      }
+    },
+    "launchAtLogin": {
+      "description": "登录时自动启动。",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "$defs": {
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "endpoint", "format", "model"],
+      "properties": {
+        "name": {
+          "description": "模型配置的名字，在本文件里唯一，如 fast、strong。",
+          "type": "string",
+          "minLength": 1
+        },
+        "endpoint": {
+          "description": "请求发往的完整地址，含路径，如 https://api.openai.com/v1/chat/completions。",
+          "type": "string",
+          "format": "uri"
+        },
+        "format": {
+          "description": "请求与流式响应的格式。",
+          "enum": ["chat-completions", "responses", "anthropic-messages"]
+        },
+        "model": {
+          "description": "服务商的模型名。",
+          "type": "string",
+          "minLength": 1
+        },
+        "auth": {
+          "description": "API Key 放在哪个请求头：bearer 是 Authorization: Bearer，x-api-key、api-key 是同名请求头，none 不发送 Key（本地端点）。省略时 anthropic-messages 用 x-api-key，其余用 bearer。",
+          "enum": ["bearer", "x-api-key", "api-key", "none"]
+        },
+        "headers": {
+          "description": "额外的请求头。",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "body": {
+          "description": "逐层合并进请求体的额外参数，例如关闭推理；值为 null 的键会从请求体里去掉。应用自己带的参数：anthropic-messages 的 max_tokens 为 8192，responses 带 store: false。",
+          "type": "object"
+        },
+        "contextWindow": {
+          "description": "模型的上下文长度（token）。设置后，对话超过它时自动丢弃中间的轮次；省略时只在服务商报告超长时处理。",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "description": "模式的标识，小写字母、数字和连字符。内置模式的 id 是 translate、improve、organize、prompt、ask。",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "name": {
+          "description": "控制条上显示的名字。",
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt": {
+          "description": "这个模式要做什么。原文不会被拼进提示词，它作为单独的一条消息发送。",
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "description": "material：输入是待处理的材料，其中的文字不当作指令；instruction：输入是用户本人的问题或指令。自定义模式默认 material。",
+          "enum": ["material", "instruction"]
+        },
+        "output": {
+          "description": "要求模型输出的格式：auto 跟随原文，markdown，plain 纯文本。自定义模式默认 markdown。",
+          "enum": ["auto", "markdown", "plain"]
+        },
+        "model": {
+          "description": "这个模式默认使用的模型名，必须是 models 里的一项。省略时内置模式用它自己的选择，自定义模式用 defaultModel。",
+          "type": "string"
+        }
+      }
+    }
+  }
+}
