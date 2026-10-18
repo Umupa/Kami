@@ -544,3 +544,40 @@ func TestMenuWaitsForWindow(t *testing.T) {
 		t.Errorf("menu drawn %v with the window %v for a panel %v", drawn(), wh, h.p.panelH)
 	}
 }
+
+func TestConversationFollowsItsEnd(t *testing.T) {
+	long := strings.Repeat("一段回复。\n\n", 60)
+	h := newHarness(t, script{pieces: []string{long}})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("hello")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.tt.Advance(2 * time.Second)
+	if !h.p.list.AtEnd() {
+		t.Error("a long reply did not keep its end in view")
+	}
+	if h.tt.HasText("完成") || h.tt.HasText("fast") {
+		t.Errorf("the footer still shows the status or model: %q", h.tt.Texts())
+	}
+	if _, ok := h.tt.Find("复制 Markdown ⌘C"); !ok {
+		t.Error("no copy icon")
+	}
+
+	h.tt.Scroll(400, 300, 0, -600)
+	h.tt.Advance(time.Second)
+	if h.p.list.AtEnd() || !h.tt.HasText("↓ 最新") {
+		t.Error("scrolling up did not stop following or show the way back")
+	}
+	h.snapshot("scrolled-up")
+
+	h.tt.Click("追问")
+	h.tt.Type("再说一遍")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.tt.Advance(2 * time.Second)
+	if !h.p.list.AtEnd() {
+		t.Error("a follow-up did not go to the end")
+	}
+	h.snapshot("follow-up-end")
+}

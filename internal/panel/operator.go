@@ -41,7 +41,7 @@ func (p *Panel) operatorActive() bool {
 func (p *Panel) runOperator(request string) {
 	p.stop()
 	p.notice = ""
-	p.result = ui.ScrollState{}
+	p.list = newList()
 	m := operatorMode
 	m.Model = p.cfg.DefaultModel
 	p.sess = session.New(m, request, m.Model)

@@ -332,19 +332,23 @@ func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
 }
 
 func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
-	// A long reply is read from its start: the result follows the end only
-	// once the user has scrolled down to it (Cida's panel.md §二).
-	if p.sess.Busy() && p.result.Y > 0 && p.result.Y >= p.result.MaxY-1 {
-		p.result.Y = math.MaxFloat32
-	}
-	result := ui.Scroll(c.Key("result")).TrackScroll(&p.result).Grow(1).Shrink(1).MinHeight(0)
-	p.sparkle(c, result, pal)
-	result.PaddingX(design.SpaceX).PaddingY(design.SpaceResultY).Gap(design.SpaceTurns).
-		Children(func() {
-			for i := range p.sess.Turns {
-				p.turnView(c.Key(i), pal, i)
+	ui.Box(c.Key("result")).Grow(1).Shrink(1).MinHeight(0).Children(func() {
+		list := ui.List(c, &p.list, len(p.sess.Turns), func(i int) {
+			p.turnView(c, pal, i)
+		}).Fill().PaddingX(design.SpaceX).PaddingY(design.SpaceResultY).Gap(design.SpaceTurns)
+		p.sparkle(c, list, pal)
+		if !p.list.AtEnd() {
+			// Back to the latest, and following it again.
+			jump := ui.Row(c.Key("latest")).Gap(4).PaddingX(9).PaddingY(4).Radius(design.RadiusChip).
+				Background(pal.Raised).Border(1, pal.Border).Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Right(18).Bottom(10)
+			jump.Children(func() {
+				ui.Text(c, "↓ 最新").FontSize(p.sz.Caption).TextColor(pal.Bright)
+			})
+			if jump.Clicked() {
+				p.list.ScrollToEnd()
 			}
-		})
+		}
+	})
 }
 
 func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
@@ -386,51 +390,38 @@ func (p *Panel) thinking(c *ui.Context, pal *design.Palette) {
 	})
 }
 
-// turnFooter shows how a turn ended and what can be done with it: always
-// under the latest turn, on hover under the others.
+// turnFooter shows what can be done with a turn, as icons: always under
+// the latest turn, on hover under the others. Its left says only what is
+// unusual: a stale result, turns left out, a source answered in parts.
 func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 	t := &p.sess.Turns[i]
 	last := i == len(p.sess.Turns)-1
-	ui.Row(c.Key("footer")).Gap(10).Children(func() {
-		var parts []string
-		switch {
-		case t.Local:
-			parts = append(parts, "cida-next")
-		default:
-			if p.sess.Operator {
-				parts = append(parts, "operator")
-			}
-			parts = append(parts, map[session.Status]string{
-				session.Streaming: "生成中 ⌘. 停止",
-				session.Done:      "完成",
-				session.Stopped:   "已停止",
-				session.Failed:    "失败",
-			}[t.Status])
-			if t.Model != "" {
-				parts = append(parts, t.Model)
-			}
-		}
+	ui.Row(c.Key("footer")).Gap(2).Height(p.sz.Label + 14).Children(func() {
+		var notes []string
 		if t.Dropped > 0 {
-			parts = append(parts, fmt.Sprintf("省略了之前 %d 轮", t.Dropped))
+			notes = append(notes, fmt.Sprintf("省略了之前 %d 轮", t.Dropped))
 		}
 		if t.Parts > 1 {
-			parts = append(parts, fmt.Sprintf("分 %d 段处理", t.Parts))
+			notes = append(notes, fmt.Sprintf("分 %d 段处理", t.Parts))
 		}
-		ui.Text(c, strings.Join(parts, " · ")).FontSize(p.sz.Caption).TextColor(pal.Faint)
+		if len(notes) > 0 {
+			ui.Text(c, strings.Join(notes, " · ")).FontSize(p.sz.Caption).TextColor(pal.Faint)
+		}
 		if last && p.stale() {
-			ui.Text(c, "原文或模式已改 ⏎ 重新执行").FontSize(p.sz.Caption).TextColor(pal.Sparkle)
+			ui.Text(c, "原文或模式已改 ⏎ 重新执行").FontSize(p.sz.Caption).TextColor(pal.Sparkle).MarginStart(8)
 		}
 		ui.Spacer(c)
-		if t.Undoable {
-			p.action(c, pal, "撤销", pal.Operator, func() { p.undoOperator() })
-		}
 		if t.Status == session.Streaming || t.Reply == "" {
 			return
 		}
-		if last && !t.Local {
-			p.action(c, pal, "重新生成", pal.Muted, p.retry)
+		if t.Undoable {
+			p.iconButton(c, pal, "undo", undoIcon, "撤销这次修改 ⌘Z", pal.Operator, func() { p.undoOperator() })
 		}
-		ui.Text(c, "复制为…").FontSize(p.sz.Caption).TextColor(pal.Muted).Menu(func(m *ui.Menu) {
+		if last && !t.Local {
+			p.iconButton(c, pal, "retry", retryIcon, "重新生成", pal.Muted, p.retry)
+		}
+		more := p.iconButton(c, pal, "copy-as", moreIcon, "复制为…", pal.Muted, nil)
+		more.Menu(func(m *ui.Menu) {
 			if m.Item("纯文本").Chosen() {
 				p.writeClipboard(plaintext.FromMarkdown(t.Reply))
 			}
@@ -441,15 +432,15 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 				p.writeClipboard(t.Reply)
 			}
 		})
-		label := "复制"
+		icon, tip, col := copyIcon, "复制 Markdown", pal.Muted
 		if last {
-			label = "复制 ⌘C"
+			tip = "复制 Markdown ⌘C"
 		}
 		if p.copiedTurn == i && c.Now().Sub(p.copiedAt) < design.MotionCopiedHold {
-			label = "✓ 已复制"
+			icon, tip, col = checkIcon, "已复制", pal.Code
 			c.After(design.MotionCopiedHold)
 		}
-		p.action(c, pal, label, pal.Muted, func() { p.copyTurn(i) })
+		p.iconButton(c, pal, "copy", icon, tip, col, func() { p.copyTurn(i) })
 	})
 	if t.Status == session.Failed {
 		title, next := failureText(t.Err)
@@ -460,16 +451,31 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 	}
 }
 
-// action is a text button of a turn's footer, brighter on hover.
-func (p *Panel) action(c *ui.Context, pal *design.Palette, label string, color ui.Color, fn func()) {
-	t := ui.Text(c.Key(label), label).FontSize(p.sz.Caption)
-	if t.Hovered() {
-		color = pal.Bright
+// Icons of the turn footer, drawn in the text color.
+var (
+	copyIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.6V3.2A1.7 1.7 0 0 0 8.8 1.5H4.2A1.7 1.7 0 0 0 2.5 3.2v4.6a1.7 1.7 0 0 0 1.7 1.7h.4"/></svg>`))
+	checkIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>`))
+	moreIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5l4 4 4-4"/></svg>`))
+	retryIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v3h3"/></svg>`))
+	undoIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8H7"/></svg>`))
+)
+
+// iconButton is an icon of a turn's footer, with its name as tooltip and
+// label; it brightens on hover.
+func (p *Panel) iconButton(c *ui.Context, pal *design.Palette, key string, icon *ui.SVG, tip string, col ui.Color, fn func()) ui.Element {
+	b := ui.Box(c.Key(key)).Padding(4).Radius(design.RadiusChip).Label(tip).Tooltip(tip)
+	if b.Hovered() {
+		b.Background(pal.Raised)
+		if col == pal.Muted {
+			col = pal.Bright
+		}
 	}
-	t.TextColor(color)
-	if t.Clicked() {
+	size := p.sz.Label + 2
+	b.Children(func() { ui.Icon(c, icon).Size(size, size).TextColor(col) })
+	if fn != nil && b.Clicked() {
 		fn()
 	}
+	return b
 }
 
 // failureText says what failed and what to do, by what the user can do

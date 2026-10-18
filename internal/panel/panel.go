@@ -82,8 +82,11 @@ type Panel struct {
 	font  design.FontPreset
 
 	// pinned keeps the panel when another app takes the keyboard.
-	pinned   bool
-	result   ui.ScrollState
+	pinned bool
+	// list is the conversation, which follows its end as a coding agent's
+	// transcript does: a reply streaming in stays in view until the user
+	// scrolls up, and scrolling back down follows again.
+	list     ui.ListState
 	sourceIn ui.Handle
 	followIn ui.Handle
 	// Whether the inputs had a selection in the last frame: Cmd-C copies it
@@ -211,7 +214,7 @@ func New(d Deps) *Panel {
 
 // newPanel returns a panel without a window, as tests drive it.
 func newPanel(d Deps) *Panel {
-	p := &Panel{deps: d, post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich}
+	p := &Panel{deps: d, list: newList(), post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich}
 	p.applyConfig(d.Store.Snapshot().Config)
 	p.md = markdown.Options{Reveal: &markdown.Reveal{Unit: markdown.ByWord, CatchUp: design.MotionCatchUp, Fade: design.MotionWordFade}}
 	return p
@@ -334,7 +337,7 @@ func (p *Panel) run() {
 	p.notice = ""
 	m := p.modes[p.modeIdx]
 	p.sess = session.New(m, p.source, m.Model)
-	p.result = ui.ScrollState{}
+	p.list = newList()
 	p.start()
 }
 
@@ -346,6 +349,8 @@ func (p *Panel) send() {
 	}
 	p.sess.FollowUp(ask, p.sess.Last().Model)
 	p.follow = ""
+	// A follow-up goes to the end, wherever the user had scrolled.
+	p.list.ScrollToEnd()
 	p.start()
 }
 
@@ -485,4 +490,9 @@ func (p *Panel) finish(sess *session.Session, turn int, err error) {
 			p.deps.Log.Warn("request failed", "kind", le.Kind.String(), "status", le.Status)
 		}
 	}
+}
+
+// newList returns the state of a new conversation's list.
+func newList() ui.ListState {
+	return ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}
 }
