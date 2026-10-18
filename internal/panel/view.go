@@ -94,7 +94,8 @@ func (p *Panel) view(c *ui.Context) {
 // panel appears at once. The window is transparent, so while it eases the
 // panel is cut off at its bottom or has nothing below it.
 func (p *Panel) fit(panel ui.Element) {
-	target := float32(math.Ceil(float64(panel.Bounds().H)))
+	p.panelH = panel.Bounds().H
+	target := float32(math.Ceil(float64(p.panelH)))
 	if target <= 0 {
 		return
 	}

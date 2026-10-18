@@ -94,6 +94,12 @@ type Panel struct {
 	// the source the menu was closed for with Escape.
 	menuIdx    int
 	menuClosed string
+	// menuRows is how many rows the menu has; menuGrew counts the frames
+	// since it opened or grew, while it waits for the window (menuWaiting).
+	menuRows, menuGrew int
+	menuHidden         bool
+	// panelH is the panel's height as the last frame laid it out.
+	panelH float32
 	// caretToEnd puts the caret after the source's text in the next frame,
 	// as after a command was picked.
 	caretToEnd bool

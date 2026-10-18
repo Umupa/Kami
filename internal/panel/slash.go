@@ -185,6 +185,34 @@ func clip(s string) string {
 	return s
 }
 
+// menuWaiting reports whether a menu that just opened or grew waits for the
+// window: until a frame has measured the panel with it, and the window is
+// as tall as that.
+func (p *Panel) menuWaiting(c *ui.Context, rows int) bool {
+	if rows > p.menuRows {
+		p.menuGrew = 0
+	}
+	p.menuRows = rows
+	if p.menuGrew < 2 {
+		// This frame lays the menu out; the next measures it.
+		p.menuGrew++
+		c.Invalidate()
+		return true
+	}
+	_, windowH := c.Size()
+	if windowH+1 < p.panelH && p.menuGrew < menuWaitFrames {
+		// A window that does not grow, as at the screen's limit, is not
+		// waited for long.
+		p.menuGrew++
+		c.Invalidate()
+		return true
+	}
+	return false
+}
+
+// menuWaitFrames bounds how long a menu waits for the window.
+const menuWaitFrames = 10
+
 // menuKey handles a key while a menu shows.
 func (p *Panel) menuKey(k ui.TextKey, pal *design.Palette) bool {
 	kind, items := p.menu(pal)
@@ -226,10 +254,19 @@ func (p *Panel) previewTheme(pal *design.Palette) string {
 func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 	kind, items := p.menu(pal)
 	if kind == menuNone {
+		p.menuRows = 0
 		return
 	}
 	ui.Divider(c).Background(pal.Border)
-	ui.Column(c.Key("menu")).Shrink(0).Padding(6, 10).Gap(1).Children(func() {
+	menu := ui.Column(c.Key("menu")).Shrink(0).Padding(6, 10).Gap(1)
+	p.menuHidden = p.menuWaiting(c, len(items))
+	if p.menuHidden {
+		// Laid out but not drawn until the window has grown to hold it:
+		// drawn before, the window's edge would cut it, and it would show
+		// a row at a time as the window catches up.
+		menu.Invisible()
+	}
+	menu.Children(func() {
 		if len(items) == 0 {
 			ui.Text(c, "没有匹配的项").FontSize(p.sz.Label).TextColor(pal.Faint).Padding(6, 10)
 			return

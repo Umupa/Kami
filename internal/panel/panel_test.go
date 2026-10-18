@@ -519,3 +519,28 @@ func TestMenuOpensAtOnce(t *testing.T) {
 		t.Errorf("the window went %d → %d → %d; the menu should open in one step", before, first, last)
 	}
 }
+
+// TestMenuWaitsForWindow plays the window: it stays as tall as the app last
+// asked, one step behind, as the real window is.
+func TestMenuWaitsForWindow(t *testing.T) {
+	h := newHarness(t, script{})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	wh := h.p.height
+	h.tt.SetSize(820, wh)
+	drawn := func() bool { return h.tt.HasText("/ask") && !h.p.menuHidden }
+	h.tt.Type("/")
+	var seen []bool
+	for i := 0; i < 6; i++ {
+		seen = append(seen, drawn())
+		if n := len(h.sizes); n > 0 {
+			wh = h.sizes[n-1].Height // the window catches up
+			h.tt.SetSize(820, wh)
+		}
+		h.tt.Frame()
+	}
+	_ = seen
+	if !drawn() || float32(wh)+1 < h.p.panelH {
+		t.Errorf("menu drawn %v with the window %v for a panel %v", drawn(), wh, h.p.panelH)
+	}
+}
