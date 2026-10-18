@@ -6,7 +6,7 @@
 ┌───────────────────────────────────────────────────────────────────┐
 │ 界面层      MyGo ui（GPU 自绘，Core Text 排字） + ui/markdown           │
 ├───────────────────────────────────────────────────────────────────┤
-│ 桌面能力    MyGo：面板窗口、全局快捷键、菜单栏、钥匙串、剪贴板、           │
+│ 桌面能力    MyGo：面板窗口、全局快捷键、菜单栏、剪贴板、                 │
 │            透明穿透窗口、开机启动、单实例、打包签名、更新                  │
 ├───────────────────────────────────────────────────────────────────┤
 │ 系统集成    purego / purego/objc → ApplicationServices（辅助功能）、       │
@@ -68,7 +68,6 @@
 | 菜单栏图标与菜单 | `NewTray`、`NewMenu`，模板图标 |
 | 鼠标所在屏幕、可见区域 | `Screen.CursorScreenPoint`、`Screen.DisplayNearestPoint(...).WorkArea` |
 | 截图的框选窗口 | `Transparent`、`Frameless`、`AlwaysOnTop`、`SetVisibleOnAllWorkspaces` |
-| API Key | `mygo.Secrets`（macOS 登录钥匙串） |
 | 剪贴板读写 | `mygo.Clipboard`（多格式）；需要逐项备份与临时标记时走 purego（§四） |
 | 配置文件位置 | `App.Path(PathUserData)` → `~/Library/Application Support/<Name>` |
 | 开机启动、单实例 | `App.SetOpenAtLogin`、`App.RequestSingleInstanceLock` |
@@ -111,11 +110,11 @@ MyGo 内部有自己的 Objective-C 封装，但在 `internal/` 里，不能引�
 | --- | --- | --- |
 | 模型配置（不含 Key）、模式、快捷键、我的语言、外语、开机启动 | `~/Library/Application Support/cida-next/config.json` | JSON，带版本号与 `$schema`，原子写入（临时文件 + rename） |
 | 配置说明 | 同目录 `config.schema.json` | JSON Schema，应用启动时写出 |
-| API Key | 登录钥匙串（`mygo.Secrets`） | 每个模型配置一项 |
+| API Key | 同 `config.json`，每个模型的 `apiKey` | 文件权限 0600 |
 | 会话、原文、结果 | **只在内存** | 不落盘 |
 | 日志 | `~/Library/Logs/cida-next/`，`log/slog` 文本格式 | 只记事件与耗时，不记文字 |
 
-agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后立即生效；命令行只负责钥匙串与检查（architecture.md §七）。
+agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后立即生效；命令行只负责检查（architecture.md §七）。
 
 ## 七、测试与质量
 

@@ -13,7 +13,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/mode"
 )
 
@@ -22,7 +21,7 @@ var update = flag.Bool("update", false, "rewrite the snapshots in testdata")
 const testConfig = `{
   "version": 1,
   "models": [
-    {"name": "fast", "endpoint": "https://api.example.com/v1/chat/completions", "format": "chat-completions", "model": "small-1"},
+    {"name": "fast", "endpoint": "https://api.example.com/v1/chat/completions", "format": "chat-completions", "model": "small-1", "apiKey": "sk-fast-test-key"},
     {"name": "strong", "endpoint": "https://api.example.com/v1/messages", "format": "anthropic-messages", "model": "large-2"}
   ]
 }`
@@ -38,7 +37,6 @@ func newTestSettings(t *testing.T) (*Settings, string, *bool) {
 	s := &Settings{
 		deps: Deps{
 			Store:        store,
-			Keyring:      keyring.NewMemory(),
 			Log:          slog.New(slog.NewTextHandler(io.Discard, nil)),
 			CopyPrompt:   func() {},
 			RevealConfig: func() {},
@@ -48,7 +46,6 @@ func newTestSettings(t *testing.T) (*Settings, string, *bool) {
 				{Name: "屏幕录制", Purpose: "截图识别", Granted: func() bool { return false }, Request: func() {}},
 			},
 		},
-		keys:    map[string]bool{"fast": true},
 		checks:  map[string]check{},
 		snap:    store.Snapshot(),
 		version: "0.1.0",
@@ -80,7 +77,7 @@ func TestTabs(t *testing.T) {
 	}
 	s.tab = 0
 	tt.Frame()
-	if !tt.HasText("API Key 已保存在钥匙串") || !tt.HasText("small-1 · chat-completions · api.example.com") {
+	if !tt.HasText("API Key 已配置") || !tt.HasText("small-1 · chat-completions · api.example.com") {
 		t.Errorf("models tab shows %q", tt.Texts())
 	}
 }

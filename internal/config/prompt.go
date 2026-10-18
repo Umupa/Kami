@@ -14,14 +14,12 @@ type PromptInput struct {
 	// Dir holds config.json and its schema.
 	Dir      string
 	Snapshot Snapshot
-	// HasKey reports whether a model's API key is in the keychain.
-	HasKey func(model string) bool
 }
 
 // AgentPrompt returns the prompt the user hands an AI assistant to configure
 // the app (Cida's configuration.md §五): where everything is, how keys stay
-// out of the conversation, how to check, and the task that fits the current
-// state. It never contains a key.
+// are handled, how to check, and the task that fits the current state. It
+// never contains a key.
 func AgentPrompt(in PromptInput) string {
 	exe := quote(in.Exe)
 	cfgPath := filepath.Join(in.Dir, FileName)
@@ -32,7 +30,7 @@ func AgentPrompt(in PromptInput) string {
 	w("请帮我配置 cida-next 使用的大模型服务。cida-next 是一个 macOS 菜单栏应用，你需要能在这台 Mac 上运行命令。\n\n")
 	w("## 怎么配置\n\n")
 	w("- 设置都在 %s，每个字段的含义、取值和示例在 %s：先读 schema，再直接编辑 config.json。保存后正在运行的应用立即生效；文件不合法时，应用继续用上一份合法配置。\n", cfgPath, schemaPath)
-	w("- API Key 不写进 config.json，也不要出现在对话里、命令行参数里或任何文件里。需要时请我把 Key 复制到剪贴板，然后运行：\n\n  pbpaste | %s key set <模型名> --stdin\n\n  Key 已经在环境变量或文件里时，改用 --env <变量名> 或 --file <路径>。已经保存过的 Key 不用再要。\n", exe)
+	w("- API Key 写在对应模型的 apiKey 字段里。需要时向我要 Key；不要在回复里复述 Key，也不要把它写到 config.json 以外的地方。已经配置过的 Key 不用再要。\n")
 	w("- 改完运行 %s check 检查全部模型。失败时运行 %s check <模型名> --verbose，看实际发出的请求和服务的回应，按这些证据修改后再检查；不要重复同一个失败的做法。\n", exe, exe)
 	w("- 模型的推理（thinking、reasoning）能关就关，关不掉就设到最低档：翻译、润色用不到它，只会变慢。用模型的 body 字段设置，以服务商文档为准。\n")
 	w("- 只改需要改的字段，不要擅自更换我选的服务或模型。需要我提供信息、授权或处理账户问题时，说明要我做什么，然后等我。\n\n")
@@ -47,8 +45,8 @@ func AgentPrompt(in PromptInput) string {
 		switch {
 		case m.Auth == AuthNone:
 			key = "不需要 Key"
-		case in.HasKey != nil && in.HasKey(m.Name):
-			key = "Key 已保存"
+		case m.APIKey != "":
+			key = "Key 已配置"
 		}
 		w("- %s：%s，%s，%s，%s\n", m.Name, m.Format, m.Model, host(m.Endpoint), key)
 	}

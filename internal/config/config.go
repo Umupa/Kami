@@ -21,13 +21,14 @@ type Config struct {
 	LaunchAtLogin   bool      `json:"launchAtLogin,omitempty"`
 }
 
-// Model is one named model service. Its API key is not here: it lives in the
-// keychain under the model's name.
+// Model is one named model service.
 type Model struct {
 	Name     string `json:"name"`
 	Endpoint string `json:"endpoint"`
 	Format   Format `json:"format"`
 	Model    string `json:"model"`
+	// APIKey is the service's key, empty for services that take none.
+	APIKey string `json:"apiKey,omitempty"`
 	// Auth is the header that carries the key; empty picks the format's.
 	Auth    Auth              `json:"auth,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`

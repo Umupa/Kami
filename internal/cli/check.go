@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 )
 
@@ -102,13 +101,9 @@ func runCheck(env *Env, args []string) int {
 
 func checkModel(env *Env, client llm.Client, m config.Model, verbose bool) checkResult {
 	r := checkResult{Model: m.Name}
-	key, err := env.Keyring.Get(m.Name)
-	switch {
-	case errors.Is(err, keyring.ErrNotFound) && m.Auth != config.AuthNone:
-		r.Problem = &checkFail{Kind: "config", Message: fmt.Sprintf("还没有「%s」的 API Key：用 key set %s --stdin 写进钥匙串。", m.Name, m.Name)}
-		return r
-	case err != nil && !errors.Is(err, keyring.ErrNotFound):
-		r.Problem = &checkFail{Kind: "keychain", Message: "读不了钥匙串里的 API Key。"}
+	key := m.APIKey
+	if key == "" && m.Auth != config.AuthNone {
+		r.Problem = &checkFail{Kind: "config", Message: fmt.Sprintf("「%s」没有 apiKey：在 config.json 里给这个模型加上 apiKey。", m.Name)}
 		return r
 	}
 	if verbose {

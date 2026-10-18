@@ -34,7 +34,7 @@ func TestAgentPromptQuotesExecutable(t *testing.T) {
 			for _, want := range []string{
 				filepath.Join(dir, FileName),
 				filepath.Join(dir, SchemaFileName),
-				"pbpaste | " + tc.wantQuoted + " key set <模型名> --stdin",
+				"apiKey",
 				tc.wantQuoted + " check 检查全部模型",
 				tc.wantQuoted + " check <模型名> --verbose",
 			} {
@@ -42,17 +42,22 @@ func TestAgentPromptQuotesExecutable(t *testing.T) {
 					t.Errorf("prompt does not contain %q", want)
 				}
 			}
+			if strings.Contains(prompt, "key set") {
+				t.Error("prompt still tells the assistant to run key set")
+			}
 		})
 	}
 }
 
 func TestAgentPromptModelSummary(t *testing.T) {
+	const fastKey = "sk-fast-distinctive-secret"
 	cfg := &Config{Models: []Model{
 		{
 			Name:     "fast",
 			Endpoint: "https://fast.example.com/v1/chat/completions",
 			Format:   FormatChatCompletions,
 			Model:    "gpt-fast",
+			APIKey:   fastKey,
 			Auth:     AuthBearer,
 		},
 		{
@@ -74,11 +79,10 @@ func TestAgentPromptModelSummary(t *testing.T) {
 		Exe:      "/bin/cida-next",
 		Dir:      t.TempDir(),
 		Snapshot: Snapshot{Config: cfg},
-		HasKey:   func(model string) bool { return model == "fast" },
 	})
 
 	wantLines := []string{
-		"- fast：chat-completions，gpt-fast，fast.example.com，Key 已保存\n",
+		"- fast：chat-completions，gpt-fast，fast.example.com，Key 已配置\n",
 		"- strong：anthropic-messages，claude，api.strong.example.com:8443，不需要 Key\n",
 		"- local：responses，local，127.0.0.1:8080，Key 未设置\n",
 	}
@@ -86,6 +90,9 @@ func TestAgentPromptModelSummary(t *testing.T) {
 		if got := strings.Count(prompt, want); got != 1 {
 			t.Errorf("prompt contains the summary line %q %d times, want 1", want, got)
 		}
+	}
+	if strings.Contains(prompt, fastKey) {
+		t.Error("prompt contains the model's API key")
 	}
 }
 
@@ -173,6 +180,7 @@ func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
 			Endpoint:      "https://api.example.com/secret-path?token=secret-query",
 			Format:        FormatChatCompletions,
 			Model:         "alpha-model",
+			APIKey:        "secret-api-key-value",
 			Auth:          AuthBearer,
 			Headers:       map[string]string{"X-Secret-Header": "secret-header-value"},
 			Body:          map[string]any{"api_key": "secret-body-value"},
@@ -184,13 +192,13 @@ func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
 		Exe:      "/bin/cida-next",
 		Dir:      t.TempDir(),
 		Snapshot: Snapshot{Config: cfg},
-		HasKey:   func(string) bool { return true },
 	})
 
 	for _, secret := range []string{
 		"secret-schema-value",
 		"secret-language-value",
 		"secret-foreign-value",
+		"secret-api-key-value",
 		"secret-path",
 		"secret-query",
 		"secret-header-value",
@@ -202,7 +210,7 @@ func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
 			t.Errorf("prompt leaks the config value %q", secret)
 		}
 	}
-	wantLine := "- alpha：chat-completions，alpha-model，api.example.com，Key 已保存\n"
+	wantLine := "- alpha：chat-completions，alpha-model，api.example.com，Key 已配置\n"
 	if got := strings.Count(prompt, wantLine); got != 1 {
 		t.Errorf("prompt contains the summary line %q %d times, want 1", wantLine, got)
 	}

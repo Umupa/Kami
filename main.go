@@ -11,7 +11,6 @@ import (
 
 	"github.com/Umupa/cida-next/internal/app"
 	"github.com/Umupa/cida-next/internal/cli"
-	"github.com/Umupa/cida-next/internal/keyring"
 )
 
 func main() {
@@ -23,11 +22,9 @@ func main() {
 		}
 		os.Exit(cli.Run(&cli.Env{
 			ConfigDir: dir,
-			Keyring:   keyring.System(),
 			Stdin:     os.Stdin,
 			Stdout:    os.Stdout,
 			Stderr:    os.Stderr,
-			Getenv:    os.Getenv,
 		}, os.Args[1:]))
 	}
 	if err := app.Run(); err != nil {

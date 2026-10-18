@@ -16,7 +16,6 @@ import (
 
 	"github.com/Umupa/cida-next/internal/config"
 	"github.com/Umupa/cida-next/internal/design"
-	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 	"github.com/Umupa/cida-next/internal/mode"
 	"github.com/Umupa/cida-next/internal/segment"
@@ -25,8 +24,7 @@ import (
 
 // Deps are what the panel works with.
 type Deps struct {
-	Store   *config.Store
-	Keyring keyring.Keyring
+	Store *config.Store
 	// Client returns the client of a model's format.
 	Client func(config.Model) llm.Client
 	Log    *slog.Logger
@@ -310,21 +308,13 @@ func (p *Panel) start() {
 		p.finish(sess, turn, errNoModel)
 		return
 	}
-	req := llm.Request{Model: model, System: mode.System(sess.Mode, p.cfg), Messages: sess.Messages()}
+	req := llm.Request{Model: model, Key: model.APIKey, System: mode.System(sess.Mode, p.cfg), Messages: sess.Messages()}
 	material := sess.Mode.Input == config.InputMaterial
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 	p.setBusy(true)
 	go func() {
 		defer cancel()
-		if ok && model.Auth != config.AuthNone {
-			// The keychain may ask the user, so it is read off the main thread.
-			key, err := p.deps.Keyring.Get(model.Name)
-			if err != nil && !errors.Is(err, keyring.ErrNotFound) {
-				p.deps.Log.Warn("read key", "model", model.Name, "err", err)
-			}
-			req.Key = key
-		}
 		replied := false
 		emit := func(text string) {
 			replied = true

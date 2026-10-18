@@ -1,14 +1,18 @@
 // Package cli is the command line of the app's executable. It covers only
-// what editing config.json cannot: storing API keys in the keychain and
-// checking that the configuration works.
+// what editing config.json cannot: checking that the configuration works.
 package cli
 
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/Umupa/cida-next/internal/keyring"
+	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/cida-next/internal/mode"
+
 	"github.com/Umupa/cida-next/internal/llm"
 )
 
@@ -17,19 +21,15 @@ const (
 	ExitOK          = 0
 	ExitUsage       = 64 // also: the configuration is invalid
 	ExitCheckFailed = 69
-	ExitKeychain    = 74
 )
 
 // Env is what a command runs against.
 type Env struct {
 	// ConfigDir holds config.json and its schema.
 	ConfigDir string
-	Keyring   keyring.Keyring
 	Stdin     io.Reader
 	Stdout    io.Writer
 	Stderr    io.Writer
-	// Getenv reads the environment, for --env.
-	Getenv func(string) string
 	// Client sends check's requests; nil uses HTTP.
 	Client llm.Client
 }
@@ -37,7 +37,6 @@ type Env struct {
 // commands are the subcommands; Handles reports the first argument of one.
 var commands = map[string]func(env *Env, args []string) int{
 	"help":  runHelp,
-	"key":   runKey,
 	"check": runCheck,
 }
 
@@ -71,10 +70,8 @@ const usage = `用法：cida-next <命令> [参数]
 字段说明见同目录的 config.schema.json。
 
 命令：
-  help                      显示本帮助
-  key set <模型名> --stdin|--file 路径|--env 名称   把 API Key 存进钥匙串
-  key unset <模型名>                               删除钥匙串里的 API Key
-  check [模型名] [--verbose] [--json]               校验配置，并向每个模型发一个小请求
+  help                                 显示本帮助
+  check [模型名] [--verbose] [--json]   校验配置，并向每个模型发一个小请求
 
 配置目录：%s
 `
@@ -82,4 +79,35 @@ const usage = `用法：cida-next <命令> [参数]
 func runHelp(env *Env, _ []string) int {
 	fmt.Fprintf(env.Stdout, usage, env.ConfigDir)
 	return ExitOK
+}
+
+// readConfig reads and validates config.json as the app does.
+func readConfig(env *Env) (*config.Config, error) {
+	path := filepath.Join(env.ConfigDir, config.FileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("读不了配置文件 %s：%w", path, err)
+	}
+	cfg, err := config.Decode(data)
+	if err == nil {
+		err = mode.Check(cfg)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("配置文件 %s 有问题：\n%w", path, err)
+	}
+	return cfg, nil
+}
+
+// missingModelMessage names the configured models so that the caller can pick
+// a valid one without opening config.json.
+func missingModelMessage(cfg *config.Config, model string) string {
+	names := make([]string, 0, len(cfg.Models))
+	for _, m := range cfg.Models {
+		names = append(names, m.Name)
+	}
+	if len(names) == 0 {
+		return fmt.Sprintf("配置里没有名为「%s」的模型，配置里还没有任何模型。", model)
+	}
+	slices.Sort(names)
+	return fmt.Sprintf("配置里没有名为「%s」的模型，已配置的模型：%s。", model, strings.Join(names, "、"))
 }

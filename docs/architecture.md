@@ -20,14 +20,13 @@ cida-next/
 │   ├── capture/            截图：冻结屏幕、框选窗口、识别文字
 │   ├── settings/           设置窗口：展示配置状态、检查模型、授权、录制快捷键；改动写回 config.json
 │   ├── config/             配置读写、校验、schema、热加载、配置提示词
-│   ├── keyring/            钥匙串里的 API Key，每个模型一项
 │   ├── cli/                命令行子命令：key、check
 │   ├── design/             设计 token：颜色、字号、间距、动效时长
 │   └── macos/              purego 绑定，按框架分文件：ax、cgevent、eventtap、pasteboard、vision、sck、tis
 └── docs/
 ```
 
-依赖方向：`app` → `panel` / `capture` / `settings` / `hotkey` → `session` / `mode` / `selection` → `llm` / `config` / `keyring` → `macos`。`session`、`mode`、`llm`、`config` 不依赖 UI，全部可以无窗口测试。
+依赖方向：`app` → `panel` / `capture` / `settings` / `hotkey` → `session` / `mode` / `selection` → `llm` / `config` → `macos`。`session`、`mode`、`llm`、`config` 不依赖 UI，全部可以无窗口测试。
 
 ## 二、线程与状态
 
@@ -151,10 +150,10 @@ CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）
 - **热加载**：应用监听文件变化，读入后整体校验（JSON 语法给出行列，未知字段、取值、引用逐项给出路径）；通过则原子替换内存里的配置，进行中的请求继续用旧配置。省略的字段在读入时补上默认值，文件本身不改。
 - **出错不崩溃**：不合法时保留上一份合法配置，菜单栏标出错误，提示出错的字段路径与原因；修好后自动恢复。
 - **应用自己写回时**（设置窗口、快捷键录制）用临时文件 + rename 原子写入，保留未知字段。
-- **命令行只有两个子命令**，与应用是同一个可执行文件、同一个签名，读写钥匙串不弹授权。第一个参数只要不以 `-` 开头就走命令行，打错的命令报错而不是启动应用；以 `-` 开头的留给应用（macOS 可能传 `-psn_…`）：
-  - `key set <模型名> --stdin | --file 路径 | --env 名称`、`key unset <模型名>`：API Key 只经这里进出钥匙串，不写进文件，也不出现在 agent 的对话里。
-  - `check [<模型名>] [--verbose] [--json]`：校验配置并真的请求一次；退出码 0 成功、64 配置不合法、69 检查失败、74 钥匙串拒绝写入（同辞达 configuration.md §二）。
-- **配置提示词**：菜单栏和设置窗口里的「复制配置提示词」生成一段说明：配置文件与 schema 的路径、可执行文件的绝对路径、写 Key 的方式（`pbpaste | … key set 名称 --stdin`）、改完运行 `check`、当前配置摘要（不含 Key）。
+- **API Key** 写在每个模型的 `apiKey` 里。它只用于请求头；日志、`check` 的输出、配置提示词里都不出现，服务商回显时打码。
+- **命令行只有 `check`**，与应用是同一个可执行文件。第一个参数只要不以 `-` 开头就走命令行，打错的命令报错而不是启动应用；以 `-` 开头的留给应用（macOS 可能传 `-psn_…`）：
+  - `check [<模型名>] [--verbose] [--json]`：校验配置并真的请求一次；退出码 0 成功、64 配置不合法、69 检查失败（同辞达 configuration.md §二）。
+- **配置提示词**：菜单栏和设置窗口里的「复制配置提示词」生成一段说明：配置文件与 schema 的路径、可执行文件的绝对路径、Key 写在 `apiKey` 且不要复述、改完运行 `check`、当前配置摘要（不含 Key）。
 
 ## 八、错误模型
 

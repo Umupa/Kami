@@ -18,7 +18,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 	"github.com/Umupa/cida-next/internal/mode"
 	"github.com/Umupa/cida-next/internal/session"
@@ -26,7 +25,9 @@ import (
 
 var update = flag.Bool("update", false, "rewrite the snapshots in testdata")
 
-const testConfig = `{"version":1,"models":[{"name":"fast","endpoint":"https://example.com/v1","format":"chat-completions","model":"m"}]}`
+const testAPIKey = "sk-panel-test-key"
+
+const testConfig = `{"version":1,"models":[{"name":"fast","endpoint":"https://example.com/v1","format":"chat-completions","model":"m","apiKey":"` + testAPIKey + `"}]}`
 
 // script is a client that replies with fixed pieces.
 type script struct{ pieces []string }
@@ -59,10 +60,9 @@ func newHarness(t *testing.T, client llm.Client) *harness {
 	}
 	h := &harness{t: t}
 	h.p = newPanel(Deps{
-		Store:   config.NewStore(path, mode.Check),
-		Keyring: keyring.NewMemory(),
-		Client:  func(config.Model) llm.Client { return client },
-		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:  config.NewStore(path, mode.Check),
+		Client: func(config.Model) llm.Client { return client },
+		Log:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	h.p.post = func(fn func()) {
 		h.mu.Lock()
@@ -145,6 +145,27 @@ func TestEnterRunsDefaultMode(t *testing.T) {
 		t.Error("the window was never fitted to the panel")
 	}
 	h.snapshot("result")
+}
+
+func TestRequestCarriesModelAPIKey(t *testing.T) {
+	var got llm.Request
+	h := newHarness(t, clientFunc(func(ctx context.Context, req llm.Request, onText func(string)) error {
+		got = req
+		onText("ok")
+		return nil
+	}))
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("source")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+
+	if got.Key != testAPIKey {
+		t.Errorf("request key = %q, want the model's apiKey", got.Key)
+	}
+	if got.Model.Name != "fast" {
+		t.Errorf("request model = %q, want fast", got.Model.Name)
+	}
 }
 
 func TestTabCyclesModes(t *testing.T) {

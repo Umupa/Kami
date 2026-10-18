@@ -94,7 +94,7 @@ func (s *Settings) modelsTab(c *ui.Context, pal *design.Palette) {
 			})
 			ui.Text(c, fmt.Sprintf("%s · %s · %s", m.Model, m.Format, host(m.Endpoint))).
 				FontSize(design.FontSecondary).TextColor(pal.TextMuted)
-			ui.Text(c, keyState(m, s.keys)).FontSize(design.FontLabel).TextColor(pal.TextMuted)
+			ui.Text(c, keyState(m)).FontSize(design.FontLabel).TextColor(pal.TextMuted)
 			if ck := s.checks[m.Name]; !ck.at.IsZero() {
 				mark, color := "✗ ", pal.Text
 				if ck.ok {
@@ -114,14 +114,14 @@ func (s *Settings) modelsTab(c *ui.Context, pal *design.Palette) {
 	s.agentRow(c, pal)
 }
 
-func keyState(m config.Model, keys map[string]bool) string {
+func keyState(m config.Model) string {
 	switch {
 	case m.Auth == config.AuthNone:
 		return "不需要 API Key"
-	case keys[m.Name]:
-		return "API Key 已保存在钥匙串"
+	case m.APIKey != "":
+		return "API Key 已配置"
 	}
-	return "还差 API Key：复制配置提示词，按 AI 助手的提示把 Key 交给 cida-next，Key 不必发进对话。"
+	return "还差 API Key：在 config.json 里给这个模型加上 apiKey，或复制配置提示词交给 AI 助手。"
 }
 
 func host(endpoint string) string {

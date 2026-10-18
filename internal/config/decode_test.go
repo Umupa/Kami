@@ -120,6 +120,44 @@ func TestDecodeFullConfig(t *testing.T) {
 	}
 }
 
+func TestDecodeAPIKeyRoundTrip(t *testing.T) {
+	const key = "sk-round-trip-distinctive"
+	const data = `{
+  "version": 1,
+  "models": [
+    {
+      "name": "fast",
+      "endpoint": "https://example.com/v1",
+      "format": "chat-completions",
+      "model": "m",
+      "apiKey": "sk-round-trip-distinctive"
+    }
+  ]
+}`
+
+	cfg, err := Decode([]byte(data))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if got := cfg.Models[0].APIKey; got != key {
+		t.Fatalf("APIKey = %q, want %q", got, key)
+	}
+	encoded, err := Encode(cfg)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"apiKey": "`+key+`"`) {
+		t.Errorf("Encode did not write apiKey:\n%s", encoded)
+	}
+	again, err := Decode(encoded)
+	if err != nil {
+		t.Fatalf("Decode(Encode): %v", err)
+	}
+	if got := again.Models[0].APIKey; got != key {
+		t.Errorf("decoded APIKey = %q, want %q", got, key)
+	}
+}
+
 func TestDecodeMinimalConfig(t *testing.T) {
 	cfg, err := Decode([]byte(`{"version":1}`))
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,23 +13,30 @@ import (
 	"time"
 
 	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 )
 
-const (
-	checkTestAlphaConfig = `{
+// checkTestAlphaConfig returns a config.json with one alpha model. apiKey is
+// left out when empty, which is what check reports as a missing key.
+func checkTestAlphaConfig(apiKey string) string {
+	key := ""
+	if apiKey != "" {
+		key = fmt.Sprintf(",\n      \"apiKey\": %q", apiKey)
+	}
+	return fmt.Sprintf(`{
   "version": 1,
   "models": [
     {
       "name": "alpha",
       "endpoint": "https://alpha.example.com/v1/chat/completions",
       "format": "chat-completions",
-      "model": "alpha-model"
+      "model": "alpha-model"%s
     }
   ]
-}`
+}`, key)
+}
 
+const (
 	checkTestTwoModels = `{
   "version": 1,
   "defaultModel": "alpha",
@@ -37,13 +45,15 @@ const (
       "name": "alpha",
       "endpoint": "https://alpha.example.com/v1/chat/completions",
       "format": "chat-completions",
-      "model": "alpha-model"
+      "model": "alpha-model",
+      "apiKey": "key-alpha"
     },
     {
       "name": "beta",
       "endpoint": "https://beta.example.com/v1/chat/completions",
       "format": "chat-completions",
-      "model": "beta-model"
+      "model": "beta-model",
+      "apiKey": "key-beta"
     }
   ]
 }`
@@ -66,7 +76,6 @@ type checkTestEnv struct {
 	t      *testing.T
 	dir    string
 	env    *Env
-	memory *keyring.Memory
 	client *checkFakeClient
 	stdout bytes.Buffer
 	stderr bytes.Buffer
@@ -77,16 +86,13 @@ func newCheckTestEnv(t *testing.T) *checkTestEnv {
 	te := &checkTestEnv{
 		t:      t,
 		dir:    t.TempDir(),
-		memory: keyring.NewMemory(),
 		client: newCheckFakeClient(),
 	}
 	te.env = &Env{
 		ConfigDir: te.dir,
-		Keyring:   te.memory,
 		Stdin:     strings.NewReader(""),
 		Stdout:    &te.stdout,
 		Stderr:    &te.stderr,
-		Getenv:    func(string) string { return "" },
 		Client:    te.client,
 	}
 	return te
@@ -96,13 +102,6 @@ func (te *checkTestEnv) writeConfig(data string) {
 	te.t.Helper()
 	if err := os.WriteFile(filepath.Join(te.dir, config.FileName), []byte(data), 0o600); err != nil {
 		te.t.Fatalf("write config.json: %v", err)
-	}
-}
-
-func (te *checkTestEnv) storeKey(model, key string) {
-	te.t.Helper()
-	if err := te.memory.Set(model, key); err != nil {
-		te.t.Fatalf("Memory.Set: %v", err)
 	}
 }
 
@@ -342,7 +341,7 @@ func TestCheckRejectsTwoModels(t *testing.T) {
 
 func TestCheckMissingKey(t *testing.T) {
 	te := newCheckTestEnv(t)
-	te.writeConfig(checkTestAlphaConfig)
+	te.writeConfig(checkTestAlphaConfig(""))
 
 	if code := te.runCheck("--json"); code != ExitCheckFailed {
 		t.Fatalf("exit = %d, want %d", code, ExitCheckFailed)
@@ -367,8 +366,8 @@ func TestCheckMissingKey(t *testing.T) {
 	if fail.Error.Kind != "config" {
 		t.Errorf("kind = %q, want config", fail.Error.Kind)
 	}
-	if !strings.Contains(fail.Error.Message, "key set") {
-		t.Errorf("message = %q, want a key set instruction", fail.Error.Message)
+	if !strings.Contains(fail.Error.Message, "apiKey") {
+		t.Errorf("message = %q, want an apiKey instruction", fail.Error.Message)
 	}
 	if te.client.count() != 0 {
 		t.Errorf("requests = %d, want 0", te.client.count())
@@ -425,8 +424,6 @@ func TestCheckAllModelsAnswer(t *testing.T) {
 	t.Run("text", func(t *testing.T) {
 		te := newCheckTestEnv(t)
 		te.writeConfig(checkTestTwoModels)
-		te.storeKey("alpha", "key-alpha")
-		te.storeKey("beta", "key-beta")
 		te.client.answer("alpha", "first reply")
 		te.client.answer("beta", "second reply")
 
@@ -461,8 +458,6 @@ func TestCheckAllModelsAnswer(t *testing.T) {
 	t.Run("json", func(t *testing.T) {
 		te := newCheckTestEnv(t)
 		te.writeConfig(checkTestTwoModels)
-		te.storeKey("alpha", "key-alpha")
-		te.storeKey("beta", "key-beta")
 		te.client.answer("alpha", "first reply")
 		te.client.answer("beta", "second reply")
 		te.client.delay = 5 * time.Millisecond
@@ -512,8 +507,7 @@ func TestCheckAllModelsAnswer(t *testing.T) {
 
 func TestCheckLimitedError(t *testing.T) {
 	te := newCheckTestEnv(t)
-	te.writeConfig(checkTestAlphaConfig)
-	te.storeKey("alpha", "key-alpha")
+	te.writeConfig(checkTestAlphaConfig("key-alpha"))
 	te.client.failWith("alpha", &llm.Error{Kind: llm.KindLimited, Status: 429, Detail: "too many requests"})
 
 	if code := te.runCheck("--json"); code != ExitCheckFailed {
@@ -543,8 +537,7 @@ func TestCheckLimitedError(t *testing.T) {
 
 func TestCheckEmptyReply(t *testing.T) {
 	te := newCheckTestEnv(t)
-	te.writeConfig(checkTestAlphaConfig)
-	te.storeKey("alpha", "key-alpha")
+	te.writeConfig(checkTestAlphaConfig("key-alpha"))
 
 	if code := te.runCheck("--json"); code != ExitCheckFailed {
 		t.Fatalf("exit = %d, want %d", code, ExitCheckFailed)
@@ -575,8 +568,7 @@ func TestCheckMasksKey(t *testing.T) {
 	t.Run("reply", func(t *testing.T) {
 		const secret = "sk-check-secret-reply"
 		te := newCheckTestEnv(t)
-		te.writeConfig(checkTestAlphaConfig)
-		te.storeKey("alpha", secret)
+		te.writeConfig(checkTestAlphaConfig(secret))
 		te.client.answer("alpha", "the key is "+secret)
 
 		if code := te.runCheck(); code != ExitOK {
@@ -594,8 +586,7 @@ func TestCheckMasksKey(t *testing.T) {
 	t.Run("llm error detail", func(t *testing.T) {
 		const secret = "sk-check-secret-detail"
 		te := newCheckTestEnv(t)
-		te.writeConfig(checkTestAlphaConfig)
-		te.storeKey("alpha", secret)
+		te.writeConfig(checkTestAlphaConfig(secret))
 		te.client.failWith("alpha", &llm.Error{Kind: llm.KindConfig, Detail: "rejected key " + secret})
 
 		if code := te.runCheck("--json"); code != ExitCheckFailed {
@@ -613,8 +604,7 @@ func TestCheckMasksKey(t *testing.T) {
 	t.Run("plain error detail", func(t *testing.T) {
 		const secret = "sk-check-secret-plain"
 		te := newCheckTestEnv(t)
-		te.writeConfig(checkTestAlphaConfig)
-		te.storeKey("alpha", secret)
+		te.writeConfig(checkTestAlphaConfig(secret))
 		te.client.failWith("alpha", &checkTestError{message: "rejected key " + secret})
 
 		if code := te.runCheck("--json"); code != ExitCheckFailed {
@@ -633,8 +623,7 @@ func TestCheckMasksKey(t *testing.T) {
 func TestCheckVerbose(t *testing.T) {
 	const secret = "sk-check-secret-verbose"
 	te := newCheckTestEnv(t)
-	te.writeConfig(checkTestAlphaConfig)
-	te.storeKey("alpha", secret)
+	te.writeConfig(checkTestAlphaConfig(secret))
 	te.client.answer("alpha", "ok")
 
 	if code := te.runCheck("--verbose"); code != ExitOK {
@@ -662,8 +651,6 @@ func TestCheckVerbose(t *testing.T) {
 func TestCheckOneModel(t *testing.T) {
 	te := newCheckTestEnv(t)
 	te.writeConfig(checkTestTwoModels)
-	te.storeKey("alpha", "key-alpha")
-	te.storeKey("beta", "key-beta")
 	te.client.answer("alpha", "alpha reply")
 	te.client.answer("beta", "beta reply")
 

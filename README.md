@@ -8,7 +8,7 @@
 
 ## 状态
 
-一期功能已实现，等待统一实测：面板与多轮对话、五个内置模式、三种模型格式、带入选区、截图识别、设置窗口、配置接口（`config.json` + `key` / `check`）。
+一期功能已实现，等待统一实测：面板与多轮对话、五个内置模式、三种模型格式、带入选区、截图识别、设置窗口、配置接口（`config.json` + `check`）。
 
 构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/cida-next.app`。
 

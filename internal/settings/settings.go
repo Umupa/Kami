@@ -13,16 +13,14 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 )
 
 // Deps are what the window works with.
 type Deps struct {
-	Store   *config.Store
-	Keyring keyring.Keyring
-	Client  func(config.Model) llm.Client
-	Log     *slog.Logger
+	Store  *config.Store
+	Client func(config.Model) llm.Client
+	Log    *slog.Logger
 	// CopyPrompt copies the configuration prompt for an AI assistant.
 	CopyPrompt func()
 	// RevealConfig shows config.json in Finder.
@@ -47,11 +45,8 @@ type Settings struct {
 	win  *mygo.Window
 	post func(func())
 
-	tab  int
-	snap config.Snapshot
-	// keys says which models have a key in the keychain, read off the main
-	// thread when the window opens.
-	keys   map[string]bool
+	tab    int
+	snap   config.Snapshot
 	checks map[string]check
 	// recording is the shortcut field waiting for a key, "" when none.
 	recording string
@@ -71,7 +66,7 @@ type check struct {
 
 // New returns the settings, without a window until Show.
 func New(d Deps) *Settings {
-	s := &Settings{deps: d, keys: map[string]bool{}, checks: map[string]check{}, version: mygo.App.Version()}
+	s := &Settings{deps: d, checks: map[string]check{}, version: mygo.App.Version()}
 	d.Store.Subscribe(func(snap config.Snapshot) {
 		if s.post != nil {
 			s.post(func() { s.setSnapshot(snap) })
@@ -104,36 +99,19 @@ func (s *Settings) Show() {
 	mygo.App.Focus()
 }
 
-func (s *Settings) setSnapshot(snap config.Snapshot) {
-	s.snap = snap
-	models := snap.Config.Models
-	go func() {
-		keys := map[string]bool{}
-		for _, m := range models {
-			_, err := s.deps.Keyring.Get(m.Name)
-			keys[m.Name] = err == nil
-		}
-		if s.post != nil {
-			s.post(func() { s.keys = keys })
-		}
-	}()
-}
+func (s *Settings) setSnapshot(snap config.Snapshot) { s.snap = snap }
 
 // runCheck pings a model off the main thread.
 func (s *Settings) runCheck(m config.Model) {
 	s.checks[m.Name] = check{running: true}
 	go func() {
-		key, err := s.deps.Keyring.Get(m.Name)
 		var c check
-		switch {
-		case errors.Is(err, keyring.ErrNotFound) && m.Auth != config.AuthNone:
+		if m.APIKey == "" && m.Auth != config.AuthNone {
 			c.message = "还差 API Key。"
-		case err != nil && !errors.Is(err, keyring.ErrNotFound):
-			c.message = "读不了钥匙串里的 API Key。"
-		default:
+		} else {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
-			reply, took, perr := llm.Ping(ctx, s.deps.Client(m), m, key)
+			reply, took, perr := llm.Ping(ctx, s.deps.Client(m), m, m.APIKey)
 			c.took = took
 			if perr == nil {
 				c.ok, c.message = true, "回复「"+reply+"」"

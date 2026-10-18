@@ -17,7 +17,6 @@ import (
 	"github.com/Umupa/cida-next/internal/capture"
 	"github.com/Umupa/cida-next/internal/config"
 	"github.com/Umupa/cida-next/internal/hotkey"
-	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 	"github.com/Umupa/cida-next/internal/macos"
 	"github.com/Umupa/cida-next/internal/mode"
@@ -73,6 +72,7 @@ func Run() error {
 		a.log.Error("prepare config", "err", err)
 	}
 	a.store = config.NewStore(filepath.Join(dataDir, config.FileName), mode.Check)
+	a.migrateKeys()
 	a.logSnapshot(a.store.Snapshot())
 
 	ctx, stop := context.WithCancel(context.Background())
@@ -93,11 +93,10 @@ func Run() error {
 
 func (a *app) ready(ctx context.Context) {
 	a.panel = panel.New(panel.Deps{
-		Store:   a.store,
-		Keyring: keyring.System(),
-		Client:  func(config.Model) llm.Client { return llm.HTTP{} },
-		Log:     a.log,
-		Demo:    mygo.IsDev(),
+		Store:  a.store,
+		Client: func(config.Model) llm.Client { return llm.HTTP{} },
+		Log:    a.log,
+		Demo:   mygo.IsDev(),
 		OpenSettings: func() {
 			a.panel.Hide()
 			a.settings.Show()
@@ -112,7 +111,6 @@ func (a *app) ready(ctx context.Context) {
 	a.capturer = capture.New(a.log, a.captured)
 	a.settings = settings.New(settings.Deps{
 		Store:        a.store,
-		Keyring:      keyring.System(),
 		Client:       func(config.Model) llm.Client { return llm.HTTP{} },
 		Log:          a.log,
 		CopyPrompt:   func() { a.copyAgentPrompt(nil, nil) },
@@ -377,28 +375,18 @@ func (a *app) logSnapshot(s config.Snapshot) {
 }
 
 // copyAgentPrompt copies the prompt that has an AI assistant configure the
-// app. Reading the keychain may wait on the user, so it runs off the main
-// thread.
+// app.
 func (a *app) copyAgentPrompt(*mygo.MenuItem, *mygo.Window) {
 	exe, err := mygo.App.Path(mygo.PathExe)
 	if err != nil {
 		a.log.Error("executable path", "err", err)
 		return
 	}
-	snap := a.store.Snapshot()
-	go func() {
-		keys := keyring.System()
-		prompt := config.AgentPrompt(config.PromptInput{
-			Exe:      exe,
-			Dir:      a.configDir,
-			Snapshot: snap,
-			HasKey: func(model string) bool {
-				_, err := keys.Get(model)
-				return err == nil
-			},
-		})
-		mygo.Clipboard.WriteText(prompt)
-	}()
+	mygo.Clipboard.WriteText(config.AgentPrompt(config.PromptInput{
+		Exe:      exe,
+		Dir:      a.configDir,
+		Snapshot: a.store.Snapshot(),
+	}))
 }
 
 func (a *app) revealConfig(*mygo.MenuItem, *mygo.Window) {

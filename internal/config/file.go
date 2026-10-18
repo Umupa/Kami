@@ -27,7 +27,8 @@ func Schema() []byte { return schema }
 var starter = Config{Schema: "./" + SchemaFileName, Version: Version}
 
 // Prepare makes dir ready for an agent: it writes the schema of this build,
-// and a starter config.json when there is none. It never overwrites a config.
+// and a starter config.json when there is none. It never overwrites a config,
+// but makes it readable by the user alone.
 func Prepare(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -37,7 +38,11 @@ func Prepare(dir string) error {
 	}
 	path := filepath.Join(dir, FileName)
 	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
-		return err
+		if err != nil {
+			return err
+		}
+		// It holds API keys: only the user may read it, whatever wrote it.
+		return os.Chmod(path, 0o600)
 	}
 	data, err := Encode(&starter)
 	if err != nil {
