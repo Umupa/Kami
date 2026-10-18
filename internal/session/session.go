@@ -26,6 +26,10 @@ type Turn struct {
 	Model  string
 	Status Status
 	Err    error
+	// Dropped is how many earlier turns were left out of the request to fit
+	// the model's context; Parts how many parts a too-long source was
+	// answered in, 0 when it went whole.
+	Dropped, Parts int
 }
 
 // Session is a conversation. Its methods are not safe for concurrent use:
@@ -54,7 +58,7 @@ func (s *Session) FollowUp(ask, model string) {
 // Retry clears the latest turn's reply so that it runs again.
 func (s *Session) Retry() {
 	t := s.Last()
-	t.Reply, t.Status, t.Err = "", Streaming, nil
+	t.Reply, t.Status, t.Err, t.Dropped, t.Parts = "", Streaming, nil, 0, 0
 }
 
 // Messages returns the conversation up to the latest turn, for its request:

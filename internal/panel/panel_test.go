@@ -21,6 +21,7 @@ import (
 	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 	"github.com/Umupa/cida-next/internal/mode"
+	"github.com/Umupa/cida-next/internal/session"
 )
 
 var update = flag.Bool("update", false, "rewrite the snapshots in testdata")
@@ -298,5 +299,69 @@ func TestCodeBlockSpeaksChinese(t *testing.T) {
 	h.drain()
 	if h.tt.HasText("Copy") {
 		t.Errorf("the code block's button is in English: %q", h.tt.Texts())
+	}
+}
+
+// limited refuses requests whose messages are longer than limit bytes.
+type limited struct {
+	limit int
+	reqs  *[][]llm.Message
+}
+
+func (l limited) Stream(ctx context.Context, req llm.Request, onText func(string)) error {
+	n := 0
+	for _, m := range req.Messages {
+		n += len(m.Content)
+	}
+	*l.reqs = append(*l.reqs, req.Messages)
+	if n > l.limit {
+		return &llm.Error{Kind: llm.KindTooLong, Status: 400}
+	}
+	onText("[" + strings.TrimSpace(req.Messages[len(req.Messages)-1].Content) + "]")
+	return nil
+}
+
+func TestTooLongSourceIsAnsweredInParts(t *testing.T) {
+	var reqs [][]llm.Message
+	h := newHarness(t, limited{limit: 25, reqs: &reqs})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.p.source = "First paragraph here.\n\nSecond paragraph here.\n\nThird one."
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	turn := h.p.sess.Last()
+	if turn.Status != session.Done || turn.Parts < 2 {
+		t.Fatalf("status %v, parts %d, err %v", turn.Status, turn.Parts, turn.Err)
+	}
+	if !strings.Contains(turn.Reply, "[First paragraph here.]") || !strings.Contains(turn.Reply, "[Third one.]") {
+		t.Errorf("reply = %q", turn.Reply)
+	}
+}
+
+func TestTooLongConversationKeepsSourceTurn(t *testing.T) {
+	var reqs [][]llm.Message
+	h := newHarness(t, limited{limit: 1 << 20, reqs: &reqs})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("source")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	for _, ask := range []string{"one", "two", "three"} {
+		h.tt.Click("追问")
+		h.tt.Type(ask)
+		h.tt.Key(0, ui.KeyEnter)
+		h.drain()
+	}
+	// The service now takes less than the conversation.
+	h.p.deps.Client = func(config.Model) llm.Client { return limited{limit: 30, reqs: &reqs} }
+	h.tt.Click("追问")
+	h.tt.Type("four")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	turn := h.p.sess.Last()
+	last := reqs[len(reqs)-1]
+	if turn.Status != session.Done || turn.Dropped != 3 || len(last) != 3 || last[0].Content != "source" || last[2].Content != "four" {
+		t.Errorf("status %v dropped %d, last request %+v", turn.Status, turn.Dropped, last)
 	}
 }

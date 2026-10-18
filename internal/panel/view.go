@@ -2,6 +2,7 @@ package panel
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/egoist/mygo/ui"
@@ -218,6 +219,12 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 		}[t.Status]
 		if t.Model != "" {
 			status += " · " + t.Model
+		}
+		if t.Dropped > 0 {
+			status += fmt.Sprintf(" · 为放进上下文省略了之前 %d 轮", t.Dropped)
+		}
+		if t.Parts > 1 {
+			status += fmt.Sprintf(" · 原文较长，分 %d 段处理", t.Parts)
 		}
 		ui.Text(c, status).FontSize(design.FontCaption).TextColor(pal.TextMuted)
 		if p.stale() {

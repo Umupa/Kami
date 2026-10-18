@@ -15,9 +15,10 @@ cida-next/
 │   ├── mode/               模式：内置预设、提示词组装与合约
 │   ├── llm/                模型客户端：三种格式、SSE、错误分类、长度超限分段
 │   ├── plaintext/          Markdown 转纯文本，供「复制纯文本」
+│   ├── segment/            过长原文的拆分：段落 → 换行 → 句子 → 空白 → 字符
 │   ├── selection/          带入选区（辅助功能 + 复制兜底 + 剪贴板恢复）
 │   ├── capture/            截图：冻结屏幕、框选窗口、识别文字
-│   ├── settings/           设置窗口
+│   ├── settings/           设置窗口：展示配置状态、检查模型、授权、录制快捷键；改动写回 config.json
 │   ├── config/             配置读写、校验、schema、热加载、配置提示词
 │   ├── keyring/            钥匙串里的 API Key，每个模型一项
 │   ├── cli/                命令行子命令：key、check

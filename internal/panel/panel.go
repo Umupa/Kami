@@ -19,6 +19,7 @@ import (
 	"github.com/Umupa/cida-next/internal/keyring"
 	"github.com/Umupa/cida-next/internal/llm"
 	"github.com/Umupa/cida-next/internal/mode"
+	"github.com/Umupa/cida-next/internal/segment"
 	"github.com/Umupa/cida-next/internal/session"
 )
 
@@ -310,6 +311,7 @@ func (p *Panel) start() {
 		return
 	}
 	req := llm.Request{Model: model, System: mode.System(sess.Mode, p.cfg), Messages: sess.Messages()}
+	material := sess.Mode.Input == config.InputMaterial
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 	p.setBusy(true)
@@ -323,15 +325,56 @@ func (p *Panel) start() {
 			}
 			req.Key = key
 		}
-		err := client.Stream(ctx, req, func(text string) {
+		replied := false
+		emit := func(text string) {
+			replied = true
 			p.post(func() {
 				if p.sess == sess {
 					sess.Turns[turn].Reply += text
 				}
 			})
+		}
+		send := func(ctx context.Context, msgs []llm.Message, onText func(string)) error {
+			r := req
+			r.Messages = msgs
+			return client.Stream(ctx, r, onText)
+		}
+		msgs, dropped := fitContext(req, model)
+		err := send(ctx, msgs, emit)
+		parts := 0
+		if session.TooLong(err) && !replied {
+			switch {
+			case len(req.Messages) > 3:
+				// The model's limit is lower than configured, or unknown:
+				// keep the source turn, so that the request can still refer
+				// to its result, and the request itself.
+				all := req.Messages
+				msgs = []llm.Message{all[0], all[1], all[len(all)-1]}
+				dropped = (len(all) - 3) / 2
+				err = send(ctx, msgs, emit)
+			case len(req.Messages) == 1 && material:
+				parts, err = session.StreamParts(ctx, msgs[0].Content, segment.Split,
+					func(ctx context.Context, part string, onText func(string)) error {
+						return send(ctx, []llm.Message{{Role: llm.RoleUser, Content: part}}, onText)
+					}, emit)
+			}
+		}
+		p.post(func() {
+			t := &sess.Turns[turn]
+			t.Dropped, t.Parts = dropped, parts
+			p.finish(sess, turn, err)
 		})
-		p.post(func() { p.finish(sess, turn, err) })
 	}()
+}
+
+// fitContext leaves out earlier turns that do not fit the model's context
+// window, keeping room for the reply.
+func fitContext(req llm.Request, m config.Model) ([]llm.Message, int) {
+	if m.ContextWindow <= 0 {
+		return req.Messages, 0
+	}
+	reserve := min(8192, m.ContextWindow/4)
+	return session.Trim(req.Messages, m.ContextWindow-reserve-session.EstimateTokens(req.System))
 }
 
 // finish records how a turn ended.
