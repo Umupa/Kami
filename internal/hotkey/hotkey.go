@@ -49,6 +49,7 @@ func (m *Manager) Apply(bindings []Binding) {
 			m.log.Warn("register shortcut", "name", b.Name, "shortcut", b.Shortcut, "err", err)
 			continue
 		}
+		m.log.Info("registered shortcut", "name", b.Name, "accelerator", acc)
 		m.registered = append(m.registered, acc)
 	}
 }

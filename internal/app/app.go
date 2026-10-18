@@ -131,6 +131,7 @@ func (a *app) ready(ctx context.Context) {
 // lands, the selection shortcut shows the panel as it does without a
 // selection.
 func (a *app) applyShortcuts(c *config.Config) {
+	a.log.Info("apply shortcuts", "panel", c.Shortcuts.Panel, "selection", c.Shortcuts.Selection)
 	a.hotkeys.Apply([]hotkey.Binding{
 		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
 		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.panel.Toggle},

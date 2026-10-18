@@ -9,6 +9,7 @@ import (
 
 	"github.com/Umupa/cida-next/internal/design"
 	"github.com/Umupa/cida-next/internal/llm"
+	"github.com/Umupa/cida-next/internal/plaintext"
 	"github.com/Umupa/cida-next/internal/session"
 )
 
@@ -195,6 +196,9 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 		if t.Status != session.Streaming {
 			if ui.Text(c, "重新生成").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
 				p.retry()
+			}
+			if t.Reply != "" && ui.Text(c, "复制纯文本").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
+				p.writeClipboard(plaintext.FromMarkdown(t.Reply))
 			}
 			if t.Reply != "" && ui.Text(c, "复制 ⌘C").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
 				p.copyTurn(i)

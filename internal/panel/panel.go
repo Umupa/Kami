@@ -95,14 +95,31 @@ func New(d Deps) *Panel {
 	})
 	// Escape and Cmd-W close a panel; hiding keeps its state and shows it
 	// at once the next time.
+	// Quitting must still close it, or the app could not quit.
+	quitting := false
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting = true })
 	p.win.OnClose(func(e *mygo.CloseEvent) {
+		if quitting {
+			return
+		}
 		e.PreventDefault()
 		p.win.Hide()
 	})
-	p.win.OnBlur(p.win.Hide)
+	p.win.OnBlur(func() {
+		d.Log.Debug("panel blur")
+		p.win.Hide()
+	})
+	p.win.OnFocus(func() { d.Log.Debug("panel focus") })
+	p.win.OnShow(func() { d.Log.Debug("panel shown", "bounds", p.win.Bounds()) })
+	p.win.OnHide(func() { d.Log.Debug("panel hidden") })
 	p.post = p.win.Update
 	// Resizing re-enters layout, so it waits until the view has been built.
-	p.resize = func(r mygo.Rectangle) { go p.win.SetBounds(r) }
+	p.resize = func(r mygo.Rectangle) {
+		go func() {
+			p.win.SetBounds(r)
+			d.Log.Debug("panel resize", "want", r, "got", p.win.Bounds())
+		}()
+	}
 	d.Store.Subscribe(func(s config.Snapshot) {
 		p.post(func() { p.applyConfig(s.Config) })
 	})
@@ -139,6 +156,8 @@ func (p *Panel) Show() {
 	p.win.SetBounds(p.place.bounds(p.height))
 	p.win.Show()
 	p.sourceIn.Focus()
+	p.deps.Log.Info("panel show", "work", d.WorkArea, "want", p.place.bounds(p.height),
+		"got", p.win.Bounds(), "visible", p.win.IsVisible())
 }
 
 // Hide hides the panel. A request in progress goes on.
