@@ -260,3 +260,29 @@ func TestStaleAfterEditingSource(t *testing.T) {
 		t.Error("an edit started a request on its own")
 	}
 }
+
+func TestHeightEases(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{"line\n\nline\n\nline\n\nline\n\nline"}})
+	h.p.height = initialHeight // as Show sets it before the first measurement
+	h.tt.Frame()
+	for _, r := range h.sizes {
+		if r.Height < 60 {
+			t.Fatalf("the window dropped to %d while settling: %v", r.Height, h.sizes)
+		}
+	}
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.sizes = nil
+	h.tt.Advance(40 * time.Millisecond)
+	mid := h.p.height
+	h.tt.Advance(time.Second)
+	end := h.p.height
+	if !(mid < end) {
+		t.Errorf("height went %d then %d; want it to ease up", mid, end)
+	}
+	if len(h.sizes) < 2 {
+		t.Errorf("resized %d times while easing, want several", len(h.sizes))
+	}
+}
