@@ -99,8 +99,14 @@ func (c *Capturer) show() {
 			DisableShadow:     true,
 			Content:           ui.View(c.view),
 		})
-		// Escape closes a panel; it cancels the capture instead.
+		// Escape closes a panel; it cancels the capture instead. Quitting
+		// must still close it, or the app could not quit.
+		quitting := false
+		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting = true })
 		c.win.OnClose(func(e *mygo.CloseEvent) {
+			if quitting {
+				return
+			}
 			e.PreventDefault()
 			c.finish(nil)
 		})
