@@ -128,7 +128,7 @@ CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）
 ### ⌥S 截图
 
 ```
-热键 → 隐藏面板 → ScreenCaptureKit 截取鼠标所在屏幕（冻结画面）
+热键 → 隐藏面板 → captureImageInRect 截取鼠标所在屏幕（冻结画面）
      → 全屏透明窗口：冻结画面 + 遮罩 + 框选交互（MyGo 原生 UI 绘制）
      → 裁剪选区 → Vision 识别（后台）→ 识别出的行按顺序以换行连接
      → 新会话，默认模式执行 → 显示面板

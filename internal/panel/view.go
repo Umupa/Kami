@@ -35,6 +35,11 @@ func (p *Panel) view(c *ui.Context) {
 			p.sourceView(c, pal)
 			ui.Divider(c).Background(pal.Border)
 			p.modeBar(c, pal)
+			if p.notice != "" {
+				ui.Divider(c).Background(pal.Border)
+				ui.Text(c, p.notice).FontSize(design.FontSecondary).TextColor(pal.TextMuted).
+					PaddingX(design.SpaceWindowX).PaddingY(14)
+			}
 			if p.sess != nil {
 				ui.Divider(c).Background(pal.Border)
 				p.resultView(c, pal)

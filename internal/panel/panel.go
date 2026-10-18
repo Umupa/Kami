@@ -59,6 +59,7 @@ type Panel struct {
 	// lastImport is the selection last brought in, so that importing it
 	// again shows the panel as the user left it.
 	lastImport string
+	notice     string
 	follow     string
 	modeIdx    int
 	sess       *session.Session
@@ -194,6 +195,23 @@ func (p *Panel) Import(text string) {
 	p.Show()
 }
 
+// ImportCaptured shows the panel with text recognized in a screenshot and
+// runs the default mode on it.
+func (p *Panel) ImportCaptured(text string) {
+	p.notice = ""
+	p.source = text
+	p.modeIdx = 0
+	p.run()
+	p.Show()
+}
+
+// Notify shows the panel with a short notice in place of a result, as when
+// a screenshot had no text. Running or editing clears it.
+func (p *Panel) Notify(notice string) {
+	p.notice = notice
+	p.Show()
+}
+
 // Hide hides the panel. A request in progress goes on.
 func (p *Panel) Hide() { p.win.Hide() }
 
@@ -223,6 +241,7 @@ func (p *Panel) run() {
 		return
 	}
 	p.stop()
+	p.notice = ""
 	m := p.modes[p.modeIdx]
 	p.sess = session.New(m, p.source, m.Model)
 	p.result = ui.ScrollState{}

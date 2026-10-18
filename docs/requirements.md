@@ -175,7 +175,7 @@
 | 输入 | 原文栏粘贴 100 万字不卡顿；中文输入法组字期间回车、Esc、Tab 交给输入法 |
 | 资源 | 空闲时不跑定时器和刷新回调；常驻内存目标 ≤ 100MB；空闲 CPU 为 0 |
 | 体积 | 应用包目标 ≤ 50MB |
-| 系统 | macOS 15 及以上，Apple Silicon |
+| 系统 | macOS 15.2 及以上（截图用的 `SCScreenshotManager captureImageInRect:` 从 15.2 开始提供），Apple Silicon |
 | 稳定性 | 网络、权限、系统 API、配置文件的失败都不导致崩溃；任何读取都有超时 |
 
 ## 六、不做的事

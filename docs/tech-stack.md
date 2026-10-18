@@ -89,7 +89,7 @@ MyGo 内部有自己的 Objective-C 封装，但在 `internal/` 里，不能引�
 | Carbon / HIToolbox | `TISCopyCurrentKeyboardLayoutInputSource`、`UCKeyTranslate`、`IsSecureEventInputEnabled` | 按当前键盘布局找 C 键，安全输入时不复制 |
 | AppKit | `NSPasteboard`（`changeCount`、`pasteboardItems`、`types`、`dataForType:`、`writeObjects:`）、`NSWorkspace.frontmostApplication`、`NSRunningApplication` | 剪贴板逐项备份与恢复（`org.nspasteboard.TransientType`），前台应用 |
 | Vision | `VNRecognizeTextRequest`（accurate，`zh-Hans` + `en-US`，自动判断语言）、`VNImageRequestHandler` | 截图识别文字 |
-| ScreenCaptureKit | `SCShareableContent`、`SCScreenshotManager captureImageWithFilter:…` | 冻结屏幕截图 |
+| ScreenCaptureKit | `SCScreenshotManager captureImageInRect:completionHandler:`（macOS 15.2+） | 冻结鼠标所在屏幕的截图 |
 | CoreImage / CoreGraphics 图像 | `CGImage` ↔ Go `image.Image` | 截图裁剪、送入 Vision |
 
 线程约定：辅助功能、Vision、截图都在后台 goroutine 上调用（`runtime.LockOSThread` + autorelease pool），带超时；只有窗口操作回到主线程。

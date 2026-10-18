@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"github.com/Umupa/cida-next/internal/capture"
 	"github.com/Umupa/cida-next/internal/config"
 	"github.com/Umupa/cida-next/internal/hotkey"
 	"github.com/Umupa/cida-next/internal/keyring"
@@ -37,6 +38,7 @@ type app struct {
 	doubleTap *hotkey.DoubleTap
 	tapping   bool
 	clipboard *macos.Pasteboard
+	capturer  *capture.Capturer
 }
 
 // Run starts the app and returns when it quits. A second launch returns at
@@ -94,13 +96,16 @@ func (a *app) ready(ctx context.Context) {
 		},
 	})
 	a.hotkeys = hotkey.NewManager(a.log)
+	a.capturer = capture.New(a.log, a.captured)
 
 	a.menu = mygo.NewMenu([]*mygo.MenuItem{
 		{ID: "config-error", Hidden: true, Click: a.revealConfig},
 		{ID: "config-error-sep", Type: mygo.MenuItemSeparator, Hidden: true},
 		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
+		{Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
 		{ID: "listen-access", Label: "允许「输入监控」，以双击 ⌥ 打开面板…", Hidden: true, Click: a.requestListenAccess},
 		{ID: "ax-access", Label: "允许「辅助功能」，以带入选中的文字…", Hidden: macos.AXTrusted(), Click: a.requestAXAccess},
+		{ID: "screen-access", Label: "允许「屏幕录制」，以截图识别…", Hidden: macos.ScreenAccess(), Click: a.requestScreenAccess},
 		mygo.Separator(),
 		{Label: "复制配置提示词", Click: a.copyAgentPrompt},
 		{Label: "打开配置文件夹", Click: a.revealConfig},
@@ -140,6 +145,7 @@ func (a *app) applyShortcuts(c *config.Config) {
 	a.hotkeys.Apply([]hotkey.Binding{
 		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
 		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.importSelection},
+		{Name: "capture", Shortcut: c.Shortcuts.Capture, Action: a.startCapture},
 	})
 	a.doubleTap = nil
 	if sc, err := config.ParseShortcut(c.Shortcuts.Panel); err == nil && sc.Double != 0 {
@@ -158,6 +164,41 @@ func (a *app) applyLaunchAtLogin(c *config.Config) {
 	if err := mygo.App.SetOpenAtLogin(c.LaunchAtLogin); err != nil {
 		a.log.Warn("open at login", "err", err)
 	}
+}
+
+// startCapture hides the panel and freezes the screen for a region.
+func (a *app) startCapture() {
+	a.panel.Hide()
+	a.capturer.Start()
+}
+
+// captured takes a capture's result: text goes to the panel, no text or a
+// failure becomes a notice there, a cancel does nothing.
+func (a *app) captured(r capture.Result) {
+	switch {
+	case r.Canceled:
+	case errors.Is(r.Err, macos.ErrNoScreenAccess):
+		a.menu.ItemByID("screen-access").SetVisible(true)
+		a.panel.Notify("截图识别需要「屏幕录制」权限：在系统设置里允许 cida-next，然后退出并重新打开。")
+	case r.Err != nil:
+		a.log.Warn("capture", "err", r.Err)
+		a.panel.Notify("截图没有成功，再试一次。")
+	case r.Text == "":
+		a.panel.Notify("截图里没有识别到文字。")
+	default:
+		a.panel.ImportCaptured(r.Text)
+	}
+}
+
+// requestScreenAccess asks for Screen Recording, which macOS applies after
+// the app restarts.
+func (a *app) requestScreenAccess(item *mygo.MenuItem, _ *mygo.Window) {
+	if macos.RequestScreenAccess() {
+		item.SetVisible(false)
+		return
+	}
+	_ = mygo.Shell.OpenExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+	item.SetLabel("授权「屏幕录制」后，退出并重新打开 cida-next")
 }
 
 // importSelection reads the selection of the frontmost app and shows the

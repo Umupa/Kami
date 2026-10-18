@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "out": "build",
   "macos": {
-    "minimumSystemVersion": "15.0",
+    "minimumSystemVersion": "15.2",
     "infoPlist": {
       "LSUIElement": true
     }
