@@ -94,6 +94,7 @@ func (a *app) ready(ctx context.Context) {
 		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
 		{ID: "listen-access", Label: "允许「输入监控」，以双击 ⌥ 打开面板…", Hidden: true, Click: a.requestListenAccess},
 		mygo.Separator(),
+		{Label: "复制配置提示词", Click: a.copyAgentPrompt},
 		{Label: "打开配置文件夹", Click: a.revealConfig},
 		mygo.Separator(),
 		{Label: "退出 cida-next", Role: mygo.RoleQuit},
@@ -227,6 +228,31 @@ func (a *app) logSnapshot(s config.Snapshot) {
 		return
 	}
 	a.log.Info("config loaded", "models", len(s.Config.Models), "modes", len(s.Config.Modes))
+}
+
+// copyAgentPrompt copies the prompt that has an AI assistant configure the
+// app. Reading the keychain may wait on the user, so it runs off the main
+// thread.
+func (a *app) copyAgentPrompt(*mygo.MenuItem, *mygo.Window) {
+	exe, err := mygo.App.Path(mygo.PathExe)
+	if err != nil {
+		a.log.Error("executable path", "err", err)
+		return
+	}
+	snap := a.store.Snapshot()
+	go func() {
+		keys := keyring.System()
+		prompt := config.AgentPrompt(config.PromptInput{
+			Exe:      exe,
+			Dir:      a.configDir,
+			Snapshot: snap,
+			HasKey: func(model string) bool {
+				_, err := keys.Get(model)
+				return err == nil
+			},
+		})
+		mygo.Clipboard.WriteText(prompt)
+	}()
 }
 
 func (a *app) revealConfig(*mygo.MenuItem, *mygo.Window) {
