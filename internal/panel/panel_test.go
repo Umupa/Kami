@@ -45,6 +45,7 @@ type harness struct {
 	mu    sync.Mutex
 	queue []func()
 	sizes []mygo.Rectangle
+	clip  string
 }
 
 func newHarness(t *testing.T, client llm.Client) *harness {
@@ -67,6 +68,7 @@ func newHarness(t *testing.T, client llm.Client) *harness {
 		h.queue = append(h.queue, fn)
 	}
 	h.p.resize = func(r mygo.Rectangle) { h.sizes = append(h.sizes, r) }
+	h.p.writeClipboard = func(s string) { h.clip = s }
 	h.p.place = placeOn(mygo.Rectangle{Width: 1440, Height: 875})
 	h.tt = ui.NewTester(h.p.view, 820, 700)
 	return h
@@ -189,4 +191,39 @@ type clientFunc func(ctx context.Context, req llm.Request, onText func(string)) 
 
 func (f clientFunc) Stream(ctx context.Context, req llm.Request, onText func(string)) error {
 	return f(ctx, req, onText)
+}
+
+func TestCopy(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{"**reply**"}})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("source text")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+
+	// The source has the focus but nothing selected: Cmd-C copies the reply.
+	h.tt.Key(ui.Cmd, ui.KeyC)
+	if got := h.clip; got != "**reply**" {
+		t.Errorf("Cmd-C without a selection copied %q, want the reply's Markdown", got)
+	}
+	// With text selected in the source, Cmd-C copies that text.
+	h.tt.Key(ui.Cmd, ui.KeyA)
+	h.tt.Key(ui.Cmd, ui.KeyC)
+	if got := h.tt.Clipboard(); got != "source text" {
+		t.Errorf("Cmd-C with a selection copied %q, want the selection", got)
+	}
+}
+
+func TestBusy(t *testing.T) {
+	var busy []bool
+	h := newHarness(t, script{pieces: []string{"ok"}})
+	h.p.deps.OnBusy = func(b bool) { busy = append(busy, b) }
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	if len(busy) != 2 || !busy[0] || busy[1] {
+		t.Errorf("busy = %v, want [true false]", busy)
+	}
 }

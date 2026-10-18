@@ -31,6 +31,9 @@ type Deps struct {
 	// Demo answers with a canned reply when no model is configured, for
 	// development builds.
 	Demo bool
+	// OnBusy, when set, hears when a request starts and ends, on the main
+	// thread, as the menu bar icon shows it.
+	OnBusy func(busy bool)
 }
 
 // Panel is the panel window and its state. Everything but Show, Hide and
@@ -43,6 +46,8 @@ type Panel struct {
 	post func(func())
 	// resize sets the window's bounds after the view has been built.
 	resize func(mygo.Rectangle)
+	// writeClipboard copies text: the system clipboard, or a test's.
+	writeClipboard func(string)
 
 	cfg   *config.Config
 	modes []mode.Mode
@@ -57,6 +62,9 @@ type Panel struct {
 	result   ui.ScrollState
 	sourceIn ui.Handle
 	followIn ui.Handle
+	// Whether the inputs had a selection in the last frame: Cmd-C copies it
+	// when they do, and the latest reply when they don't.
+	sourceSelected, followSelected bool
 
 	// place is where the panel shows: its top edge stays put as its height
 	// follows the content.
@@ -99,7 +107,7 @@ func New(d Deps) *Panel {
 
 // newPanel returns a panel without a window, as tests drive it.
 func newPanel(d Deps) *Panel {
-	p := &Panel{deps: d, post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}}
+	p := &Panel{deps: d, post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText}
 	p.applyConfig(d.Store.Snapshot().Config)
 	p.md = markdown.Options{Theme: &markdown.Theme{FontSize: design.FontResultCJK}}
 	return p
@@ -194,6 +202,12 @@ func (p *Panel) reset() {
 	p.sourceIn.Focus()
 }
 
+func (p *Panel) setBusy(busy bool) {
+	if p.deps.OnBusy != nil {
+		p.deps.OnBusy(busy)
+	}
+}
+
 // errNoModel is a request without a configured model.
 var errNoModel = &llm.Error{Kind: llm.KindConfig, Detail: "no model configured"}
 
@@ -215,6 +229,7 @@ func (p *Panel) start() {
 	req := llm.Request{Model: model, System: mode.System(sess.Mode, p.cfg), Messages: sess.Messages()}
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
+	p.setBusy(true)
 	go func() {
 		defer cancel()
 		if ok && model.Auth != config.AuthNone {
@@ -239,6 +254,7 @@ func (p *Panel) start() {
 // finish records how a turn ended.
 func (p *Panel) finish(sess *session.Session, turn int, err error) {
 	t := &sess.Turns[turn]
+	defer func() { p.setBusy(p.sess != nil && p.sess.Busy()) }()
 	switch {
 	case err == nil:
 		t.Status = session.Done

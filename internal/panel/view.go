@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
@@ -18,7 +17,9 @@ func (p *Panel) view(c *ui.Context) {
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
-	c.OnShortcut(ui.Cmd, ui.KeyC, p.copyReply)
+	// Cmd-C copies the latest reply, unless the focused input has a
+	// selection, which it copies itself.
+	c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })
 
 	maxHeight := float32(p.place.maxHeight)
 	if maxHeight <= 0 {
@@ -51,7 +52,7 @@ func (p *Panel) fit(r ui.Rect) {
 }
 
 func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
-	ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).
+	in := ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).
 		Lines(1, p.sourceLines()).
 		Placeholder("输入或粘贴文字，⏎ 执行").Label("原文").
 		FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).
@@ -68,9 +69,14 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 			case k.Key == ui.KeyTab && k.Mods == ui.Shift:
 				p.cycleMode(-1)
 				return true
+			case k.Key == ui.KeyC && k.Mods == ui.Cmd && !p.sourceSelected:
+				p.copyTurn(-1)
+				return true
 			}
 			return false
 		})
+	start, end := in.TextSelection()
+	p.sourceSelected = start != end
 }
 
 // sourceLines is how many lines the source grows to before it scrolls:
@@ -127,6 +133,11 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 }
 
 func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
+	// A long reply is read from its start: the result follows the end only
+	// once the user has scrolled down to it (Cida's panel.md §二).
+	if p.sess.Busy() && p.result.Y > 0 && p.result.Y >= p.result.MaxY-1 {
+		p.result.Y = math.MaxFloat32
+	}
 	ui.Scroll(c.Key("result")).TrackScroll(&p.result).Shrink(1).MinHeight(0).
 		Background(pal.SurfacePaper).PaddingX(design.SpaceWindowX).PaddingY(design.SpaceResultY).Gap(18).
 		Children(func() {
@@ -152,13 +163,21 @@ func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 			markdown.View(c, t.Reply, &p.md)
 		}
 		if i == len(p.sess.Turns)-1 {
-			p.turnFooter(c, pal, t)
+			p.turnFooter(c, pal, i)
+		} else if t.Reply != "" {
+			ui.Row(c).Children(func() {
+				ui.Spacer(c)
+				if ui.Text(c, "复制").FontSize(design.FontCaption).TextColor(pal.TextMuted).Clicked() {
+					p.copyTurn(i)
+				}
+			})
 		}
 	})
 }
 
 // turnFooter shows how the latest turn ended and what to do next.
-func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, t *session.Turn) {
+func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
+	t := &p.sess.Turns[i]
 	ui.Row(c).Gap(12).Children(func() {
 		status := map[session.Status]string{
 			session.Streaming: "生成中 · ⌘. 停止",
@@ -176,7 +195,7 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, t *session.Turn) 
 				p.retry()
 			}
 			if t.Reply != "" && ui.Text(c, "复制 ⌘C").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
-				p.copyReply()
+				p.copyTurn(i)
 			}
 		}
 	})
@@ -218,25 +237,36 @@ func failureText(err error) (title, next string) {
 
 func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 	ui.Row(c).PaddingX(design.SpaceWindowX).PaddingY(12).Gap(12).Children(func() {
-		ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
+		in := ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
 			Lines(1, 4).Placeholder("追问…").Label("追问").
 			FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).
 			OnTextKey(func(k ui.TextKey) bool {
-				if k.Key == ui.KeyEnter && k.Mods == 0 {
+				switch {
+				case k.Key == ui.KeyEnter && k.Mods == 0:
 					p.follow = k.Text()
 					p.send()
+					return true
+				case k.Key == ui.KeyC && k.Mods == ui.Cmd && !p.followSelected:
+					p.copyTurn(-1)
 					return true
 				}
 				return false
 			})
+		start, end := in.TextSelection()
+		p.followSelected = start != end
 		ui.Text(c, "⏎ 发送").FontSize(design.FontCaption).TextColor(pal.Hint)
 	})
 }
 
-// copyReply copies the latest reply as Markdown.
-func (p *Panel) copyReply() {
-	if p.sess == nil || p.sess.Last().Reply == "" {
+// copyTurn copies a turn's reply as Markdown; -1 is the latest turn.
+func (p *Panel) copyTurn(i int) {
+	if p.sess == nil {
 		return
 	}
-	mygo.Clipboard.WriteText(p.sess.Last().Reply)
+	if i < 0 {
+		i = len(p.sess.Turns) - 1
+	}
+	if reply := p.sess.Turns[i].Reply; reply != "" {
+		p.writeClipboard(reply)
+	}
 }

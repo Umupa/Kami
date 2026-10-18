@@ -85,6 +85,11 @@ func (a *app) ready(ctx context.Context) {
 		Client:  func(config.Model) llm.Client { return llm.HTTP{} },
 		Log:     a.log,
 		Demo:    mygo.IsDev(),
+		OnBusy: func(busy bool) {
+			if a.tray != nil {
+				a.tray.SetIcon(trayIcon(busy), true)
+			}
+		},
 	})
 	a.hotkeys = hotkey.NewManager(a.log)
 
