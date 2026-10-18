@@ -50,25 +50,32 @@ func (p *Panel) view(c *ui.Context) {
 	}
 	// The panel takes its own height, never the window's: the window
 	// follows it, so a window still too short must not squeeze it.
-	panel := ui.Column(c).Width(design.PanelWidth).MaxHeight(maxHeight).Shrink(0).
-		Background(pal.Background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip().
-		Children(func() {
-			p.sourceView(c, pal)
-			p.menuView(c, pal)
+	width := float32(p.place.width)
+	if width <= 0 {
+		width = design.PanelWidth
+	}
+	panel := ui.Column(c).Width(width).MaxHeight(maxHeight).Shrink(0).
+		Background(pal.Background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip()
+	if p.fixedHeight > 0 && p.sess != nil {
+		panel.Height(float32(p.fixedHeight))
+	}
+	panel.Children(func() {
+		p.sourceView(c, pal)
+		p.menuView(c, pal)
+		p.splitter(c, pal)
+		p.modeBar(c, pal)
+		if p.notice != "" {
 			ui.Divider(c).Background(pal.Border)
-			p.modeBar(c, pal)
-			if p.notice != "" {
-				ui.Divider(c).Background(pal.Border)
-				ui.Text(c, p.notice).FontSize(design.FontLabel).TextColor(pal.Muted).
-					PaddingX(design.SpaceX).PaddingY(12)
-			}
-			if p.sess != nil {
-				ui.Divider(c).Background(pal.Border)
-				p.resultView(c, pal)
-				ui.Divider(c).Background(pal.Border)
-				p.followView(c, pal)
-			}
-		})
+			ui.Text(c, p.notice).FontSize(design.FontLabel).TextColor(pal.Muted).
+				PaddingX(design.SpaceX).PaddingY(12)
+		}
+		if p.sess != nil {
+			ui.Divider(c).Background(pal.Border)
+			p.resultView(c, pal)
+			ui.Divider(c).Background(pal.Border)
+			p.followView(c, pal)
+		}
+	})
 	p.fit(panel)
 }
 
@@ -82,7 +89,9 @@ func (p *Panel) fit(panel ui.Element) {
 		return
 	}
 	h := int(target)
-	if p.height != 0 {
+	// Following the divider or the user's size is immediate; growing with
+	// a reply eases.
+	if p.height != 0 && !p.split.active && p.fixedHeight == 0 {
 		h = int(math.Ceil(float64(panel.Animate("height", target, design.MotionHeight))))
 	}
 	if h == p.height {
@@ -95,7 +104,6 @@ func (p *Panel) fit(panel ui.Element) {
 func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 	// Only the result shrinks when the panel reaches its height limit.
 	in := ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).Shrink(0).
-		Lines(1, p.sourceLines()).
 		Placeholder("输入或粘贴文字，/ 查看命令").Label("原文").
 		FontSize(design.FontSource).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
 		PaddingX(design.SpaceX).PaddingY(design.SpaceSourceY).
@@ -121,6 +129,12 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 			}
 			return false
 		})
+	if p.sourceHeight > 0 {
+		in.Height(p.sourceHeight)
+	} else {
+		in.Lines(1, p.sourceLines())
+	}
+	p.sourceBox = in.Bounds()
 	if p.caretToEnd {
 		n := utf8.RuneCountInString(p.source)
 		in.SetTextSelection(n, n)
@@ -173,9 +187,13 @@ func (p *Panel) stale() bool {
 	return p.sess.Turns[0].Ask != p.source || p.sess.Mode.ID != p.modes[p.modeIdx].ID
 }
 
-// sourceLines is how many lines the source grows to before it scrolls:
-// 30% of the visible height.
+// sourceLines is how many lines the source grows to before it scrolls: 30%
+// of the visible height on its own, three lines once there is a result, which
+// is what the user reads; the divider gives it more.
 func (p *Panel) sourceLines() int {
+	if p.sess != nil {
+		return 3
+	}
 	visible := float32(p.place.maxHeight) / design.PanelMaxRatio
 	line := float32(design.FontSource * design.LineHeightSource)
 	return max(3, int(visible*design.SourceMaxRatio/line))
@@ -188,7 +206,8 @@ func (p *Panel) cycleMode(step int) {
 }
 
 func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).Children(func() {
+	// The bar is where the panel is held to move it.
+	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).DragWindow().Children(func() {
 		if p.operatorActive() {
 			p.operatorPill(c, pal)
 			ui.Spacer(c)
@@ -281,7 +300,7 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 	if p.sess.Busy() && p.result.Y > 0 && p.result.Y >= p.result.MaxY-1 {
 		p.result.Y = math.MaxFloat32
 	}
-	result := ui.Scroll(c.Key("result")).TrackScroll(&p.result).Shrink(1).MinHeight(0)
+	result := ui.Scroll(c.Key("result")).TrackScroll(&p.result).Grow(1).Shrink(1).MinHeight(0)
 	p.sparkle(c, result, pal)
 	result.PaddingX(design.SpaceX).PaddingY(design.SpaceResultY).Gap(design.SpaceTurns).
 		Children(func() {

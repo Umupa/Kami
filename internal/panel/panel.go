@@ -93,6 +93,17 @@ type Panel struct {
 	// as after a command was picked.
 	caretToEnd bool
 
+	// sourceHeight is the source's height the user dragged the divider to,
+	// 0 for the default; split is the drag in progress.
+	sourceHeight float32
+	sourceBox    ui.Rect
+	split        splitDrag
+	splitHandle  ui.Handle
+	// fixedHeight is the panel's height the user resized it to, 0 to
+	// follow its content; resizing marks the app's own resizes.
+	fixedHeight int
+	resizing    bool
+
 	copiedTurn int
 	copiedAt   time.Time
 
@@ -115,7 +126,6 @@ func New(d Deps) *Panel {
 		Hidden:            true,
 		Frameless:         true,
 		Transparent:       true,
-		DisableResize:     true,
 		DisableMinimize:   true,
 		DisableMaximize:   true,
 		DisableFullScreen: true,
@@ -135,6 +145,24 @@ func New(d Deps) *Panel {
 		e.PreventDefault()
 		p.win.Hide()
 	})
+	// The user moves the panel by its mode bar and resizes it by its edges;
+	// the place and size they leave it at are kept.
+	p.win.OnMove(func() {
+		if b := p.win.Bounds(); p.win.IsVisible() {
+			p.place.x, p.place.top = b.X, b.Y
+		}
+	})
+	p.win.OnResize(func() {
+		b := p.win.Bounds()
+		if !p.win.IsVisible() || p.resizing || b.Width <= 0 {
+			return
+		}
+		p.place.width = b.Width
+		if b.Height != p.height {
+			p.fixedHeight, p.height = b.Height, b.Height
+			p.place.maxHeight = max(p.place.maxHeight, b.Height)
+		}
+	})
 	p.win.OnBlur(func() {
 		d.Log.Debug("panel blur")
 		p.win.Hide()
@@ -146,7 +174,9 @@ func New(d Deps) *Panel {
 	// Resizing re-enters layout, so it waits until the view has been built.
 	p.resize = func(r mygo.Rectangle) {
 		go func() {
+			mygo.RunOnMain(func() { p.resizing = true })
 			p.win.SetBounds(r)
+			mygo.RunOnMain(func() { p.resizing = false })
 			d.Log.Debug("panel resize", "want", r, "got", p.win.Bounds())
 		}()
 	}
@@ -177,7 +207,16 @@ func (p *Panel) Toggle() {
 // focused and its selection kept.
 func (p *Panel) Show() {
 	d := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
-	p.place = placeOn(d.WorkArea)
+	if !p.place.within(d.WorkArea) {
+		// Where the user put the panel stays, on its display; elsewhere it
+		// shows centered again, as wide as they made it.
+		width := p.place.width
+		p.place = placeOn(d.WorkArea)
+		if width > 0 {
+			p.place.width = width
+			p.place.x = d.WorkArea.X + (d.WorkArea.Width-width)/2
+		}
+	}
 	if p.height == 0 {
 		// Until the view has measured the panel, the window takes the
 		// height of an empty one.

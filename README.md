@@ -2,13 +2,13 @@
 
 > 代号，正式名称待定。
 
-我自己的桌面 AI 工具箱：一个常驻菜单栏的 macOS 原生应用。双击 ⌥ 打开面板，⌥A 带着选中的文字打开，⌥S 截图识别文字；用自己配置的大模型完成翻译、润色、整理、提示词梳理和快速问答，结果以 Markdown 流式呈现，可以继续追问。
+我自己的桌面 AI 工具箱：一个常驻菜单栏的 macOS 原生应用。双击 ⌥ 打开面板，⌥A 带着选中的文字打开，⌥S 截图识别文字；用自己配置的大模型完成翻译、润色（杂乱时顺带整理）、提示词梳理和快速问答，结果以 Markdown 流式呈现，可以继续追问。
 
 一期合并 [辞达（Cida）](https://github.com/Xuanwo/cida) 的翻译与 Raycast 的 AI Chat，二期加入笔记。用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写；设置全在一个带 schema 的配置文件里，交给 agent 配置。
 
 ## 状态
 
-一期功能已实现，等待统一实测：面板与多轮对话、五个内置模式、三种模型格式、带入选区、截图识别、Operator（在面板里输入 `/operator` 查看和修改设置）、配置接口（`config.json` + `check`）。
+一期功能已实现，等待统一实测：面板与多轮对话、四个内置模式、三种模型格式、带入选区、截图识别、Operator（在面板里输入 `/operator` 查看和修改设置）、配置接口（`config.json` + `check`）。
 
 构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/cida-next.app`。
 

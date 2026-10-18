@@ -463,3 +463,38 @@ func TestTranslateLabel(t *testing.T) {
 		t.Error("the direction shows while translate is not the mode")
 	}
 }
+
+func TestSplitterResizesSource(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{strings.Repeat("结果。\n\n", 40)}})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.p.source = strings.Repeat("很长的原文一行。\n", 20)
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.tt.Frame()
+	compact := h.p.sourceBox.H
+	if compact > 120 {
+		t.Errorf("with a result the source is %v high; it should keep to a few lines", compact)
+	}
+	handle, ok := h.tt.Find("调整原文与结果的高度")
+	if !ok {
+		t.Fatal("no divider")
+	}
+	y := handle.Y + 3
+	h.tt.Press(400, y)
+	h.tt.Move(400, y+60)
+	h.tt.Move(400, y+120)
+	h.tt.Release(400, y+120)
+	h.tt.Frame()
+	if got := h.p.sourceBox.H; got < compact+100 {
+		t.Errorf("dragging the divider 120 down: source %v → %v", compact, got)
+	}
+	h.snapshot("split-dragged")
+	h.tt.Click("调整原文与结果的高度")
+	h.tt.Click("调整原文与结果的高度")
+	h.tt.Frame()
+	if h.p.sourceHeight != 0 {
+		t.Error("a double click did not restore the default")
+	}
+}
