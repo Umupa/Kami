@@ -311,4 +311,3 @@ func TestOrganizeMergedIntoImprove(t *testing.T) {
 		t.Errorf("modes = %+v", modes)
 	}
 }
-
