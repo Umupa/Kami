@@ -145,4 +145,4 @@ agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后
 | purego 调 Objective-C 的 block、结构体返回值、`NSError**` 等细节 | 截图、Vision 实现成本高 | 先做 C 接口（辅助功能、CGEvent）；Vision / ScreenCaptureKit 不顺时，用 helper executable 附带一个几十行的 Swift 小工具，通过标准输入输出通信 |
 | `ui/markdown` 在中文、宽表格、长代码块下的实际效果 | 结果区是核心体验 | M1 用视觉快照验证；可以通过 `Options.Block`、`CodeBlock` 自定义渲染 |
 | 没有 Developer ID | 权限反复丢失 | 自签名证书（§八） |
-| 双击 ⌥ 依赖 CGEventTap | 需要输入监控权限；回调慢会被系统停用；误触发 | listen-only 不拦截事件；被停用时立即重启；300ms 窗口内夹杂其他键即作废；没有权限时从菜单栏打开面板 |
+| 双击 ⌥ 依赖 CGEventTap | 需要输入监控权限；回调慢会被系统停用；误触发 | listen-only 不拦截事件；被停用时立即重启；300ms 窗口内夹杂其他键即作废；没有权限时启动后请求一次，面板仍可从菜单栏打开 |

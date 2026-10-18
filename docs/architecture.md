@@ -18,7 +18,7 @@ cida-next/
 │   ├── segment/            过长原文的拆分：段落 → 换行 → 句子 → 空白 → 字符
 │   ├── selection/          带入选区（辅助功能 + 复制兜底 + 剪贴板恢复）
 │   ├── capture/            截图：冻结屏幕、框选窗口、识别文字
-│   ├── settings/           设置窗口：展示配置状态、检查模型、授权、录制快捷键；改动写回 config.json
+│   ├── operator/           Operator：/operator 的识别、说明、系统提示词、改动块的解析
 │   ├── config/             配置读写、校验、schema、热加载、配置提示词
 │   ├── cli/                命令行子命令：key、check
 │   ├── design/             设计 token：颜色、字号、间距、动效时长
@@ -26,7 +26,7 @@ cida-next/
 └── docs/
 ```
 
-依赖方向：`app` → `panel` / `capture` / `settings` / `hotkey` → `session` / `mode` / `selection` → `llm` / `config` → `macos`。`session`、`mode`、`llm`、`config` 不依赖 UI，全部可以无窗口测试。
+依赖方向：`app` → `panel` / `capture` / `hotkey` → `session` / `mode` / `selection` → `llm` / `config` → `macos`。`session`、`mode`、`llm`、`config` 不依赖 UI，全部可以无窗口测试。
 
 ## 二、线程与状态
 
@@ -107,7 +107,7 @@ CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）
 
 - 监听只读事件、不拦截、不修改，回调里只更新状态机，不做任何阻塞操作。
 - 系统因回调超时停用监听（`kCGEventTapDisabledByTimeout`）时立即重新启用。
-- 创建监听需要输入监控或辅助功能权限；失败时菜单栏提示授权，面板仍可从菜单栏打开。
+- 创建监听需要输入监控权限；没有时启动后请求一次（macOS 在重启后生效），面板仍可从菜单栏打开。
 
 ### ⌥A 带入选区
 
@@ -149,11 +149,11 @@ CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）
 - **首次启动**：没有 `config.json` 时写一份只有 `$schema` 和 `version` 的初始文件；schema 每次启动按当前版本写出。
 - **热加载**：应用监听文件变化，读入后整体校验（JSON 语法给出行列，未知字段、取值、引用逐项给出路径）；通过则原子替换内存里的配置，进行中的请求继续用旧配置。省略的字段在读入时补上默认值，文件本身不改。
 - **出错不崩溃**：不合法时保留上一份合法配置，菜单栏标出错误，提示出错的字段路径与原因；修好后自动恢复。
-- **应用自己写回时**（设置窗口、快捷键录制）用临时文件 + rename 原子写入，保留未知字段。
+- **应用自己写回时**（Operator 的修改、Key 迁移）用临时文件 + rename 原子写入。
 - **API Key** 写在每个模型的 `apiKey` 里。它只用于请求头；日志、`check` 的输出、配置提示词里都不出现，服务商回显时打码。
 - **命令行只有 `check`**，与应用是同一个可执行文件。第一个参数只要不以 `-` 开头就走命令行，打错的命令报错而不是启动应用；以 `-` 开头的留给应用（macOS 可能传 `-psn_…`）：
   - `check [<模型名>] [--verbose] [--json]`：校验配置并真的请求一次；退出码 0 成功、64 配置不合法、69 检查失败（同辞达 configuration.md §二）。
-- **配置提示词**：菜单栏和设置窗口里的「复制配置提示词」生成一段说明：配置文件与 schema 的路径、可执行文件的绝对路径、Key 写在 `apiKey` 且不要复述、改完运行 `check`、当前配置摘要（不含 Key）。
+- **配置提示词**：Operator 给出或复制的配置提示词是一段说明：配置文件与 schema 的路径、可执行文件的绝对路径、Key 写在 `apiKey` 且不要复述、改完运行 `check`、当前配置摘要（不含 Key）。
 
 ## 八、错误模型
 
@@ -170,3 +170,18 @@ CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）
 | 未知 | 其他 | 重试 ⏎；反复出现时复制配置提示词给 agent |
 
 `check --verbose` 输出完整请求与响应，Key 在任何输出里都替换为 `••••`。
+
+## 九、Operator
+
+```
+原文 "/operator …" ─► operator.Leading ─► 空请求：operator.Guide，本地回复，不调用模型
+                                   └─► 有请求：operator.System（schema、配置原文去掉 Key、生效值、各模式提示词全文、权限）
+                                         ─► 默认模型流式回复（operator.Visible 隐去末尾的改动块）
+                                         ─► 回复完成：operator.ParsePlan ─► config.ApplyOps（拒绝 models、校验、mode.Check）
+                                              ─► 写入 config.json，记下改前的文件供撤销 ─► 回复末尾附上改前 → 改后
+```
+
+- 改动块是回复末尾的一个 ` ```cida-operator ` 代码块：`{"ops": [{"path", "value"}], "actions": [...]}`。路径同 Problem 的路径；`null` 删除。动作：`copy-agent-prompt`、`open-permission:<accessibility|input-monitoring|screen-recording>`。
+- 撤销只保留上一次修改前的文件；再改一次就以新的为准。
+- 视觉：命令着色与光扫（900ms）、模式条的「Operator ×」、发送时的星星（3.2s）都用 MyGo 的文本区间、元素和画笔完成，不引入新的窗口或组件；「减弱动态效果」时关闭。
+

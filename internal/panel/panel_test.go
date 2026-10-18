@@ -102,6 +102,12 @@ func (h *harness) drain() {
 func (h *harness) snapshot(name string) {
 	h.t.Helper()
 	h.tt.Advance(2 * time.Second) // let the reveal finish
+	h.snapshotNow(name)
+}
+
+// snapshotNow saves the frame as it is, mid-animation.
+func (h *harness) snapshotNow(name string) {
+	h.t.Helper()
 	path := filepath.Join("testdata", name+".png")
 	if !*update {
 		return

@@ -27,6 +27,11 @@ type Palette struct {
 	AccentText   ui.Color // text on Accent
 	ToggleOff    ui.Color
 	PanelEdge    ui.Color // the hairline around the panel
+	// Operator colors operator mode, the one mode that changes the app
+	// itself: its command, its pill and its sparkles.
+	Operator     ui.Color
+	OperatorFill ui.Color
+	Sparkle      ui.Color
 }
 
 // Light is the light appearance.
@@ -47,6 +52,9 @@ var Light = Palette{
 	AccentText:   ui.Hex("#FFFFFF"),
 	ToggleOff:    ui.Hex("#DBDBD5"),
 	PanelEdge:    ui.Hex("#00000012"),
+	Operator:     ui.Hex("#0369A1"),
+	OperatorFill: ui.Hex("#0EA5E926"),
+	Sparkle:      ui.Hex("#F59E0B"),
 }
 
 // Dark is the dark appearance: the same paper and ink at night.
@@ -67,6 +75,9 @@ var Dark = Palette{
 	AccentText:   ui.Hex("#FFFFFF"),
 	ToggleOff:    ui.Hex("#45453F"),
 	PanelEdge:    ui.Hex("#FFFFFF1F"),
+	Operator:     ui.Hex("#BAE6FDE6"),
+	OperatorFill: ui.Hex("#38BDF81A"),
+	Sparkle:      ui.Hex("#FDE68A"),
 }
 
 // For returns the palette of an appearance.
@@ -135,4 +146,8 @@ const (
 	MotionRateAlpha   = 0.15
 	MotionCursorWidth = 2
 	MotionCursorH     = 20
+	// Operator mode: the sheen across its name as it turns on, and the
+	// sparkles of a request sent in it (after monocode's /operator).
+	MotionSheen    = 900 * time.Millisecond
+	MotionSparkles = 3200 * time.Millisecond
 )

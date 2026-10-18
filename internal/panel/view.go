@@ -11,6 +11,7 @@ import (
 
 	"github.com/Umupa/cida-next/internal/design"
 	"github.com/Umupa/cida-next/internal/llm"
+	"github.com/Umupa/cida-next/internal/operator"
 	"github.com/Umupa/cida-next/internal/plaintext"
 	"github.com/Umupa/cida-next/internal/session"
 )
@@ -20,9 +21,6 @@ func (p *Panel) view(c *ui.Context) {
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
-	if p.deps.OpenSettings != nil {
-		c.OnShortcut(ui.Cmd, ui.KeyComma, p.deps.OpenSettings)
-	}
 	// Cmd-C copies the latest reply, unless the focused input has a
 	// selection, which it copies itself.
 	c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })
@@ -80,6 +78,7 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 		Placeholder("输入或粘贴文字，⏎ 执行").Label("原文").
 		FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).
 		PaddingX(design.SpaceWindowX).PaddingY(design.SpaceEntryY).
+		TextRanges(p.commandRanges(c, pal)...).
 		OnTextKey(func(k ui.TextKey) bool {
 			switch {
 			case k.Key == ui.KeyEnter && k.Mods == 0:
@@ -105,7 +104,7 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 // stale reports a result that no longer matches the source or the mode: it
 // stays until the user runs again, never refreshed on its own (F5.7).
 func (p *Panel) stale() bool {
-	if p.sess == nil || p.sess.Busy() || len(p.modes) == 0 {
+	if p.sess == nil || p.sess.Busy() || p.sess.Operator || len(p.modes) == 0 {
 		return false
 	}
 	return p.sess.Turns[0].Ask != p.source || p.sess.Mode.ID != p.modes[p.modeIdx].ID
@@ -127,6 +126,12 @@ func (p *Panel) cycleMode(step int) {
 
 func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 	ui.Row(c).Height(design.ControlBarHeight).PaddingX(design.SpaceWindowX - 10).Gap(2).Children(func() {
+		if p.operatorActive() {
+			p.operatorPill(c, pal)
+			ui.Spacer(c)
+			p.runButton(c, pal)
+			return
+		}
 		ui.ScrollHorizontal(c).Shrink(1).Children(func() {
 			ui.Row(c).Gap(2).Children(func() {
 				for i, m := range p.modes {
@@ -155,13 +160,17 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 		})
 		ui.Spacer(c)
 		ui.Text(c, "⇥ 切换").FontSize(design.FontCaption).TextColor(pal.Hint)
-		run := ui.Box(c).PaddingX(12).PaddingY(5).Radius(design.RadiusChip).Background(pal.Accent).Children(func() {
-			ui.Text(c, "执行 ⏎").FontSize(design.FontSecondary).TextColor(pal.AccentText)
-		})
-		if run.Clicked() {
-			p.run()
-		}
+		p.runButton(c, pal)
 	})
+}
+
+func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
+	run := ui.Box(c.Key("run")).PaddingX(12).PaddingY(5).Radius(design.RadiusChip).Background(pal.Accent).Children(func() {
+		ui.Text(c, "执行 ⏎").FontSize(design.FontSecondary).TextColor(pal.AccentText)
+	})
+	if run.Clicked() {
+		p.run()
+	}
 }
 
 func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
@@ -170,7 +179,9 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 	if p.sess.Busy() && p.result.Y > 0 && p.result.Y >= p.result.MaxY-1 {
 		p.result.Y = math.MaxFloat32
 	}
-	ui.Scroll(c.Key("result")).TrackScroll(&p.result).Shrink(1).MinHeight(0).
+	result := ui.Scroll(c.Key("result")).TrackScroll(&p.result).Shrink(1).MinHeight(0)
+	p.sparkle(c, result, pal)
+	result.
 		Background(pal.SurfacePaper).PaddingX(design.SpaceWindowX).PaddingY(design.SpaceResultY).Gap(18).
 		Children(func() {
 			for i := range p.sess.Turns {
@@ -189,6 +200,8 @@ func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 		switch {
 		case t.Reply == "" && t.Status == session.Streaming:
 			ui.Text(c, "正在生成…").FontSize(design.FontSecondary).TextColor(pal.TextFaint)
+		case t.Status == session.Streaming && p.sess.Operator:
+			markdown.Stream(c, operator.Visible(t.Reply), &p.md)
 		case t.Status == session.Streaming:
 			markdown.Stream(c, t.Reply, &p.md)
 		default:
@@ -217,7 +230,12 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 			session.Stopped:   "已停止",
 			session.Failed:    "失败",
 		}[t.Status]
-		if t.Model != "" {
+		if p.sess.Operator {
+			status = "Operator · " + status
+		}
+		if t.Local {
+			status = "cida-next"
+		} else if t.Model != "" {
 			status += " · " + t.Model
 		}
 		if t.Dropped > 0 {
@@ -231,7 +249,12 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 			ui.Text(c, "原文或模式已改，⏎ 重新执行").FontSize(design.FontCaption).TextColor(pal.Accent)
 		}
 		ui.Spacer(c)
-		if t.Status != session.Streaming {
+		if t.Undoable {
+			if ui.Text(c, "撤销").FontSize(design.FontCaption).TextColor(pal.Operator).Clicked() {
+				p.undoOperator()
+			}
+		}
+		if t.Status != session.Streaming && !t.Local {
 			if ui.Text(c, "重新生成").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
 				p.retry()
 			}
@@ -280,9 +303,9 @@ func failureText(err error) (title, next string) {
 		return "和模型服务的安全连接失败。", "检查网络或代理后重试 ⏎"
 	case llm.KindConfig:
 		if le == errNoModel {
-			return "还没有配置模型。", "从菜单栏复制配置提示词，交给 Claude Code 等 AI 助手。"
+			return "还没有配置模型。", "输入 /operator，按提示把配置交给 Claude Code 等 Coding Agent。"
 		}
-		return "模型服务拒绝了这个请求。", "从菜单栏复制配置提示词，交给 AI 助手检查配置。"
+		return "模型服务拒绝了这个请求。", "输入 /operator 配置模型，复制提示词交给 Coding Agent 检查。"
 	case llm.KindTooLong:
 		return "内容超过了模型能处理的长度。", "缩短原文后重试 ⏎"
 	}
@@ -292,7 +315,7 @@ func failureText(err error) (title, next string) {
 func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 	ui.Row(c).PaddingX(design.SpaceWindowX).PaddingY(12).Gap(12).Children(func() {
 		in := ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
-			Lines(1, 4).Placeholder("追问…").Label("追问").
+			Lines(1, 4).Placeholder(p.followPlaceholder()).Label("追问").
 			FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).
 			OnTextKey(func(k ui.TextKey) bool {
 				switch {
@@ -303,6 +326,8 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 				case k.Key == ui.KeyC && k.Mods == ui.Cmd && !p.followSelected:
 					p.copyTurn(-1)
 					return true
+				case k.Key == ui.KeyZ && k.Mods == ui.Cmd && k.Text() == "":
+					return p.undoOperator()
 				}
 				return false
 			})
@@ -310,6 +335,13 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 		p.followSelected = start != end
 		ui.Text(c, "⏎ 发送").FontSize(design.FontCaption).TextColor(pal.Hint)
 	})
+}
+
+func (p *Panel) followPlaceholder() string {
+	if p.sess != nil && p.sess.Operator {
+		return "继续让 Operator 查看或修改设置…"
+	}
+	return "追问…"
 }
 
 // copyTurn copies a turn's reply as Markdown; -1 is the latest turn.

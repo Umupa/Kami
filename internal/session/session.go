@@ -30,6 +30,10 @@ type Turn struct {
 	// the model's context; Parts how many parts a too-long source was
 	// answered in, 0 when it went whole.
 	Dropped, Parts int
+	// Local marks a reply the app wrote itself, without a model.
+	Local bool
+	// Undoable marks an operator reply whose settings change can be undone.
+	Undoable bool
 }
 
 // Session is a conversation. Its methods are not safe for concurrent use:
@@ -37,6 +41,9 @@ type Turn struct {
 type Session struct {
 	Mode  mode.Mode
 	Turns []Turn
+	// Operator marks a session about the app's own settings; its
+	// follow-ups stay in operator mode.
+	Operator bool
 }
 
 // New starts a session in m with source as its first request.

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/transfer"
@@ -18,6 +19,7 @@ import (
 	"github.com/Umupa/cida-next/internal/design"
 	"github.com/Umupa/cida-next/internal/llm"
 	"github.com/Umupa/cida-next/internal/mode"
+	"github.com/Umupa/cida-next/internal/operator"
 	"github.com/Umupa/cida-next/internal/segment"
 	"github.com/Umupa/cida-next/internal/session"
 )
@@ -31,8 +33,8 @@ type Deps struct {
 	// Demo answers with a canned reply when no model is configured, for
 	// development builds.
 	Demo bool
-	// OpenSettings, when set, opens the settings window (Cmd-,).
-	OpenSettings func()
+	// Operator is what operator mode works with.
+	Operator Operator
 	// OnBusy, when set, hears when a request starts and ends, on the main
 	// thread, as the menu bar icon shows it.
 	OnBusy func(busy bool)
@@ -61,10 +63,17 @@ type Panel struct {
 	// again shows the panel as the user left it.
 	lastImport string
 	notice     string
-	follow     string
-	modeIdx    int
-	sess       *session.Session
-	cancel     context.CancelFunc
+
+	// operatorSince is when the source turned to operator mode, for the
+	// sheen; sparkleAt when the latest operator request was sent.
+	operatorSince  time.Time
+	sparkleAt      time.Time
+	sparklePending bool
+	sparkles       []sparkle
+	follow         string
+	modeIdx        int
+	sess           *session.Session
+	cancel         context.CancelFunc
 
 	md       markdown.Options
 	result   ui.ScrollState
@@ -238,6 +247,10 @@ func (p *Panel) applyConfig(c *config.Config) {
 
 // run starts a new session with the source in the current mode.
 func (p *Panel) run() {
+	if request, ok := operator.Leading(p.source); ok {
+		p.runOperator(request)
+		return
+	}
 	if strings.TrimSpace(p.source) == "" || len(p.modes) == 0 {
 		return
 	}
@@ -308,7 +321,11 @@ func (p *Panel) start() {
 		p.finish(sess, turn, errNoModel)
 		return
 	}
-	req := llm.Request{Model: model, Key: model.APIKey, System: mode.System(sess.Mode, p.cfg), Messages: sess.Messages()}
+	system := mode.System(sess.Mode, p.cfg)
+	if sess.Operator {
+		system = operator.System(p.deps.Operator.State())
+	}
+	req := llm.Request{Model: model, Key: model.APIKey, System: system, Messages: sess.Messages()}
 	material := sess.Mode.Input == config.InputMaterial
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
@@ -371,6 +388,15 @@ func fitContext(req llm.Request, m config.Model) ([]llm.Message, int) {
 func (p *Panel) finish(sess *session.Session, turn int, err error) {
 	t := &sess.Turns[turn]
 	defer func() { p.setBusy(p.sess != nil && p.sess.Busy()) }()
+	if sess.Operator {
+		defer func() {
+			if t.Status == session.Done {
+				p.finishOperator(t)
+			} else {
+				t.Reply = operator.Visible(t.Reply)
+			}
+		}()
+	}
 	switch {
 	case err == nil:
 		t.Status = session.Done

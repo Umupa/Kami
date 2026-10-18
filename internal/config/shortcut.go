@@ -126,3 +126,22 @@ func validKey(k string) bool {
 	}
 	return false
 }
+
+// Glyphs shows a shortcut as macOS menus do: ⌃⌥A, 双击 ⌥, 未设置.
+func (s Shortcut) Glyphs() string {
+	glyph := map[Modifiers]string{ModControl: "⌃", ModOption: "⌥", ModShift: "⇧", ModCommand: "⌘"}
+	switch {
+	case s.IsZero():
+		return "未设置"
+	case s.Double != 0:
+		return "双击 " + glyph[s.Double]
+	}
+	var b strings.Builder
+	for _, m := range modifierNames {
+		if s.Mods&m.mod != 0 {
+			b.WriteString(glyph[m.mod])
+		}
+	}
+	b.WriteString(strings.ToUpper(s.Key))
+	return b.String()
+}
