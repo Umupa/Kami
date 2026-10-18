@@ -32,6 +32,8 @@ type Deps struct {
 	// Demo answers with a canned reply when no model is configured, for
 	// development builds.
 	Demo bool
+	// OpenSettings, when set, opens the settings window (Cmd-,).
+	OpenSettings func()
 	// OnBusy, when set, hears when a request starts and ends, on the main
 	// thread, as the menu bar icon shows it.
 	OnBusy func(busy bool)

@@ -19,6 +19,9 @@ func (p *Panel) view(c *ui.Context) {
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
+	if p.deps.OpenSettings != nil {
+		c.OnShortcut(ui.Cmd, ui.KeyComma, p.deps.OpenSettings)
+	}
 	// Cmd-C copies the latest reply, unless the focused input has a
 	// selection, which it copies itself.
 	c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })

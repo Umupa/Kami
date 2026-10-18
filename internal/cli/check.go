@@ -111,25 +111,14 @@ func checkModel(env *Env, client llm.Client, m config.Model, verbose bool) check
 		r.Problem = &checkFail{Kind: "keychain", Message: "读不了钥匙串里的 API Key。"}
 		return r
 	}
-	req := llm.Request{
-		Model:    m,
-		Key:      key,
-		System:   "Translate the user's message into Simplified Chinese. Reply with the translation only.",
-		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}},
-	}
 	if verbose {
-		printRequest(env.Stdout, req)
+		printRequest(env.Stdout, llm.PingRequest(m, key))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
 	defer cancel()
-	var reply strings.Builder
-	start := time.Now()
-	err = client.Stream(ctx, req, func(s string) { reply.WriteString(s) })
-	r.Millis = time.Since(start).Milliseconds()
-	r.Reply = maskKey(strings.TrimSpace(reply.String()), key)
-	if err == nil && r.Reply == "" {
-		err = &llm.Error{Kind: llm.KindConfig, Detail: "the service answered with no text"}
-	}
+	reply, took, err := llm.Ping(ctx, client, m, key)
+	r.Millis = took.Milliseconds()
+	r.Reply = maskKey(reply, key)
 	if err != nil {
 		r.Problem = &checkFail{Kind: "unknown", Message: err.Error()}
 		var le *llm.Error

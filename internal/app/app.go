@@ -21,6 +21,7 @@ import (
 	"github.com/Umupa/cida-next/internal/mode"
 	"github.com/Umupa/cida-next/internal/panel"
 	"github.com/Umupa/cida-next/internal/selection"
+	"github.com/Umupa/cida-next/internal/settings"
 )
 
 // app is the running application. Menu and tray methods are safe from any
@@ -39,6 +40,9 @@ type app struct {
 	tapping   bool
 	clipboard *macos.Pasteboard
 	capturer  *capture.Capturer
+	settings  *settings.Settings
+	// paused stops the shortcuts while the settings record one.
+	paused bool
 }
 
 // Run starts the app and returns when it quits. A second launch returns at
@@ -89,6 +93,10 @@ func (a *app) ready(ctx context.Context) {
 		Client:  func(config.Model) llm.Client { return llm.HTTP{} },
 		Log:     a.log,
 		Demo:    mygo.IsDev(),
+		OpenSettings: func() {
+			a.panel.Hide()
+			a.settings.Show()
+		},
 		OnBusy: func(busy bool) {
 			if a.tray != nil {
 				a.tray.SetIcon(trayIcon(busy), true)
@@ -97,6 +105,24 @@ func (a *app) ready(ctx context.Context) {
 	})
 	a.hotkeys = hotkey.NewManager(a.log)
 	a.capturer = capture.New(a.log, a.captured)
+	a.settings = settings.New(settings.Deps{
+		Store:        a.store,
+		Keyring:      keyring.System(),
+		Client:       func(config.Model) llm.Client { return llm.HTTP{} },
+		Log:          a.log,
+		CopyPrompt:   func() { a.copyAgentPrompt(nil, nil) },
+		RevealConfig: func() { a.revealConfig(nil, nil) },
+		PauseHotkeys: a.pauseHotkeys,
+		Permissions: []settings.Permission{
+			{Name: "辅助功能", Purpose: "带入选中的文字", Granted: macos.AXTrusted, Request: func() {
+				if !macos.RequestAXTrust() {
+					_ = mygo.Shell.OpenExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+				}
+			}},
+			{Name: "输入监控", Purpose: "双击修饰键打开面板", Granted: macos.ListenAccess, Request: func() { a.requestListenAccess(a.menu.ItemByID("listen-access"), nil) }},
+			{Name: "屏幕录制", Purpose: "截图识别", Granted: macos.ScreenAccess, Request: func() { a.requestScreenAccess(a.menu.ItemByID("screen-access"), nil) }},
+		},
+	})
 
 	a.menu = mygo.NewMenu([]*mygo.MenuItem{
 		{ID: "config-error", Hidden: true, Click: a.revealConfig},
@@ -108,6 +134,7 @@ func (a *app) ready(ctx context.Context) {
 		{ID: "screen-access", Label: "允许「屏幕录制」，以截图识别…", Hidden: macos.ScreenAccess(), Click: a.requestScreenAccess},
 		mygo.Separator(),
 		{Label: "复制配置提示词", Click: a.copyAgentPrompt},
+		{Label: "设置…", Accelerator: "Cmd+,", Click: func(*mygo.MenuItem, *mygo.Window) { a.settings.Show() }},
 		{Label: "打开配置文件夹", Click: a.revealConfig},
 		mygo.Separator(),
 		{Label: "退出 cida-next", Role: mygo.RoleQuit},
@@ -141,6 +168,9 @@ func (a *app) ready(ctx context.Context) {
 
 // applyShortcuts registers the global shortcuts of c.
 func (a *app) applyShortcuts(c *config.Config) {
+	if a.paused {
+		return
+	}
 	a.log.Info("apply shortcuts", "panel", c.Shortcuts.Panel, "selection", c.Shortcuts.Selection)
 	a.hotkeys.Apply([]hotkey.Binding{
 		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
@@ -164,6 +194,17 @@ func (a *app) applyLaunchAtLogin(c *config.Config) {
 	if err := mygo.App.SetOpenAtLogin(c.LaunchAtLogin); err != nil {
 		a.log.Warn("open at login", "err", err)
 	}
+}
+
+// pauseHotkeys turns the global shortcuts off while the settings record one,
+// and back on after.
+func (a *app) pauseHotkeys(paused bool) {
+	a.paused = paused
+	if paused {
+		a.hotkeys.Apply(nil)
+		return
+	}
+	a.applyShortcuts(a.store.Snapshot().Config)
 }
 
 // startCapture hides the panel and freezes the screen for a region.
@@ -237,7 +278,7 @@ func (a *app) watchKeys() {
 		return
 	}
 	err := macos.WatchKeys(func(ev macos.KeyEvent) {
-		if d := a.doubleTap; d != nil && d.Feed(time.Now(), hotkey.ModifiersOf(ev.Flags), ev.KeyDown) {
+		if d := a.doubleTap; d != nil && !a.paused && d.Feed(time.Now(), hotkey.ModifiersOf(ev.Flags), ev.KeyDown) {
 			a.panel.Toggle()
 		}
 	})
