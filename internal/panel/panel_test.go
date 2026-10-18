@@ -413,3 +413,53 @@ func TestLongReplyKeepsSourceAndBar(t *testing.T) {
 	}
 	h.snapshot("long-reply")
 }
+
+func TestSwitchInputAndCaret(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{"ok"}})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("hello")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.tt.Key(ui.Cmd, ui.KeyJ)
+	if !h.tt.Focused("追问") {
+		t.Error("⌘J did not move to the follow-up")
+	}
+	h.tt.Key(ui.Cmd, ui.KeyJ)
+	if !h.tt.Focused("原文") {
+		t.Error("⌘J did not move back to the source")
+	}
+
+	h.p.source = ""
+	h.tt.Frame()
+	h.tt.Type("/op")
+	h.tt.Key(0, ui.KeyTab)
+	h.tt.Frame()
+	h.tt.Type("主题")
+	if h.p.source != "/operator 主题" {
+		t.Errorf("typing after picking /operator gave %q; the caret was not at the end", h.p.source)
+	}
+}
+
+func TestTranslateLabel(t *testing.T) {
+	h := newHarness(t, script{})
+	h.tt.Frame()
+	if h.tt.HasText("翻译 → English") {
+		t.Error("an empty source shows a direction")
+	}
+	h.tt.Click("原文")
+	h.tt.Type("你好世界")
+	h.tt.Frame()
+	if !h.tt.HasText("翻译 → English") {
+		t.Errorf("Chinese source: %q", h.tt.Texts())
+	}
+	h.p.source = "hello world"
+	h.tt.Frame()
+	if !h.tt.HasText("翻译 → 简体中文") {
+		t.Errorf("English source: %q", h.tt.Texts())
+	}
+	h.tt.Key(0, ui.KeyTab)
+	if h.tt.HasText("翻译 → 简体中文") || !h.tt.HasText("翻译") {
+		t.Error("the direction shows while translate is not the mode")
+	}
+}

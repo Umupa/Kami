@@ -88,6 +88,9 @@ type Panel struct {
 	// the menu was closed for with Escape.
 	slashIdx    int
 	slashClosed string
+	// caretToEnd puts the caret after the source's text in the next frame,
+	// as after a command was picked.
+	caretToEnd bool
 
 	copiedTurn int
 	copiedAt   time.Time

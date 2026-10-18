@@ -24,7 +24,8 @@ type Config struct {
 }
 
 // Themes are the values of Theme.
-var Themes = []string{"auto", "tokyo-night", "tokyo-night-day"}
+// The names follow internal/design/themes, which a test of design checks.
+var Themes = []string{"auto", "catppuccin", "catppuccin-latte", "ethereal", "everforest", "flexoki-light", "gruvbox", "hackerman", "kanagawa", "last-horizon", "lumon", "lupine", "matte-black", "miasma", "nord", "osaka-jade", "retro-82", "ristretto", "rose-pine", "solitude", "starship", "tokyo-night", "vantablack", "white"}
 
 // Model is one named model service.
 type Model struct {

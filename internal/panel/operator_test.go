@@ -51,14 +51,14 @@ func TestOperatorReplacesModeTabs(t *testing.T) {
 	oh.tt.Click("原文")
 	oh.tt.Type("/operator")
 	oh.tt.Frame()
-	if !oh.tt.HasText("Operator") || oh.tt.HasText("改进") {
+	if !oh.tt.HasText("Operator") || oh.tt.HasText("润色") {
 		t.Errorf("texts %q: want the Operator pill in place of the mode tabs", oh.tt.Texts())
 	}
 	oh.snapshot("operator")
 	if err := oh.tt.Click("退出 Operator"); err != nil {
 		t.Fatal(err)
 	}
-	if oh.p.operatorActive() || !oh.tt.HasText("改进") {
+	if oh.p.operatorActive() || !oh.tt.HasText("润色") {
 		t.Errorf("× did not leave operator mode; source %q", oh.p.source)
 	}
 }

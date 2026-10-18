@@ -6,6 +6,8 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
@@ -32,6 +34,7 @@ func (p *Panel) view(c *ui.Context) {
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
+	c.OnShortcut(ui.Cmd, ui.KeyJ, func() { p.switchInput(c) })
 	// Cmd-C copies the latest reply, unless the focused input has a
 	// selection, which it copies itself.
 	c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })
@@ -113,8 +116,47 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 			}
 			return false
 		})
+	if p.caretToEnd {
+		n := utf8.RuneCountInString(p.source)
+		in.SetTextSelection(n, n)
+		p.caretToEnd = false
+	}
 	start, end := in.TextSelection()
 	p.sourceSelected = start != end
+}
+
+// switchInput moves the keyboard between the source and the follow-up
+// (Cmd-J).
+func (p *Panel) switchInput(c *ui.Context) {
+	if p.sess != nil && !p.followIn.Focused(c) {
+		p.followIn.Focus()
+		return
+	}
+	p.sourceIn.Focus()
+}
+
+// translateTarget is where translation goes for the source as typed: into
+// the foreign language from text mostly in Chinese, into my language from
+// anything else. It only labels the mode; the model decides.
+func (p *Panel) translateTarget() string {
+	if p.cfg == nil || strings.TrimSpace(p.source) == "" {
+		return ""
+	}
+	var han, letters int
+	for _, r := range p.source {
+		switch {
+		case unicode.Is(unicode.Han, r):
+			han++
+		case unicode.IsLetter(r):
+			letters++
+		}
+	}
+	mine := p.cfg.MyLanguage
+	chineseIsMine := strings.Contains(mine, "中文") || strings.Contains(mine, "汉") || strings.Contains(strings.ToLower(mine), "chinese")
+	if chineseIsMine && han*2 >= letters {
+		return p.cfg.ForeignLanguage
+	}
+	return mine
 }
 
 // stale reports a result that no longer matches the source or the mode: it
@@ -152,8 +194,10 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 			ui.Row(c).Gap(2).Children(func() {
 				for i, m := range p.modes {
 					name := m.Name
-					if m.ID == "translate" && p.cfg != nil {
-						name = "翻译 → " + p.cfg.ForeignLanguage
+					if m.ID == "translate" && i == p.modeIdx {
+						if to := p.translateTarget(); to != "" {
+							name += " → " + to
+						}
 					}
 					chip := ui.Box(c.Key(m.ID)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
 					chip.Children(func() {
@@ -397,6 +441,7 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 			})
 		start, end := in.TextSelection()
 		p.followSelected = start != end
+		kbd(c, pal, "⌘J", "切换")
 		kbd(c, pal, "⏎", "发送")
 	})
 }

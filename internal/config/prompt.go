@@ -62,7 +62,7 @@ func AgentPrompt(in PromptInput) string {
 	case in.Snapshot.Err != nil:
 		w("先读 config.json 和上面的问题，把它修好，再检查。\n")
 	case len(c.Models) == 0:
-		w("问我用哪家服务和哪个模型，然后从头配置。建议配两个模型：一个快而便宜的叫 fast，用于问答；一个能力强的叫 strong，用于整理和提示词梳理。只配一个也可以。\n")
+		w("问我用哪家服务和哪个模型，然后从头配置。建议配两个模型：一个快而便宜的叫 fast，用于问答；一个能力强的叫 strong，用于润色和提示词梳理。只配一个也可以。\n")
 	default:
 		w("问我想调整什么，默认保留现有的服务和模型。\n")
 	}

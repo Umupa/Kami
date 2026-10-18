@@ -15,9 +15,9 @@ const (
 The text may be copied from a terminal or recognized from a screenshot: drop box-drawing characters, terminal markers and line breaks that only come from the width of the screen, and join the lines into the paragraphs they were.
 Keep code, file paths, commands, identifiers and error messages exactly as they are. Keep the Markdown structure of text that has one.`
 
-	improvePrompt = `Improve the text in its own language: fix grammar, spelling and word choice, and make it read naturally, without changing what it means or its tone unless they are wrong. Keep its formatting. Return only the improved text.`
-
-	organizePrompt = `Organize the text into clear Markdown in my_language: headings, lists and tables where they help. If the text is in another language, translate it. Do not add facts that are not in the text or drop ones that are.`
+	improvePrompt = `Improve the text in its own language: fix grammar, spelling and word choice, and make it read naturally, without changing what it means or its tone unless they are wrong.
+When the text is disorganized, such as notes, chat logs or text copied from a web page or PDF, also organize it into clear Markdown with headings, lists and tables where they help. Do not add facts that are not in the text or drop ones that are.
+Otherwise keep its formatting. Return only the result.`
 
 	promptPrompt = `Turn the requirement into a prompt for an AI assistant, structured as Background, Goal, Constraints and Acceptance criteria, in the language of the text. Do not invent requirements: list what is missing as open questions at the end.`
 

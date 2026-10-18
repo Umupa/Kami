@@ -90,6 +90,7 @@ func (p *Panel) pick(cmd command, setText func(string)) {
 	p.slashIdx = 0
 	if cmd.mode < 0 {
 		setText(operator.Command + " ")
+		p.caretToEnd = true
 		return
 	}
 	p.modeIdx = cmd.mode

@@ -21,8 +21,7 @@ func TestResolveBuiltins(t *testing.T) {
 		output config.Output
 	}{
 		{"translate", "翻译", config.InputMaterial, config.OutputAuto},
-		{"improve", "改进", config.InputMaterial, config.OutputPlain},
-		{"organize", "整理", config.InputMaterial, config.OutputMarkdown},
+		{"improve", "润色", config.InputMaterial, config.OutputAuto},
 		{"prompt", "提示词", config.InputMaterial, config.OutputMarkdown},
 		{"ask", "问答", config.InputInstruction, config.OutputMarkdown},
 	}
@@ -54,10 +53,10 @@ func TestResolveBuiltins(t *testing.T) {
 
 func TestResolveBuiltinOverrides(t *testing.T) {
 	base := Mode{
-		ID:     "organize",
-		Name:   "整理",
-		Desc:   "把杂乱的文字整理成标题、列表和表格",
-		Prompt: organizePrompt,
+		ID:     "prompt",
+		Name:   "提示词",
+		Desc:   "把模糊的需求梳理成结构化的提示词",
+		Prompt: promptPrompt,
 		Input:  config.InputMaterial,
 		Output: config.OutputMarkdown,
 	}
@@ -68,7 +67,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 	}{
 		{
 			name:  "name",
-			entry: config.Mode{ID: "organize", Name: "自定义名字"},
+			entry: config.Mode{ID: "prompt", Name: "自定义名字"},
 			want: func() Mode {
 				m := base
 				m.Name = "自定义名字"
@@ -77,7 +76,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 		},
 		{
 			name:  "prompt",
-			entry: config.Mode{ID: "organize", Prompt: "自定义提示词"},
+			entry: config.Mode{ID: "prompt", Prompt: "自定义提示词"},
 			want: func() Mode {
 				m := base
 				m.Prompt = "自定义提示词"
@@ -86,7 +85,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 		},
 		{
 			name:  "input",
-			entry: config.Mode{ID: "organize", Input: config.InputInstruction},
+			entry: config.Mode{ID: "prompt", Input: config.InputInstruction},
 			want: func() Mode {
 				m := base
 				m.Input = config.InputInstruction
@@ -95,7 +94,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 		},
 		{
 			name:  "output",
-			entry: config.Mode{ID: "organize", Output: config.OutputPlain},
+			entry: config.Mode{ID: "prompt", Output: config.OutputPlain},
 			want: func() Mode {
 				m := base
 				m.Output = config.OutputPlain
@@ -104,7 +103,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 		},
 		{
 			name:  "model",
-			entry: config.Mode{ID: "organize", Model: "chosen"},
+			entry: config.Mode{ID: "prompt", Model: "chosen"},
 			want: func() Mode {
 				m := base
 				m.Model = "chosen"
@@ -244,29 +243,29 @@ func TestResolveModel(t *testing.T) {
 		{
 			name: "built-in preferences",
 			cfg:  &config.Config{DefaultModel: "fast", Models: fastStrong},
-			want: []string{"fast", "fast", "strong", "strong", "fast"},
+			want: []string{"fast", "fast", "strong", "fast"},
 		},
 		{
-			name: "organize falls back without strong",
+			name: "prompt falls back without strong",
 			cfg:  &config.Config{DefaultModel: "fast", Models: []config.Model{{Name: "fast"}}},
-			want: []string{"fast", "fast", "fast", "fast", "fast"},
+			want: []string{"fast", "fast", "fast", "fast"},
 		},
 		{
 			name: "ask falls back without fast",
 			cfg:  &config.Config{DefaultModel: "strong", Models: []config.Model{{Name: "strong"}}},
-			want: []string{"strong", "strong", "strong", "strong", "strong"},
+			want: []string{"strong", "strong", "strong", "strong"},
 		},
 		{
 			name: "ask prefers fast over the default",
 			cfg:  &config.Config{DefaultModel: "strong", Models: []config.Model{{Name: "strong"}, {Name: "fast"}}},
-			want: []string{"strong", "strong", "strong", "strong", "fast"},
+			want: []string{"strong", "strong", "strong", "fast"},
 		},
 		{
 			name: "explicit model wins",
 			cfg: &config.Config{
 				DefaultModel: "strong",
 				Models:       fastStrong,
-				Modes:        []config.Mode{{ID: "organize", Model: "fast"}},
+				Modes:        []config.Mode{{ID: "prompt", Model: "fast"}},
 			},
 			want: []string{"fast"},
 		},
@@ -282,7 +281,7 @@ func TestResolveModel(t *testing.T) {
 		{
 			name: "no models",
 			cfg:  &config.Config{},
-			want: []string{"", "", "", "", ""},
+			want: []string{"", "", "", ""},
 		},
 	}
 	for _, tc := range cases {
@@ -302,3 +301,14 @@ func TestResolveModel(t *testing.T) {
 		})
 	}
 }
+
+func TestOrganizeMergedIntoImprove(t *testing.T) {
+	modes, err := Resolve(&config.Config{Modes: []config.Mode{{ID: "organize"}, {ID: "improve"}, {ID: "ask"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(modes) != 2 || modes[0].ID != "improve" || modes[1].ID != "ask" {
+		t.Errorf("modes = %+v", modes)
+	}
+}
+

@@ -16,7 +16,7 @@
       "const": 1
     },
     "myLanguage": {
-      "description": "我的语言：翻译把其他语言译成它，整理的结果也用它。任意写法，如「简体中文」「粤语」。",
+      "description": "我的语言：翻译把其他语言译成它。任意写法，如「简体中文」「粤语」。",
       "type": "string",
       "minLength": 1,
       "default": "简体中文"
@@ -53,7 +53,7 @@
       ]]
     },
     "modes": {
-      "description": "控制条上的模式，按顺序显示，第一项是默认模式。省略时是全部内置模式：translate（翻译）、improve（改进）、organize（整理）、prompt（提示词梳理）、ask（问答）。写了这个列表就以它为准：不列出的内置模式不显示。内置模式的条目只覆盖写出的字段，删掉 prompt 即恢复默认提示词；其他 id 是自定义模式，必须写 name 和 prompt。",
+      "description": "控制条上的模式，按顺序显示，第一项是默认模式。省略时是全部内置模式：translate（翻译）、improve（润色，杂乱时也整理）、prompt（提示词梳理）、ask（问答）。写了这个列表就以它为准：不列出的内置模式不显示。内置模式的条目只覆盖写出的字段，删掉 prompt 即恢复默认提示词；其他 id 是自定义模式，必须写 name 和 prompt。",
       "type": "array",
       "items": { "$ref": "#/$defs/mode" },
       "examples": [[
@@ -90,8 +90,8 @@
       }
     },
     "theme": {
-      "description": "配色，来自 Omarchy：auto 跟随系统的浅色/深色，tokyo-night 深色，tokyo-night-day 浅色。",
-      "enum": ["auto", "tokyo-night", "tokyo-night-day"],
+      "description": "配色，来自 Omarchy 的主题：auto 跟随系统，深色用 tokyo-night，浅色用 catppuccin-latte。",
+      "enum": ["auto", "catppuccin", "catppuccin-latte", "ethereal", "everforest", "flexoki-light", "gruvbox", "hackerman", "kanagawa", "last-horizon", "lumon", "lupine", "matte-black", "miasma", "nord", "osaka-jade", "retro-82", "ristretto", "rose-pine", "solitude", "starship", "tokyo-night", "vantablack", "white"],
       "default": "auto"
     },
     "launchAtLogin": {
@@ -155,7 +155,7 @@
       "required": ["id"],
       "properties": {
         "id": {
-          "description": "模式的标识，小写字母、数字和连字符。内置模式的 id 是 translate、improve、organize、prompt、ask。",
+          "description": "模式的标识，小写字母、数字和连字符。内置模式的 id 是 translate、improve、prompt、ask（旧的 organize 并入了 improve）。",
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]*$"
         },

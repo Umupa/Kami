@@ -1,4 +1,4 @@
-// Package design holds the design tokens of every window: the themes, after
+// Package design holds the design tokens of every window: the themes,
 // Omarchy's (Tokyo Night by default), one monospaced font, flat shapes with
 // hairline borders and no shadows, and the measures and motion of the chat,
 // after monocode's. Views take colors from a Palette and sizes from the
@@ -43,82 +43,6 @@ type Palette struct {
 
 	// Syntax colors code by kind of token.
 	Keyword, String, Number, Comment, Function, Type ui.Color
-}
-
-// TokyoNight is the dark theme, Omarchy's default.
-var TokyoNight = Palette{
-	Dark:         true,
-	Background:   ui.Hex("#1A1B26"),
-	Surface:      ui.Hex("#16161E"),
-	Raised:       ui.Hex("#292E42"),
-	Border:       ui.Hex("#292E42"),
-	Edge:         ui.Hex("#7AA2F759"),
-	Text:         ui.Hex("#A9B1D6"),
-	Bright:       ui.Hex("#C0CAF5"),
-	Muted:        ui.Hex("#737AA2"),
-	Faint:        ui.Hex("#565F89"),
-	Accent:       ui.Hex("#7AA2F7"),
-	AccentText:   ui.Hex("#1A1B26"),
-	Link:         ui.Hex("#7DCFFF"),
-	Code:         ui.Hex("#9ECE6A"),
-	Quote:        ui.Hex("#BB9AF7"),
-	Operator:     ui.Hex("#7DCFFF"),
-	OperatorFill: ui.Hex("#7DCFFF1F"),
-	Sparkle:      ui.Hex("#E0AF68"),
-	Danger:       ui.Hex("#F7768E"),
-	Keyword:      ui.Hex("#BB9AF7"),
-	String:       ui.Hex("#9ECE6A"),
-	Number:       ui.Hex("#FF9E64"),
-	Comment:      ui.Hex("#565F89"),
-	Function:     ui.Hex("#7AA2F7"),
-	Type:         ui.Hex("#2AC3DE"),
-}
-
-// TokyoNightDay is the light theme.
-var TokyoNightDay = Palette{
-	Background:   ui.Hex("#E1E2E7"),
-	Surface:      ui.Hex("#D5D6DB"),
-	Raised:       ui.Hex("#C4C8DA"),
-	Border:       ui.Hex("#C4C8DA"),
-	Edge:         ui.Hex("#2E7DE959"),
-	Text:         ui.Hex("#3760BF"),
-	Bright:       ui.Hex("#343B58"),
-	Muted:        ui.Hex("#6172B0"),
-	Faint:        ui.Hex("#848CB5"),
-	Accent:       ui.Hex("#2E7DE9"),
-	AccentText:   ui.Hex("#E1E2E7"),
-	Link:         ui.Hex("#007197"),
-	Code:         ui.Hex("#587539"),
-	Quote:        ui.Hex("#9854F1"),
-	Operator:     ui.Hex("#007197"),
-	OperatorFill: ui.Hex("#0071971F"),
-	Sparkle:      ui.Hex("#8C6C3E"),
-	Danger:       ui.Hex("#F52A65"),
-	Keyword:      ui.Hex("#9854F1"),
-	String:       ui.Hex("#587539"),
-	Number:       ui.Hex("#B15C00"),
-	Comment:      ui.Hex("#848CB5"),
-	Function:     ui.Hex("#2E7DE9"),
-	Type:         ui.Hex("#007197"),
-}
-
-// Themes are the themes config.json names, besides "auto", which follows
-// the system's appearance.
-var Themes = map[string]*Palette{
-	"tokyo-night":     &TokyoNight,
-	"tokyo-night-day": &TokyoNightDay,
-}
-
-// For returns the palette of a theme name; "auto" or an unknown name follows
-// the appearance.
-func For(theme string, dark bool) *Palette {
-	if p, ok := Themes[theme]; ok {
-		return p
-	}
-	if dark {
-		return &TokyoNight
-	}
-	return &TokyoNightDay
 }
 
 // Font is the one family of every window: Omarchy's, falling back to the

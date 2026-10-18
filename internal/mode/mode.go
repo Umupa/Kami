@@ -34,8 +34,7 @@ type builtin struct {
 
 var builtins = []builtin{
 	{Mode{ID: "translate", Name: "翻译", Desc: "外文译成我的语言，我的语言译成外语", Input: config.InputMaterial, Output: config.OutputAuto, Prompt: translatePrompt}, ""},
-	{Mode{ID: "improve", Name: "改进", Desc: "润色用词、语法和语气，不改意思", Input: config.InputMaterial, Output: config.OutputPlain, Prompt: improvePrompt}, ""},
-	{Mode{ID: "organize", Name: "整理", Desc: "把杂乱的文字整理成标题、列表和表格", Input: config.InputMaterial, Output: config.OutputMarkdown, Prompt: organizePrompt}, "strong"},
+	{Mode{ID: "improve", Name: "润色", Desc: "改得通顺准确；内容杂乱时整理成标题、列表和表格", Input: config.InputMaterial, Output: config.OutputAuto, Prompt: improvePrompt}, ""},
 	{Mode{ID: "prompt", Name: "提示词", Desc: "把模糊的需求梳理成结构化的提示词", Input: config.InputMaterial, Output: config.OutputMarkdown, Prompt: promptPrompt}, "strong"},
 	{Mode{ID: "ask", Name: "问答", Desc: "直接回答问题，先给结论", Input: config.InputInstruction, Output: config.OutputMarkdown, Prompt: askPrompt}, "fast"},
 }
@@ -61,7 +60,16 @@ func Resolve(c *config.Config) ([]Mode, error) {
 	}
 	var problems []config.Problem
 	modes := make([]Mode, 0, len(entries))
+	seen := map[string]bool{}
 	for i, e := range entries {
+		if e.ID == "organize" {
+			// Organizing was merged into improving.
+			e.ID = "improve"
+		}
+		if seen[e.ID] {
+			continue
+		}
+		seen[e.ID] = true
 		b, isBuiltin := findBuiltin(e.ID)
 		m := b.Mode
 		if !isBuiltin {
