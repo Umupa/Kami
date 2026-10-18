@@ -19,6 +19,7 @@ import (
 	"github.com/Umupa/cida-next/internal/macos"
 	"github.com/Umupa/cida-next/internal/mode"
 	"github.com/Umupa/cida-next/internal/panel"
+	"github.com/Umupa/cida-next/internal/selection"
 )
 
 // app is the running application. Menu and tray methods are safe from any
@@ -35,6 +36,7 @@ type app struct {
 	// shortcut is a key combination. Main thread only.
 	doubleTap *hotkey.DoubleTap
 	tapping   bool
+	clipboard *macos.Pasteboard
 }
 
 // Run starts the app and returns when it quits. A second launch returns at
@@ -98,6 +100,7 @@ func (a *app) ready(ctx context.Context) {
 		{ID: "config-error-sep", Type: mygo.MenuItemSeparator, Hidden: true},
 		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
 		{ID: "listen-access", Label: "允许「输入监控」，以双击 ⌥ 打开面板…", Hidden: true, Click: a.requestListenAccess},
+		{ID: "ax-access", Label: "允许「辅助功能」，以带入选中的文字…", Hidden: macos.AXTrusted(), Click: a.requestAXAccess},
 		mygo.Separator(),
 		{Label: "复制配置提示词", Click: a.copyAgentPrompt},
 		{Label: "打开配置文件夹", Click: a.revealConfig},
@@ -127,14 +130,12 @@ func (a *app) ready(ctx context.Context) {
 	go a.watchConfig(ctx)
 }
 
-// applyShortcuts registers the global shortcuts of c. Until selection import
-// lands, the selection shortcut shows the panel as it does without a
-// selection.
+// applyShortcuts registers the global shortcuts of c.
 func (a *app) applyShortcuts(c *config.Config) {
 	a.log.Info("apply shortcuts", "panel", c.Shortcuts.Panel, "selection", c.Shortcuts.Selection)
 	a.hotkeys.Apply([]hotkey.Binding{
 		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
-		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.panel.Toggle},
+		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.importSelection},
 	})
 	a.doubleTap = nil
 	if sc, err := config.ParseShortcut(c.Shortcuts.Panel); err == nil && sc.Double != 0 {
@@ -142,6 +143,35 @@ func (a *app) applyShortcuts(c *config.Config) {
 		a.watchKeys()
 	}
 	a.menu.ItemByID("listen-access").SetVisible(a.doubleTap != nil && !a.tapping)
+}
+
+// importSelection reads the selection of the frontmost app and shows the
+// panel with it; pressed while the panel shows, it hides the panel. It runs
+// on the main thread, where the keyboard layout is read.
+func (a *app) importSelection() {
+	if a.panel.Visible() {
+		a.panel.Hide()
+		return
+	}
+	a.menu.ItemByID("ax-access").SetVisible(!macos.AXTrusted())
+	if a.clipboard == nil {
+		pb, err := macos.GeneralPasteboard()
+		if err != nil {
+			a.log.Error("pasteboard", "err", err)
+			a.panel.Show()
+			return
+		}
+		a.clipboard = pb
+	}
+	r := &selection.Reader{Sys: selection.NewSystem(a.clipboard, macos.KeyCodeFor('c'))}
+	go func() {
+		start := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		text := r.Read(ctx)
+		a.log.Info("selection read", "found", text != "", "ms", time.Since(start).Milliseconds())
+		mygo.RunOnMain(func() { a.panel.Import(text) })
+	}()
 }
 
 // watchKeys starts the event tap that sees double taps, once Input
@@ -160,6 +190,14 @@ func (a *app) watchKeys() {
 		return
 	}
 	a.tapping = true
+}
+
+// requestAXAccess asks for Accessibility, which reading the selection and
+// the copy fallback need. The item stays until access is granted.
+func (a *app) requestAXAccess(item *mygo.MenuItem, _ *mygo.Window) {
+	if macos.RequestAXTrust() {
+		item.SetVisible(false)
+	}
 }
 
 // requestListenAccess asks for Input Monitoring. macOS applies a new grant

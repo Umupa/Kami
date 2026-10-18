@@ -52,11 +52,14 @@ type Panel struct {
 	cfg   *config.Config
 	modes []mode.Mode
 
-	source  string
-	follow  string
-	modeIdx int
-	sess    *session.Session
-	cancel  context.CancelFunc
+	source string
+	// lastImport is the selection last brought in, so that importing it
+	// again shows the panel as the user left it.
+	lastImport string
+	follow     string
+	modeIdx    int
+	sess       *session.Session
+	cancel     context.CancelFunc
 
 	md       markdown.Options
 	result   ui.ScrollState
@@ -158,6 +161,25 @@ func (p *Panel) Show() {
 	p.sourceIn.Focus()
 	p.deps.Log.Info("panel show", "work", d.WorkArea, "want", p.place.bounds(p.height),
 		"got", p.win.Bounds(), "visible", p.win.IsVisible())
+}
+
+// Visible reports whether the panel shows.
+func (p *Panel) Visible() bool { return p.win.IsVisible() }
+
+// Import shows the panel with text selected in another app. New text starts
+// a session in the default mode at once; the same text as last time, or none,
+// shows the panel as it was (Cida's panel.md §一).
+func (p *Panel) Import(text string) {
+	switch {
+	case text == "":
+		p.lastImport = ""
+	case text != p.lastImport:
+		p.lastImport = text
+		p.source = text
+		p.modeIdx = 0
+		p.run()
+	}
+	p.Show()
 }
 
 // Hide hides the panel. A request in progress goes on.
