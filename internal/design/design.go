@@ -6,9 +6,6 @@
 package design
 
 import (
-	"os"
-	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -44,13 +41,6 @@ type Palette struct {
 	// Syntax colors code by kind of token.
 	Keyword, String, Number, Comment, Function, Type ui.Color
 }
-
-// Font is the one family of every window: Omarchy's, falling back to the
-// system's monospaced font where it is not installed.
-const (
-	Font         = "CaskaydiaCove Nerd Font"
-	FallbackFont = "SF Mono"
-)
 
 // Type sizes in points, and line heights as multiples of the size.
 const (
@@ -100,30 +90,9 @@ const (
 	MotionSparkles = 3200 * time.Millisecond
 )
 
-// MonoFont returns Font when it is installed, else FallbackFont: Core Text
-// would otherwise fall back to a proportional font.
-func MonoFont() string {
-	monoOnce.Do(func() {
-		monoFont = FallbackFont
-		home, _ := os.UserHomeDir()
-		for _, dir := range []string{filepath.Join(home, "Library", "Fonts"), "/Library/Fonts"} {
-			if m, _ := filepath.Glob(filepath.Join(dir, "CaskaydiaCove*NerdFont*-Regular.ttf")); len(m) > 0 {
-				monoFont = Font
-				return
-			}
-		}
-	})
-	return monoFont
-}
-
-var (
-	monoOnce sync.Once
-	monoFont string
-)
-
 // UITheme turns a palette into the window theme, so that MyGo's own widgets
 // (scroll bars, menus, text selection) take its colors and font too.
-func UITheme(base ui.Theme, p *Palette, font string) *ui.Theme {
+func UITheme(base ui.Theme, p *Palette, font string, size float32) *ui.Theme {
 	t := base
 	t.Dark = p.Dark
 	t.Background, t.Surface = p.Background, p.Surface
@@ -135,6 +104,6 @@ func UITheme(base ui.Theme, p *Palette, font string) *ui.Theme {
 	t.Focus = p.Accent
 	t.Scrollbar = p.Faint.Alpha(0.5)
 	t.Radius = RadiusChip
-	t.Font, t.FontSize = font, FontBody
+	t.Font, t.FontSize = font, size
 	return &t
 }

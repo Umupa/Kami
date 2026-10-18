@@ -75,9 +75,14 @@ type Panel struct {
 	sess           *session.Session
 	cancel         context.CancelFunc
 
-	md       markdown.Options
-	mdFor    *design.Palette // the palette md.Theme was made for
-	pal      *design.Palette // the palette of the last frame
+	md    markdown.Options
+	mdFor mdKey           // what md.Theme was made for
+	pal   *design.Palette // the palette of the last frame
+	sz    design.Sizes    // the type sizes of the last frame
+	font  design.FontPreset
+
+	// pinned keeps the panel when another app takes the keyboard.
+	pinned   bool
 	result   ui.ScrollState
 	sourceIn ui.Handle
 	followIn ui.Handle
@@ -100,9 +105,10 @@ type Panel struct {
 	split        splitDrag
 	splitHandle  ui.Handle
 	// fixedHeight is the panel's height the user resized it to, 0 to
-	// follow its content; resizing marks the app's own resizes.
+	// follow its content; requested is the height the app last asked the
+	// window for, to tell its own resizes from the user's.
 	fixedHeight int
-	resizing    bool
+	requested   int
 
 	copiedTurn int
 	copiedAt   time.Time
@@ -131,6 +137,7 @@ func New(d Deps) *Panel {
 		DisableFullScreen: true,
 		Width:             design.PanelWidth,
 		Height:            initialHeight,
+		Vibrancy:          mygo.VibrancyHUD,
 		Content:           ui.View(p.view),
 	})
 	// Escape and Cmd-W close a panel; hiding keeps its state and shows it
@@ -154,16 +161,21 @@ func New(d Deps) *Panel {
 	})
 	p.win.OnResize(func() {
 		b := p.win.Bounds()
-		if !p.win.IsVisible() || p.resizing || b.Width <= 0 {
+		if !p.win.IsVisible() || b.Width <= 0 {
 			return
 		}
+		// The panel fills the window across, so a new width needs nothing
+		// but to be kept; a height the app did not ask for is the user's.
 		p.place.width = b.Width
-		if b.Height != p.height {
-			p.fixedHeight, p.height = b.Height, b.Height
+		if b.Height != p.requested {
+			p.fixedHeight, p.height, p.requested = b.Height, b.Height, b.Height
 			p.place.maxHeight = max(p.place.maxHeight, b.Height)
 		}
 	})
 	p.win.OnBlur(func() {
+		if p.pinned {
+			return
+		}
 		d.Log.Debug("panel blur")
 		p.win.Hide()
 	})
@@ -172,13 +184,18 @@ func New(d Deps) *Panel {
 	p.win.OnHide(func() { d.Log.Debug("panel hidden") })
 	p.post = p.win.Update
 	// Resizing re-enters layout, so it waits until the view has been built.
+	// Resizing re-enters layout, so it waits until the frame is done. Only
+	// the height changes: where the window is now, which the user may be
+	// moving it from, and its width stay.
 	p.resize = func(r mygo.Rectangle) {
-		go func() {
-			mygo.RunOnMain(func() { p.resizing = true })
-			p.win.SetBounds(r)
-			mygo.RunOnMain(func() { p.resizing = false })
-			d.Log.Debug("panel resize", "want", r, "got", p.win.Bounds())
-		}()
+		p.requested = r.Height
+		p.win.Update(func() {
+			b := p.win.Bounds()
+			if b.Height == r.Height {
+				return
+			}
+			p.win.SetBounds(mygo.Rectangle{X: b.X, Y: b.Y, Width: b.Width, Height: r.Height})
+		})
 	}
 	d.Store.Subscribe(func(s config.Snapshot) {
 		p.post(func() { p.applyConfig(s.Config) })
@@ -222,6 +239,7 @@ func (p *Panel) Show() {
 		// height of an empty one.
 		p.height = initialHeight
 	}
+	p.requested = p.place.bounds(p.height).Height
 	p.win.SetBounds(p.place.bounds(p.height))
 	p.win.Show()
 	p.sourceIn.Focus()

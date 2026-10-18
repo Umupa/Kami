@@ -21,7 +21,28 @@ type Config struct {
 	LaunchAtLogin   bool      `json:"launchAtLogin,omitempty"`
 	// Theme names the colors: "auto" follows the system's appearance.
 	Theme string `json:"theme,omitempty"`
+	// Font names a font preset, and FontSize is the body text's size in
+	// points; the panel's other sizes keep their ratio to it.
+	Font     string  `json:"font,omitempty"`
+	FontSize float32 `json:"fontSize,omitempty"`
+	// Background is "blur", the desktop showing blurred through the panel,
+	// or "solid".
+	Background string `json:"background,omitempty"`
 }
+
+// Fonts are the values of Font; a test of package design checks them
+// against its presets.
+var Fonts = []string{"caskaydia", "jetbrains-mono", "sf-mono", "cida-serif", "songti", "kaiti", "inter", "system"}
+
+// Backgrounds are the values of Background.
+var Backgrounds = []string{"blur", "solid"}
+
+// Font size limits and default, in points.
+const (
+	MinFontSize     = 11
+	MaxFontSize     = 22
+	DefaultFontSize = 13.5
+)
 
 // Themes are the values of Theme.
 // The names follow internal/design/themes, which a test of design checks.
@@ -154,6 +175,15 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Theme == "" {
 		c.Theme = "auto"
+	}
+	if c.Font == "" {
+		c.Font = Fonts[0]
+	}
+	if c.FontSize == 0 {
+		c.FontSize = DefaultFontSize
+	}
+	if c.Background == "" {
+		c.Background = Backgrounds[0]
 	}
 	if c.Shortcuts.Panel == "" {
 		c.Shortcuts.Panel = DefaultPanelShortcut

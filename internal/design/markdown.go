@@ -8,11 +8,11 @@ import (
 
 // Markdown returns how replies look in a palette: monocode's measures in
 // the theme's colors and the one font.
-func Markdown(p *Palette, font string) *markdown.Theme {
+func Markdown(p *Palette, font FontPreset, size float32) *markdown.Theme {
 	return &markdown.Theme{
-		FontSize:       FontBody,
-		Font:           font,
-		CodeFont:       font,
+		FontSize:       size,
+		Font:           font.Family,
+		CodeFont:       font.Code,
 		LineHeight:     LineHeightBody,
 		CodeLineHeight: 1.5,
 

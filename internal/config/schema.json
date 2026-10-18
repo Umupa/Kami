@@ -94,6 +94,23 @@
       "enum": ["auto", "catppuccin", "catppuccin-latte", "ethereal", "everforest", "flexoki-light", "gruvbox", "hackerman", "kanagawa", "last-horizon", "lumon", "lupine", "matte-black", "miasma", "nord", "osaka-jade", "retro-82", "ristretto", "rose-pine", "solitude", "starship", "tokyo-night", "vantablack", "white"],
       "default": "auto"
     },
+    "font": {
+      "description": "字体预设：caskaydia（Omarchy 的等宽字体，默认）、jetbrains-mono、sf-mono、cida-serif（辞达的衬线，Source Serif 4 配宋体）、songti（宋体）、kaiti（楷体）、inter（辞达的界面字体）、system（苹方）。代码始终用等宽字体。",
+      "enum": ["caskaydia", "jetbrains-mono", "sf-mono", "cida-serif", "songti", "kaiti", "inter", "system"],
+      "default": "caskaydia"
+    },
+    "fontSize": {
+      "description": "正文字号（点），其他字号按比例跟随。面板里按 ⌘= 放大、⌘- 缩小、⌘0 恢复。",
+      "type": "number",
+      "minimum": 11,
+      "maximum": 22,
+      "default": 13.5
+    },
+    "background": {
+      "description": "面板背景：blur 是毛玻璃，透出模糊的桌面；solid 是主题的实色。",
+      "enum": ["blur", "solid"],
+      "default": "blur"
+    },
     "launchAtLogin": {
       "description": "登录时自动启动。",
       "type": "boolean",

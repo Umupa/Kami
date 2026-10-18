@@ -1,7 +1,6 @@
 package panel
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -22,6 +21,7 @@ const (
 	menuCommands
 	menuTopics
 	menuThemes
+	menuFonts
 )
 
 // item is an entry of a menu.
@@ -29,20 +29,35 @@ type item struct {
 	key, title, desc string
 	color            ui.Color   // the key's, zero for the default
 	swatch           []ui.Color // a theme's colors
+	font             string     // a font preset's family, to show its name in it
 	take             func(p *Panel, setText func(string))
 }
 
-// themeCommand opens the theme picker.
-const themeCommand = operator.Command + " theme"
+// themeCommand and fontCommand open the pickers.
+const (
+	themeCommand = operator.Command + " theme"
+	fontCommand  = operator.Command + " font"
+)
 
 // menu returns the menu the source calls for, with its items filtered by
 // what is typed.
 func (p *Panel) menu(pal *design.Palette) (menuKind, []item) {
+	kind, items := p.menuItems(pal)
+	if len(items) == 0 {
+		// Nothing matches what is typed: no menu, the source is a request.
+		return menuNone, nil
+	}
+	return kind, items
+}
+
+func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 	src := p.source
 	if src == p.menuClosed || strings.Contains(src, "\n") {
 		return menuNone, nil
 	}
 	switch {
+	case strings.HasPrefix(src, fontCommand) && (len(src) == len(fontCommand) || src[len(fontCommand)] == ' '):
+		return menuFonts, p.fontItems(strings.TrimSpace(src[len(fontCommand):]))
 	case strings.HasPrefix(src, themeCommand) && (len(src) == len(themeCommand) || src[len(themeCommand)] == ' '):
 		return menuThemes, p.themeItems(strings.TrimSpace(src[len(themeCommand):]))
 	case strings.HasPrefix(src, operator.Command+" "):
@@ -74,6 +89,7 @@ func (p *Panel) commandItems(query string, pal *design.Palette) []item {
 // answers or, for themes, the picker.
 var topics = []struct{ key, title, ask string }{
 	{"theme", "切换配色主题", ""},
+	{"font", "切换字体，⌘= ⌘- 调字号", ""},
 	{"模型", "各模式用哪个模型，默认模型是哪个", "现在各模式用的是哪个模型？默认模型是哪个？"},
 	{"快捷键", "查看或修改全局快捷键", "现在的快捷键有哪些？"},
 	{"模式", "查看模式和完整提示词，增删模式", "列出所有模式，以及每个模式的提示词。"},
@@ -88,7 +104,7 @@ func (p *Panel) topicItems(query string) []item {
 	for _, t := range topics {
 		all = append(all, item{key: t.key, title: t.title, take: func(p *Panel, set func(string)) {
 			if t.ask == "" {
-				set(themeCommand + " ")
+				set(operator.Command + " " + t.key + " ")
 				p.caretToEnd = true
 				return
 			}
@@ -116,22 +132,33 @@ func (p *Panel) themeItems(query string) []item {
 // takeTheme keeps the theme previewed, writing it to config.json.
 func takeTheme(name string) func(p *Panel, set func(string)) {
 	return func(p *Panel, set func(string)) {
-		value, _ := json.Marshal(name)
-		if p.deps.Operator.Apply != nil {
-			if _, err := p.deps.Operator.Apply([]config.Op{{Path: "theme", Value: value}}); err != nil {
-				p.notice = "没有切换主题：" + err.Error()
-				return
-			}
-		}
-		if p.cfg != nil {
-			// Shown at once, before the store reloads the file.
-			cfg := *p.cfg
-			cfg.Theme = name
-			p.cfg = &cfg
-		}
+		p.setConfig("theme", name, func(c *config.Config) { c.Theme = name })
 		p.notice = "主题已切换为 " + name + "，可以随时用 /operator theme 再换。"
 		set("")
 	}
+}
+
+func (p *Panel) fontItems(query string) []item {
+	var all []item
+	for _, f := range design.Fonts {
+		label, sample := f.Label, "敏捷的狐狸 The quick fox 0123"
+		all = append(all, item{key: f.Name, title: label, desc: sample, font: f.Use().Family, take: func(p *Panel, set func(string)) {
+			p.setConfig("font", f.Name, func(c *config.Config) { c.Font = f.Name })
+			p.notice = "字体已切换为 " + label + "；⌘= ⌘- 调字号，⌘0 恢复。"
+			set("")
+		}})
+	}
+	return filter(all, query)
+}
+
+// previewFont is the font chosen in the font picker, shown until the picker
+// closes; "" when no picker shows.
+func (p *Panel) previewFont() string {
+	kind, items := p.menu(p.pal)
+	if kind != menuFonts || len(items) == 0 {
+		return ""
+	}
+	return items[min(p.menuIdx, len(items)-1)].key
 }
 
 // filter keeps the items whose key or title has query, those starting with
@@ -204,7 +231,7 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 	ui.Divider(c).Background(pal.Border)
 	ui.Column(c.Key("menu")).Shrink(0).Padding(6, 10).Gap(1).Children(func() {
 		if len(items) == 0 {
-			ui.Text(c, "没有匹配的项").FontSize(design.FontLabel).TextColor(pal.Faint).Padding(6, 10)
+			ui.Text(c, "没有匹配的项").FontSize(p.sz.Label).TextColor(pal.Faint).Padding(6, 10)
 			return
 		}
 		sel := min(p.menuIdx, len(items)-1)
@@ -221,7 +248,7 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 					if color.A == 0 {
 						color = pal.Bright
 					}
-					ui.Text(c, it.key).FontSize(design.FontLabel).FontWeight(600).TextColor(color).Width(150).MaxLines(1)
+					ui.Text(c, it.key).FontSize(p.sz.Label).FontWeight(600).TextColor(color).Width(150).MaxLines(1)
 					if len(it.swatch) > 0 {
 						ui.Row(c).Gap(3).Children(func() {
 							for _, col := range it.swatch {
@@ -229,8 +256,13 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 							}
 						})
 					}
-					ui.Text(c, it.title).FontSize(design.FontLabel).TextColor(pal.Text).MinWidth(70)
-					ui.Text(c, it.desc).FontSize(design.FontCaption).TextColor(pal.Muted).Grow(1).MaxLines(1)
+					title := ui.Text(c, it.title).FontSize(p.sz.Label).TextColor(pal.Text).MinWidth(70)
+					desc := ui.Text(c, it.desc).FontSize(p.sz.Caption).TextColor(pal.Muted).Grow(1).MaxLines(1)
+					if kind == menuFonts {
+						// Each font shows its name and a sample in itself.
+						title.Font(it.font)
+						desc.Font(it.font).FontSize(p.sz.Label)
+					}
 				})
 				if row.Clicked() {
 					p.menuIdx = 0
@@ -240,12 +272,15 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 			}
 		})
 		hint := "tab ⏎ 确定"
-		if kind == menuThemes {
+		switch kind {
+		case menuThemes:
 			hint = "⏎ 用这个主题"
+		case menuFonts:
+			hint = "⏎ 用这个字体"
 		}
 		ui.Row(c).Gap(14).Padding(6, 10, 2, 10).Children(func() {
 			for _, h := range []string{"↑↓ 选择", hint, "esc 关闭"} {
-				ui.Text(c, h).FontSize(design.FontCaption).TextColor(pal.Faint)
+				ui.Text(c, h).FontSize(p.sz.Caption).TextColor(pal.Faint)
 			}
 		})
 	})

@@ -93,3 +93,65 @@ func TestThemePicker(t *testing.T) {
 	}
 	h.snapshot("theme-gruvbox")
 }
+
+func TestFontPickerAndSize(t *testing.T) {
+	var applied []config.Op
+	h := newHarness(t, script{pieces: []string{designReply}})
+	h.p.deps.Operator.Apply = func(ops []config.Op) ([]config.Change, error) {
+		applied = append(applied, ops...)
+		return nil, nil
+	}
+	h.tt.SetDark(true)
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("/operator font cida")
+	h.tt.Frame()
+	if h.p.previewFont() != "cida-serif" || h.p.font.Name != "cida-serif" {
+		t.Errorf("previewing %q, panel font %q", h.p.previewFont(), h.p.font.Name)
+	}
+	h.snapshot("font-picker")
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	if h.p.cfg.Font != "cida-serif" {
+		t.Errorf("font = %q after Enter", h.p.cfg.Font)
+	}
+	h.tt.Key(ui.Cmd, ui.KeyEqual)
+	h.tt.Key(ui.Cmd, ui.KeyEqual)
+	h.tt.Frame()
+	if h.p.sz.Body != 15.5 {
+		t.Errorf("after two ⌘= the body is %v", h.p.sz.Body)
+	}
+	h.tt.Click("原文")
+	h.tt.Type("hello")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.snapshot("font-cida-serif")
+	h.tt.Key(ui.Cmd, ui.Key0)
+	h.tt.Frame()
+	if h.p.sz.Body != 13.5 {
+		t.Errorf("⌘0 left the body at %v", h.p.sz.Body)
+	}
+	if len(applied) != 4 {
+		t.Errorf("applied %d edits, want font and three sizes", len(applied))
+	}
+}
+
+func TestPinAndUnmatchedMenu(t *testing.T) {
+	h := newHarness(t, script{})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Key(ui.Cmd, ui.KeyP)
+	if !h.p.pinned {
+		t.Error("⌘P did not pin the panel")
+	}
+	h.tt.Type("/operator 我的语言和外语分别是什么？")
+	h.tt.Frame()
+	if kind, _ := h.p.menu(h.p.pal); kind != menuNone || h.tt.HasText("没有匹配的项") {
+		t.Error("a request that matches no topic still shows a menu")
+	}
+	h.p.source = "/zzz"
+	h.tt.Frame()
+	if kind, _ := h.p.menu(h.p.pal); kind != menuNone {
+		t.Error("an unknown command shows an empty menu")
+	}
+}

@@ -198,6 +198,15 @@ func (c *Config) validate() []Problem {
 	if c.Theme != "" && !slices.Contains(Themes, c.Theme) {
 		add("theme", "必须是 %s 之一", strings.Join(Themes, "、"))
 	}
+	if c.Font != "" && !slices.Contains(Fonts, c.Font) {
+		add("font", "必须是 %s 之一", strings.Join(Fonts, "、"))
+	}
+	if c.FontSize != 0 && (c.FontSize < MinFontSize || c.FontSize > MaxFontSize) {
+		add("fontSize", "必须在 %d 到 %d 之间", MinFontSize, MaxFontSize)
+	}
+	if c.Background != "" && !slices.Contains(Backgrounds, c.Background) {
+		add("background", "必须是 %s 之一", strings.Join(Backgrounds, "、"))
+	}
 	if c.DefaultModel != "" && !names[c.DefaultModel] {
 		add("defaultModel", "没有名为「%s」的模型", c.DefaultModel)
 	}

@@ -1,6 +1,7 @@
 package panel
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -13,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/egoist/mygo/ui/markdown/parser"
 
+	"github.com/Umupa/cida-next/internal/config"
 	"github.com/Umupa/cida-next/internal/design"
 	"github.com/Umupa/cida-next/internal/llm"
 	"github.com/Umupa/cida-next/internal/operator"
@@ -21,22 +23,33 @@ import (
 )
 
 func (p *Panel) view(c *ui.Context) {
-	theme := ""
+	theme, fontName, size, blur := "", "", float32(0), true
 	if p.cfg != nil {
-		theme = p.cfg.Theme
+		theme, fontName, size, blur = p.cfg.Theme, p.cfg.Font, p.cfg.FontSize, p.cfg.Background != "solid"
 	}
 	dark := c.Theme().Dark
 	pal := design.For(theme, dark)
 	if preview := p.previewTheme(pal); preview != "" {
 		pal = design.For(preview, dark)
 	}
-	p.pal = pal
-	font := design.MonoFont()
-	c.SetTheme(design.UITheme(*c.Theme(), pal, font))
-	if p.mdFor != pal {
-		p.md.Theme, p.mdFor = design.Markdown(pal, font), pal
+	if preview := p.previewFont(); preview != "" {
+		fontName = preview
+	}
+	p.pal, p.sz, p.font = pal, design.SizesFor(size), design.FontNamed(fontName).Use()
+	c.SetTheme(design.UITheme(*c.Theme(), pal, p.font.Family, p.sz.Body))
+	if key := (mdKey{pal, p.font.Name, p.sz.Body}); p.mdFor != key {
+		p.md.Theme, p.mdFor = design.Markdown(pal, p.font, p.sz.Body), key
 	}
 	c.Root().Background(ui.Transparent)
+	c.OnShortcut(ui.Cmd, ui.KeyEqual, func() { p.stepFontSize(1) })
+	c.OnShortcut(ui.Cmd, ui.KeyMinus, func() { p.stepFontSize(-1) })
+	c.OnShortcut(ui.Cmd, ui.Key0, func() { p.stepFontSize(0) })
+	c.OnShortcut(ui.Cmd, ui.KeyP, p.togglePin)
+	background := pal.Background
+	if blur && c.Vibrancy() {
+		// The desktop shows blurred through the panel's tint.
+		background = background.Alpha(0.78)
+	}
 	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
 	c.OnShortcut(ui.Cmd, ui.KeyJ, func() { p.switchInput(c) })
@@ -50,12 +63,9 @@ func (p *Panel) view(c *ui.Context) {
 	}
 	// The panel takes its own height, never the window's: the window
 	// follows it, so a window still too short must not squeeze it.
-	width := float32(p.place.width)
-	if width <= 0 {
-		width = design.PanelWidth
-	}
-	panel := ui.Column(c).Width(width).MaxHeight(maxHeight).Shrink(0).
-		Background(pal.Background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip()
+	// The panel fills the window across: the window's width is the user's.
+	panel := ui.Column(c).FillWidth().MaxHeight(maxHeight).Shrink(0).
+		Background(background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip()
 	if p.fixedHeight > 0 && p.sess != nil {
 		panel.Height(float32(p.fixedHeight))
 	}
@@ -66,7 +76,7 @@ func (p *Panel) view(c *ui.Context) {
 		p.modeBar(c, pal)
 		if p.notice != "" {
 			ui.Divider(c).Background(pal.Border)
-			ui.Text(c, p.notice).FontSize(design.FontLabel).TextColor(pal.Muted).
+			ui.Text(c, p.notice).FontSize(p.sz.Label).TextColor(pal.Muted).
 				PaddingX(design.SpaceX).PaddingY(12)
 		}
 		if p.sess != nil {
@@ -105,7 +115,7 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 	// Only the result shrinks when the panel reaches its height limit.
 	in := ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).Shrink(0).
 		Placeholder("输入或粘贴文字，/ 查看命令").Label("原文").
-		FontSize(design.FontSource).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
+		FontSize(p.sz.Source).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
 		PaddingX(design.SpaceX).PaddingY(design.SpaceSourceY).
 		TextRanges(p.commandRanges(c, pal)...).
 		OnTextKey(func(k ui.TextKey) bool {
@@ -195,7 +205,7 @@ func (p *Panel) sourceLines() int {
 		return 3
 	}
 	visible := float32(p.place.maxHeight) / design.PanelMaxRatio
-	line := float32(design.FontSource * design.LineHeightSource)
+	line := float32(p.sz.Source * design.LineHeightSource)
 	return max(3, int(visible*design.SourceMaxRatio/line))
 }
 
@@ -211,6 +221,7 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 		if p.operatorActive() {
 			p.operatorPill(c, pal)
 			ui.Spacer(c)
+			p.pinButton(c, pal)
 			p.runButton(c, pal)
 			return
 		}
@@ -225,7 +236,7 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 					}
 					chip := ui.Box(c.Key(m.ID)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
 					chip.Children(func() {
-						t := ui.Text(c, name).FontSize(design.FontLabel)
+						t := ui.Text(c, name).FontSize(p.sz.Label)
 						switch {
 						case i == p.modeIdx:
 							t.TextColor(pal.Accent).FontWeight(700)
@@ -246,19 +257,43 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 			})
 		})
 		ui.Spacer(c)
+		p.pinButton(c, pal)
 		p.themeButton(c, pal)
-		kbd(c, pal, "tab", "模式")
+		p.kbd(c, pal, "tab", "模式")
 		p.runButton(c, pal)
 	})
 }
 
 // kbd shows a key and what it does, as monocode's hints: the key in a chip.
-func kbd(c *ui.Context, pal *design.Palette, key, does string) {
+func (p *Panel) kbd(c *ui.Context, pal *design.Palette, key, does string) {
 	ui.Row(c).Gap(5).MarginEnd(10).Children(func() {
-		ui.Text(c, key).FontSize(design.FontCaption).TextColor(pal.Muted).
+		ui.Text(c, key).FontSize(p.sz.Caption).TextColor(pal.Muted).
 			PaddingX(4).Radius(design.RadiusChip).Border(1, pal.Border)
-		ui.Text(c, does).FontSize(design.FontCaption).TextColor(pal.Faint)
+		ui.Text(c, does).FontSize(p.sz.Caption).TextColor(pal.Faint)
 	})
+}
+
+var pinIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 2.2l4 4-2.3.9-2.6 2.6.3 2.8-1.2 1.2-2.4-3.5-3.2 3.2M5.6 7.9L2.1 5.5l1.2-1.2 2.8.3 2.6-2.6z"/></svg>`))
+
+// pinButton keeps the panel up while other apps have the keyboard (Cmd-P).
+func (p *Panel) pinButton(c *ui.Context, pal *design.Palette) {
+	label := "固定面板 ⌘P"
+	if p.pinned {
+		label = "取消固定 ⌘P"
+	}
+	b := ui.Box(c.Key("pin")).Padding(4).MarginEnd(6).Radius(design.RadiusChip).Label(label).Tooltip(label)
+	col := pal.Faint
+	switch {
+	case p.pinned:
+		col = pal.Accent
+		b.Background(pal.Raised)
+	case b.Hovered():
+		col = pal.Text
+	}
+	b.Children(func() { ui.Icon(c, pinIcon).Size(p.sz.Label+1, p.sz.Label+1).TextColor(col) })
+	if b.Clicked() {
+		p.togglePin()
+	}
 }
 
 // themeButton opens the theme picker.
@@ -269,12 +304,12 @@ func (p *Panel) themeButton(c *ui.Context, pal *design.Palette) {
 	}
 	b := ui.Row(c.Key("theme")).Gap(5).PaddingX(6).PaddingY(3).MarginEnd(10).Radius(design.RadiusChip).Label("切换主题")
 	b.Children(func() {
-		ui.Text(c, "◐").FontSize(design.FontLabel).TextColor(pal.Accent)
+		ui.Text(c, "◐").FontSize(p.sz.Label).TextColor(pal.Accent)
 		col := pal.Faint
 		if b.Hovered() {
 			col = pal.Text
 		}
-		ui.Text(c, name).FontSize(design.FontCaption).TextColor(col)
+		ui.Text(c, name).FontSize(p.sz.Caption).TextColor(col)
 	})
 	if b.Clicked() {
 		p.source = themeCommand + " "
@@ -286,8 +321,8 @@ func (p *Panel) themeButton(c *ui.Context, pal *design.Palette) {
 func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
 	run := ui.Row(c.Key("run")).Gap(6).PaddingX(10).PaddingY(4).Radius(design.RadiusChip).Background(pal.Accent)
 	run.Children(func() {
-		ui.Text(c, "⏎").FontSize(design.FontLabel).TextColor(pal.AccentText)
-		ui.Text(c, "执行").FontSize(design.FontLabel).FontWeight(700).TextColor(pal.AccentText)
+		ui.Text(c, "⏎").FontSize(p.sz.Label).TextColor(pal.AccentText)
+		ui.Text(c, "执行").FontSize(p.sz.Label).FontWeight(700).TextColor(pal.AccentText)
 	})
 	if run.Clicked() {
 		p.run()
@@ -317,13 +352,13 @@ func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 		if i > 0 {
 			// A follow-up, as a prompt line in a terminal.
 			ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-				ui.Text(c, "❯").FontSize(design.FontBody).TextColor(pal.Accent).FontWeight(700)
-				ui.Text(c, t.Ask).FontSize(design.FontBody).TextColor(pal.Bright).Grow(1).Selectable()
+				ui.Text(c, "❯").FontSize(p.sz.Body).TextColor(pal.Accent).FontWeight(700)
+				ui.Text(c, t.Ask).FontSize(p.sz.Body).TextColor(pal.Bright).Grow(1).Selectable()
 			})
 		}
 		switch {
 		case t.Reply == "" && t.Status == session.Streaming:
-			thinking(c, pal)
+			p.thinking(c, pal)
 		case t.Status == session.Streaming && p.sess.Operator:
 			markdown.Stream(c, operator.Visible(t.Reply), &p.md)
 		case t.Status == session.Streaming:
@@ -339,13 +374,13 @@ func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 }
 
 // thinking shows that a reply is on its way: a pulse, as monocode's.
-func thinking(c *ui.Context, pal *design.Palette) {
+func (p *Panel) thinking(c *ui.Context, pal *design.Palette) {
 	row := ui.Row(c.Key("thinking")).Gap(8)
 	pulse := row.Loop("pulse", design.MotionThinking, ui.EaseInOut)
 	alpha := 0.35 + 0.55*float32(0.5-0.5*math.Cos(2*math.Pi*float64(pulse)))
 	row.Children(func() {
-		ui.Text(c, "●").FontSize(design.FontCaption).TextColor(pal.Accent.Alpha(alpha))
-		ui.Text(c, "思考中").FontSize(design.FontLabel).TextColor(pal.Muted.Alpha(alpha + 0.1))
+		ui.Text(c, "●").FontSize(p.sz.Caption).TextColor(pal.Accent.Alpha(alpha))
+		ui.Text(c, "思考中").FontSize(p.sz.Label).TextColor(pal.Muted.Alpha(alpha + 0.1))
 	})
 }
 
@@ -379,21 +414,21 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 		if t.Parts > 1 {
 			parts = append(parts, fmt.Sprintf("分 %d 段处理", t.Parts))
 		}
-		ui.Text(c, strings.Join(parts, " · ")).FontSize(design.FontCaption).TextColor(pal.Faint)
+		ui.Text(c, strings.Join(parts, " · ")).FontSize(p.sz.Caption).TextColor(pal.Faint)
 		if last && p.stale() {
-			ui.Text(c, "原文或模式已改 ⏎ 重新执行").FontSize(design.FontCaption).TextColor(pal.Sparkle)
+			ui.Text(c, "原文或模式已改 ⏎ 重新执行").FontSize(p.sz.Caption).TextColor(pal.Sparkle)
 		}
 		ui.Spacer(c)
 		if t.Undoable {
-			action(c, pal, "撤销", pal.Operator, func() { p.undoOperator() })
+			p.action(c, pal, "撤销", pal.Operator, func() { p.undoOperator() })
 		}
 		if t.Status == session.Streaming || t.Reply == "" {
 			return
 		}
 		if last && !t.Local {
-			action(c, pal, "重新生成", pal.Muted, p.retry)
+			p.action(c, pal, "重新生成", pal.Muted, p.retry)
 		}
-		ui.Text(c, "复制为…").FontSize(design.FontCaption).TextColor(pal.Muted).Menu(func(m *ui.Menu) {
+		ui.Text(c, "复制为…").FontSize(p.sz.Caption).TextColor(pal.Muted).Menu(func(m *ui.Menu) {
 			if m.Item("纯文本").Chosen() {
 				p.writeClipboard(plaintext.FromMarkdown(t.Reply))
 			}
@@ -412,20 +447,20 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 			label = "✓ 已复制"
 			c.After(design.MotionCopiedHold)
 		}
-		action(c, pal, label, pal.Muted, func() { p.copyTurn(i) })
+		p.action(c, pal, label, pal.Muted, func() { p.copyTurn(i) })
 	})
 	if t.Status == session.Failed {
 		title, next := failureText(t.Err)
 		ui.Column(c).Gap(2).PaddingStart(10).BorderStartWidth(2).BorderColor(pal.Danger).Children(func() {
-			ui.Text(c, title).FontSize(design.FontLabel).TextColor(pal.Bright)
-			ui.Text(c, next).FontSize(design.FontLabel).TextColor(pal.Muted)
+			ui.Text(c, title).FontSize(p.sz.Label).TextColor(pal.Bright)
+			ui.Text(c, next).FontSize(p.sz.Label).TextColor(pal.Muted)
 		})
 	}
 }
 
 // action is a text button of a turn's footer, brighter on hover.
-func action(c *ui.Context, pal *design.Palette, label string, color ui.Color, fn func()) {
-	t := ui.Text(c.Key(label), label).FontSize(design.FontCaption)
+func (p *Panel) action(c *ui.Context, pal *design.Palette, label string, color ui.Color, fn func()) {
+	t := ui.Text(c.Key(label), label).FontSize(p.sz.Caption)
 	if t.Hovered() {
 		color = pal.Bright
 	}
@@ -468,10 +503,10 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 		if p.followIn.Focused(c) {
 			prompt = pal.Accent
 		}
-		ui.Text(c, "❯").FontSize(design.FontBody).FontWeight(700).TextColor(prompt)
+		ui.Text(c, "❯").FontSize(p.sz.Body).FontWeight(700).TextColor(prompt)
 		in := ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
 			Lines(1, 4).Placeholder(p.followPlaceholder()).Label("追问").
-			FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
+			FontSize(p.sz.Body).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
 			OnTextKey(func(k ui.TextKey) bool {
 				switch {
 				case k.Key == ui.KeyEnter && k.Mods == 0:
@@ -488,8 +523,8 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 			})
 		start, end := in.TextSelection()
 		p.followSelected = start != end
-		kbd(c, pal, "⌘J", "切换")
-		kbd(c, pal, "⏎", "发送")
+		p.kbd(c, pal, "⌘J", "切换")
+		p.kbd(c, pal, "⏎", "发送")
 	})
 }
 
@@ -511,5 +546,49 @@ func (p *Panel) copyTurn(i int) {
 	if reply := p.sess.Turns[i].Reply; reply != "" {
 		p.writeClipboard(reply)
 		p.copiedTurn, p.copiedAt = i, time.Now()
+	}
+}
+
+// mdKey is what the Markdown theme depends on.
+type mdKey struct {
+	pal  *design.Palette
+	font string
+	size float32
+}
+
+// stepFontSize makes the text a point larger or smaller, or, at 0, the
+// default size, and keeps it in config.json (Cmd-=, Cmd--, Cmd-0).
+func (p *Panel) stepFontSize(step float32) {
+	size := p.sz.Body + step
+	if step == 0 {
+		size = design.FontBody
+	}
+	size = max(design.MinFontSize, min(size, design.MaxFontSize))
+	p.setConfig("fontSize", size, func(c *config.Config) { c.FontSize = size })
+}
+
+// togglePin keeps the panel up while other apps have the keyboard, or lets
+// it hide with them again (Cmd-P).
+func (p *Panel) togglePin() {
+	p.pinned = !p.pinned
+	if p.win != nil {
+		p.win.SetAlwaysOnTop(p.pinned)
+	}
+}
+
+// setConfig writes one setting through operator mode's edits, and shows it
+// at once, before the store reloads the file.
+func (p *Panel) setConfig(path string, value any, apply func(*config.Config)) {
+	data, _ := json.Marshal(value)
+	if p.deps.Operator.Apply != nil {
+		if _, err := p.deps.Operator.Apply([]config.Op{{Path: path, Value: data}}); err != nil {
+			p.notice = "没有保存：" + err.Error()
+			return
+		}
+	}
+	if p.cfg != nil {
+		cfg := *p.cfg
+		apply(&cfg)
+		p.cfg = &cfg
 	}
 }
