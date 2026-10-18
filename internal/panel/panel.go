@@ -77,6 +77,7 @@ type Panel struct {
 
 	md       markdown.Options
 	mdFor    *design.Palette // the palette md.Theme was made for
+	pal      *design.Palette // the palette of the last frame
 	result   ui.ScrollState
 	sourceIn ui.Handle
 	followIn ui.Handle
@@ -84,10 +85,10 @@ type Panel struct {
 	// when they do, and the latest reply when they don't.
 	sourceSelected, followSelected bool
 
-	// slashIdx is the chosen row of the slash menu; slashClosed the source
-	// the menu was closed for with Escape.
-	slashIdx    int
-	slashClosed string
+	// menuIdx is the chosen row of the menu under the source; menuClosed
+	// the source the menu was closed for with Escape.
+	menuIdx    int
+	menuClosed string
 	// caretToEnd puts the caret after the source's text in the next frame,
 	// as after a command was picked.
 	caretToEnd bool

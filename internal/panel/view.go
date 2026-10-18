@@ -25,7 +25,12 @@ func (p *Panel) view(c *ui.Context) {
 	if p.cfg != nil {
 		theme = p.cfg.Theme
 	}
-	pal := design.For(theme, c.Theme().Dark)
+	dark := c.Theme().Dark
+	pal := design.For(theme, dark)
+	if preview := p.previewTheme(pal); preview != "" {
+		pal = design.For(preview, dark)
+	}
+	p.pal = pal
 	font := design.MonoFont()
 	c.SetTheme(design.UITheme(*c.Theme(), pal, font))
 	if p.mdFor != pal {
@@ -49,7 +54,7 @@ func (p *Panel) view(c *ui.Context) {
 		Background(pal.Background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip().
 		Children(func() {
 			p.sourceView(c, pal)
-			p.slashMenu(c, pal)
+			p.menuView(c, pal)
 			ui.Divider(c).Background(pal.Border)
 			p.modeBar(c, pal)
 			if p.notice != "" {
@@ -97,7 +102,7 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 		TextRanges(p.commandRanges(c, pal)...).
 		OnTextKey(func(k ui.TextKey) bool {
 			p.source = k.Text()
-			if p.slashKey(k) {
+			if p.menuKey(k, p.pal) {
 				return true
 			}
 			switch {
@@ -222,6 +227,7 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 			})
 		})
 		ui.Spacer(c)
+		p.themeButton(c, pal)
 		kbd(c, pal, "tab", "模式")
 		p.runButton(c, pal)
 	})
@@ -234,6 +240,28 @@ func kbd(c *ui.Context, pal *design.Palette, key, does string) {
 			PaddingX(4).Radius(design.RadiusChip).Border(1, pal.Border)
 		ui.Text(c, does).FontSize(design.FontCaption).TextColor(pal.Faint)
 	})
+}
+
+// themeButton opens the theme picker.
+func (p *Panel) themeButton(c *ui.Context, pal *design.Palette) {
+	name := "auto"
+	if p.cfg != nil {
+		name = p.cfg.Theme
+	}
+	b := ui.Row(c.Key("theme")).Gap(5).PaddingX(6).PaddingY(3).MarginEnd(10).Radius(design.RadiusChip).Label("切换主题")
+	b.Children(func() {
+		ui.Text(c, "◐").FontSize(design.FontLabel).TextColor(pal.Accent)
+		col := pal.Faint
+		if b.Hovered() {
+			col = pal.Text
+		}
+		ui.Text(c, name).FontSize(design.FontCaption).TextColor(col)
+	})
+	if b.Clicked() {
+		p.source = themeCommand + " "
+		p.caretToEnd = true
+		p.sourceIn.Focus()
+	}
 }
 
 func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
