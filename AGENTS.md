@@ -34,6 +34,7 @@
 ## 验证
 
 - 每次改动都要通过：`gofmt -l .` 无输出、`go vet ./...`、`go tool mygo vet .`、`go test ./...`。
+- CI 只在手动触发时运行（`gh workflow run ci`），提交前在本机跑完上面的检查；改了 `internal/macos` 时再跑 `go test -tags integration ./internal/macos`。
 - 改了面板、Markdown 渲染或主题时，更新视觉快照并检查 PNG。
 - 系统集成测试用 `//go:build integration`，只做只读调用。
 

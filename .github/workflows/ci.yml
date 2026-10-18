@@ -1,9 +1,9 @@
 name: ci
 
+# Manual only: macOS runners are billed by the minute. Every change is
+# checked locally first, as AGENTS.md requires.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   check:

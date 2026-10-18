@@ -19,9 +19,9 @@
 | 自签名证书与稳定签名，打包脚本 | F11.3 |
 | `config.json` 与 schema、校验、热加载、出错保留旧配置；钥匙串；日志 | F8.1–F8.3、F10.1 |
 | 设计 token（从辞达 `tokens.css` 起步） | — |
-| GitHub Actions：vet、test、构建 | — |
+| GitHub Actions：vet、test、构建（只手动触发） | — |
 
-**验收**：`go tool mygo build` 产出签名的 `.app`；重新构建后辅助功能授权仍在；手改 `config.json` 后应用立即生效，写坏时不崩溃并指出错处；CI 通过。
+**验收**：`go tool mygo build` 产出签名的 `.app`；重新构建后辅助功能授权仍在；手改 `config.json` 后应用立即生效，写坏时不崩溃并指出错处；本机检查通过。
 
 ### M1 面板与对话核心
 
