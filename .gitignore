@@ -1,0 +1,9 @@
+# Build output
+/build/
+/.mygo/
+/dist/
+
+# Local
+.DS_Store
+*.log
+.spike-out/
