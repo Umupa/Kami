@@ -34,6 +34,7 @@ type Env struct {
 // commands are the subcommands; Handles reports the first argument of one.
 var commands = map[string]func(env *Env, args []string) int{
 	"help": runHelp,
+	"key":  runKey,
 }
 
 // Handles reports whether a first argument is for the command line rather
@@ -67,6 +68,8 @@ const usage = `用法：cida-next <命令> [参数]
 
 命令：
   help                      显示本帮助
+  key set <模型名> --stdin|--file 路径|--env 名称   把 API Key 存进钥匙串
+  key unset <模型名>                               删除钥匙串里的 API Key
 
 配置目录：%s
 `
