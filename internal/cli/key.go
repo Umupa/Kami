@@ -14,6 +14,7 @@ import (
 
 	"github.com/Umupa/cida-next/internal/config"
 	"github.com/Umupa/cida-next/internal/keyring"
+	"github.com/Umupa/cida-next/internal/mode"
 )
 
 // maxKeyBytes bounds an API key after trimming, so that pointing --file at the
@@ -131,7 +132,7 @@ func runKeySet(env *Env, args []string) int {
 			"--stdin、--file、--env 必须且只能指定一个。")
 	}
 
-	cfg, err := readKeyConfig(env)
+	cfg, err := readConfig(env)
 	if err != nil {
 		return keyFail(env, opts.json, ExitUsage,
 			"配置必须先修好，再设置 API Key：\n"+err.Error())
@@ -172,14 +173,17 @@ func runKeyUnset(env *Env, args []string) int {
 	return keySuccess(env, opts.json, model, false)
 }
 
-// readKeyConfig reads and decodes config.json, the source of model names.
-func readKeyConfig(env *Env) (*config.Config, error) {
+// readConfig reads and validates config.json as the app does.
+func readConfig(env *Env) (*config.Config, error) {
 	path := filepath.Join(env.ConfigDir, config.FileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("读不了配置文件 %s：%w", path, err)
 	}
 	cfg, err := config.Decode(data)
+	if err == nil {
+		err = mode.Check(cfg)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("配置文件 %s 有问题：\n%w", path, err)
 	}
