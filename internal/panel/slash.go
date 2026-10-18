@@ -193,8 +193,8 @@ func (p *Panel) menuWaiting(c *ui.Context, rows int) bool {
 		p.menuGrew = 0
 	}
 	p.menuRows = rows
-	if p.menuGrew < 2 {
-		// This frame lays the menu out; the next measures it.
+	if p.menuGrew < 1 {
+		// This frame lays the menu out and measures it as it is drawn.
 		p.menuGrew++
 		c.Invalidate()
 		return true

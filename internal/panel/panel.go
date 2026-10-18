@@ -193,18 +193,20 @@ func New(d Deps) *Panel {
 	p.win.OnHide(func() { d.Log.Debug("panel hidden") })
 	p.post = p.win.Update
 	// Resizing re-enters layout, so it waits until the view has been built.
-	// Resizing re-enters layout, so it waits until the frame is done. Only
-	// the height changes: where the window is now, which the user may be
+	// The window is resized as soon as the frame that measured the content
+	// is drawn: from the paint, the call waits for the main thread, which
+	// AppKit then redraws at the new size within the same pass. Only the
+	// height changes: where the window is now, which the user may be
 	// moving it from, and its width stay.
 	p.resize = func(r mygo.Rectangle) {
 		p.requested = r.Height
-		p.win.Update(func() {
+		go func() {
 			b := p.win.Bounds()
 			if b.Height == r.Height {
 				return
 			}
 			p.win.SetBounds(mygo.Rectangle{X: b.X, Y: b.Y, Width: b.Width, Height: r.Height})
-		})
+		}()
 	}
 	d.Store.Subscribe(func(s config.Snapshot) {
 		p.post(func() { p.applyConfig(s.Config) })

@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -291,7 +292,7 @@ func TestStaleAfterEditingSource(t *testing.T) {
 	}
 }
 
-func TestHeightEases(t *testing.T) {
+func TestWindowFollowsContentInTheSameFrame(t *testing.T) {
 	h := newHarness(t, script{pieces: []string{"line"}})
 	h.p.height = initialHeight // as Show sets it before the first measurement
 	h.tt.Frame()
@@ -304,19 +305,26 @@ func TestHeightEases(t *testing.T) {
 	h.tt.Type("x")
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
-	h.tt.Advance(time.Second)
 
-	// A reply still streaming grows the window gradually.
+	// The content grows; one drawn frame asks the window for its height.
 	turn := h.p.sess.Last()
-	turn.Status = session.Streaming
 	turn.Reply += strings.Repeat("\n\nmore", 6)
 	h.sizes = nil
 	h.tt.Frame()
-	h.tt.Advance(40 * time.Millisecond)
-	mid := h.p.height
-	h.tt.Advance(time.Second)
-	if end := h.p.height; !(mid < end) || len(h.sizes) < 2 {
-		t.Errorf("height went %d then %d in %d steps; a streaming reply should ease", mid, end, len(h.sizes))
+	if len(h.sizes) == 0 {
+		t.Fatal("the window was not asked to grow")
+	}
+	want := int(math.Ceil(float64(h.p.panelH)))
+	if got := h.sizes[len(h.sizes)-1].Height; got != want {
+		t.Errorf("asked for %d, the content drawn is %d: the window lags", got, want)
+	}
+
+	// It shrinks as at once when the content does.
+	turn.Reply = "line"
+	h.sizes = nil
+	h.tt.Frame()
+	if len(h.sizes) == 0 || h.sizes[len(h.sizes)-1].Height != int(math.Ceil(float64(h.p.panelH))) {
+		t.Errorf("shrinking: asked %v for content %v", h.sizes, h.p.panelH)
 	}
 }
 

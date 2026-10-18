@@ -61,52 +61,54 @@ func (p *Panel) view(c *ui.Context) {
 	if maxHeight <= 0 {
 		maxHeight = math.MaxFloat32
 	}
-	// The panel takes its own height, never the window's: the window
-	// follows it, so a window still too short must not squeeze it.
-	// The panel fills the window across: the window's width is the user's.
-	panel := ui.Column(c).FillWidth().MaxHeight(maxHeight).Shrink(0).
+	_, windowH := c.Size()
+	// The panel is two boxes. The outer one fills the window across, the
+	// width being the user's, and at least down to the window's bottom, so
+	// that in the one frame before a shrinking window catches up the
+	// panel's background, not an empty strip, shows below the content. The
+	// inner one is the content at its own height, which its Draw reads in
+	// the very frame it is laid out, and the window follows at once.
+	panel := ui.Column(c).FillWidth().MinHeight(min(windowH, maxHeight)).Shrink(0).
 		Background(background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip()
 	if p.fixedHeight > 0 && p.sess != nil {
 		panel.Height(float32(p.fixedHeight))
 	}
 	panel.Children(func() {
-		p.sourceView(c, pal)
-		p.menuView(c, pal)
-		p.splitter(c, pal)
-		p.modeBar(c, pal)
-		if p.notice != "" {
-			ui.Divider(c).Background(pal.Border)
-			ui.Text(c, p.notice).FontSize(p.sz.Label).TextColor(pal.Muted).
-				PaddingX(design.SpaceX).PaddingY(12)
+		content := ui.Column(c.Key("content")).MaxHeight(maxHeight).Shrink(0)
+		if p.fixedHeight > 0 && p.sess != nil {
+			content.Grow(1).Shrink(1).MinHeight(0)
 		}
-		if p.sess != nil {
-			ui.Divider(c).Background(pal.Border)
-			p.resultView(c, pal)
-			ui.Divider(c).Background(pal.Border)
-			p.followView(c, pal)
-		}
+		content.Draw(func(_ *ui.Painter, r ui.Rect) { p.fit(r.H) })
+		content.Children(func() {
+			p.sourceView(c, pal)
+			p.menuView(c, pal)
+			p.splitter(c, pal)
+			p.modeBar(c, pal)
+			if p.notice != "" {
+				ui.Divider(c).Background(pal.Border)
+				ui.Text(c, p.notice).FontSize(p.sz.Label).TextColor(pal.Muted).
+					PaddingX(design.SpaceX).PaddingY(12)
+			}
+			if p.sess != nil {
+				ui.Divider(c).Background(pal.Border)
+				p.resultView(c, pal)
+				ui.Divider(c).Background(pal.Border)
+				p.followView(c, pal)
+			}
+		})
 	})
-	p.fit(panel)
 }
 
-// fit makes the window follow the height the panel was laid out at in the
-// last frame, easing over 150 ms (F1.3); the first fit is immediate, so the
-// panel appears at once. The window is transparent, so while it eases the
-// panel is cut off at its bottom or has nothing below it.
-func (p *Panel) fit(panel ui.Element) {
-	p.panelH = panel.Bounds().H
-	target := float32(math.Ceil(float64(p.panelH)))
-	if target <= 0 {
+// fit makes the window as tall as the panel's content, measured as it is
+// drawn: the window catches up within the frame after, which the outer box
+// covers. A height the user set by resizing stays.
+func (p *Panel) fit(contentH float32) {
+	p.panelH = contentH
+	if p.fixedHeight > 0 && p.sess != nil {
 		return
 	}
-	h := int(target)
-	// Only a reply growing as it streams eases; what a key or the pointer
-	// opens or moves (a menu, the divider, the user's size) changes the
-	// height at once, or the window would uncover it a row at a time.
-	if p.height != 0 && p.sess != nil && p.sess.Busy() && !p.split.active && p.fixedHeight == 0 {
-		h = int(math.Ceil(float64(panel.Animate("height", target, design.MotionHeight))))
-	}
-	if h == p.height {
+	h := int(math.Ceil(float64(contentH)))
+	if h <= 0 || h == p.height {
 		return
 	}
 	p.height = h
