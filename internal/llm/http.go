@@ -40,7 +40,9 @@ type format interface {
 }
 
 var formats = map[config.Format]format{
-	config.FormatChatCompletions: chatCompletions{},
+	config.FormatChatCompletions:   chatCompletions{},
+	config.FormatResponses:         responses{},
+	config.FormatAnthropicMessages: anthropicMessages{},
 }
 
 // HTTP streams completions over HTTP in every format.
@@ -222,8 +224,8 @@ func transportError(ctx context.Context, err error, key string) error {
 	if errors.Is(context.Cause(ctx), errIdle) {
 		return &Error{Kind: KindTimeout, Detail: errIdle.Error(), Err: err}
 	}
-	if ctx.Err() != nil {
-		return context.Canceled
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	detail := mask(err.Error(), key)
 	var (
@@ -270,7 +272,7 @@ func statusError(status int, detail string) *Error {
 // the model takes.
 func tooLong(detail string) bool {
 	d := strings.ToLower(detail)
-	for _, s := range []string{"context_length_exceeded", "context length", "maximum context", "too many tokens", "prompt is too long", "input is too long", "max_tokens"} {
+	for _, s := range []string{"context_length_exceeded", "context length", "maximum context", "too many tokens", "prompt is too long", "input is too long"} {
 		if strings.Contains(d, s) {
 			return true
 		}
