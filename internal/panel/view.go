@@ -73,7 +73,8 @@ func (p *Panel) fit(panel ui.Element) {
 }
 
 func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
-	in := ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).
+	// Only the result shrinks when the panel reaches its height limit.
+	in := ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).Shrink(0).
 		Lines(1, p.sourceLines()).
 		Placeholder("输入或粘贴文字，⏎ 执行").Label("原文").
 		FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).
@@ -125,7 +126,7 @@ func (p *Panel) cycleMode(step int) {
 }
 
 func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Height(design.ControlBarHeight).PaddingX(design.SpaceWindowX - 10).Gap(2).Children(func() {
+	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceWindowX - 10).Gap(2).Children(func() {
 		if p.operatorActive() {
 			p.operatorPill(c, pal)
 			ui.Spacer(c)
@@ -313,7 +314,7 @@ func failureText(err error) (title, next string) {
 }
 
 func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).PaddingX(design.SpaceWindowX).PaddingY(12).Gap(12).Children(func() {
+	ui.Row(c).Shrink(0).PaddingX(design.SpaceWindowX).PaddingY(12).Gap(12).Children(func() {
 		in := ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
 			Lines(1, 4).Placeholder(p.followPlaceholder()).Label("追问").
 			FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).

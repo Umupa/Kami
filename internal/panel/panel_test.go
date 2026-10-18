@@ -392,3 +392,23 @@ func TestTooLongConversationKeepsSourceTurn(t *testing.T) {
 		t.Errorf("status %v dropped %d, last request %+v", turn.Status, turn.Dropped, last)
 	}
 }
+
+func TestLongReplyKeepsSourceAndBar(t *testing.T) {
+	long := strings.Repeat("一段很长的回复内容，用来把面板撑到最大高度。\n\n", 80)
+	h := newHarness(t, script{pieces: []string{long}})
+	h.p.place = placeOn(mygo.Rectangle{Width: 1440, Height: 600}) // max 420 high
+	h.tt.SetSize(820, 700)
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("/operator 查看当前的配置")
+	h.p.source = "first line"
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.tt.Frame()
+	bar, _ := h.tt.Find("执行 ⏎")
+	if bar.Y < 50 {
+		t.Errorf("the mode bar is at %v: the source above it was squeezed by a long reply", bar)
+	}
+	h.snapshot("long-reply")
+}
