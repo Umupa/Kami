@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
@@ -17,7 +19,16 @@ import (
 )
 
 func (p *Panel) view(c *ui.Context) {
-	pal := design.For(c.Theme().Dark)
+	theme := ""
+	if p.cfg != nil {
+		theme = p.cfg.Theme
+	}
+	pal := design.For(theme, c.Theme().Dark)
+	font := design.MonoFont()
+	c.SetTheme(design.UITheme(*c.Theme(), pal, font))
+	if p.mdFor != pal {
+		p.md.Theme, p.mdFor = design.Markdown(pal, font), pal
+	}
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
@@ -32,15 +43,16 @@ func (p *Panel) view(c *ui.Context) {
 	// The panel takes its own height, never the window's: the window
 	// follows it, so a window still too short must not squeeze it.
 	panel := ui.Column(c).Width(design.PanelWidth).MaxHeight(maxHeight).Shrink(0).
-		Background(pal.Surface).Radius(design.RadiusPanel).Border(1, pal.PanelEdge).Clip().
+		Background(pal.Background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip().
 		Children(func() {
 			p.sourceView(c, pal)
+			p.slashMenu(c, pal)
 			ui.Divider(c).Background(pal.Border)
 			p.modeBar(c, pal)
 			if p.notice != "" {
 				ui.Divider(c).Background(pal.Border)
-				ui.Text(c, p.notice).FontSize(design.FontSecondary).TextColor(pal.TextMuted).
-					PaddingX(design.SpaceWindowX).PaddingY(14)
+				ui.Text(c, p.notice).FontSize(design.FontLabel).TextColor(pal.Muted).
+					PaddingX(design.SpaceX).PaddingY(12)
 			}
 			if p.sess != nil {
 				ui.Divider(c).Background(pal.Border)
@@ -76,14 +88,17 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 	// Only the result shrinks when the panel reaches its height limit.
 	in := ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).Shrink(0).
 		Lines(1, p.sourceLines()).
-		Placeholder("输入或粘贴文字，⏎ 执行").Label("原文").
-		FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).
-		PaddingX(design.SpaceWindowX).PaddingY(design.SpaceEntryY).
+		Placeholder("输入或粘贴文字，/ 查看命令").Label("原文").
+		FontSize(design.FontSource).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
+		PaddingX(design.SpaceX).PaddingY(design.SpaceSourceY).
 		TextRanges(p.commandRanges(c, pal)...).
 		OnTextKey(func(k ui.TextKey) bool {
+			p.source = k.Text()
+			if p.slashKey(k) {
+				return true
+			}
 			switch {
 			case k.Key == ui.KeyEnter && k.Mods == 0:
-				p.source = k.Text()
 				p.run()
 				return true
 			case k.Key == ui.KeyTab && k.Mods == 0:
@@ -115,7 +130,7 @@ func (p *Panel) stale() bool {
 // 30% of the visible height.
 func (p *Panel) sourceLines() int {
 	visible := float32(p.place.maxHeight) / design.PanelMaxRatio
-	line := float32(design.FontBody * design.LineHeightSource)
+	line := float32(design.FontSource * design.LineHeightSource)
 	return max(3, int(visible*design.SourceMaxRatio/line))
 }
 
@@ -126,7 +141,7 @@ func (p *Panel) cycleMode(step int) {
 }
 
 func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceWindowX - 10).Gap(2).Children(func() {
+	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).Children(func() {
 		if p.operatorActive() {
 			p.operatorPill(c, pal)
 			ui.Spacer(c)
@@ -138,19 +153,22 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 				for i, m := range p.modes {
 					name := m.Name
 					if m.ID == "translate" && p.cfg != nil {
-						name = "翻译成 " + p.cfg.ForeignLanguage
+						name = "翻译 → " + p.cfg.ForeignLanguage
 					}
-					chip := ui.Box(c.Key(m.ID)).PaddingX(10).PaddingY(5).Radius(design.RadiusChip).
-						Children(func() {
-							t := ui.Text(c, name).FontSize(design.FontSecondary)
-							if i == p.modeIdx {
-								t.TextColor(pal.Text).FontWeight(600)
-							} else {
-								t.TextColor(pal.TextMuted)
-							}
-						})
+					chip := ui.Box(c.Key(m.ID)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
+					chip.Children(func() {
+						t := ui.Text(c, name).FontSize(design.FontLabel)
+						switch {
+						case i == p.modeIdx:
+							t.TextColor(pal.Accent).FontWeight(700)
+						case chip.Hovered():
+							t.TextColor(pal.Text)
+						default:
+							t.TextColor(pal.Muted)
+						}
+					})
 					if i == p.modeIdx {
-						chip.Background(pal.SurfaceDim)
+						chip.Background(pal.Raised)
 					}
 					if chip.Clicked() {
 						p.modeIdx = i
@@ -160,14 +178,25 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 			})
 		})
 		ui.Spacer(c)
-		ui.Text(c, "⇥ 切换").FontSize(design.FontCaption).TextColor(pal.Hint)
+		kbd(c, pal, "tab", "模式")
 		p.runButton(c, pal)
 	})
 }
 
+// kbd shows a key and what it does, as monocode's hints: the key in a chip.
+func kbd(c *ui.Context, pal *design.Palette, key, does string) {
+	ui.Row(c).Gap(5).MarginEnd(10).Children(func() {
+		ui.Text(c, key).FontSize(design.FontCaption).TextColor(pal.Muted).
+			PaddingX(4).Radius(design.RadiusChip).Border(1, pal.Border)
+		ui.Text(c, does).FontSize(design.FontCaption).TextColor(pal.Faint)
+	})
+}
+
 func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
-	run := ui.Box(c.Key("run")).PaddingX(12).PaddingY(5).Radius(design.RadiusChip).Background(pal.Accent).Children(func() {
-		ui.Text(c, "执行 ⏎").FontSize(design.FontSecondary).TextColor(pal.AccentText)
+	run := ui.Row(c.Key("run")).Gap(6).PaddingX(10).PaddingY(4).Radius(design.RadiusChip).Background(pal.Accent)
+	run.Children(func() {
+		ui.Text(c, "⏎").FontSize(design.FontLabel).TextColor(pal.AccentText)
+		ui.Text(c, "执行").FontSize(design.FontLabel).FontWeight(700).TextColor(pal.AccentText)
 	})
 	if run.Clicked() {
 		p.run()
@@ -182,8 +211,7 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 	}
 	result := ui.Scroll(c.Key("result")).TrackScroll(&p.result).Shrink(1).MinHeight(0)
 	p.sparkle(c, result, pal)
-	result.
-		Background(pal.SurfacePaper).PaddingX(design.SpaceWindowX).PaddingY(design.SpaceResultY).Gap(18).
+	result.PaddingX(design.SpaceX).PaddingY(design.SpaceResultY).Gap(design.SpaceTurns).
 		Children(func() {
 			for i := range p.sess.Turns {
 				p.turnView(c.Key(i), pal, i)
@@ -193,14 +221,18 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 
 func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 	t := &p.sess.Turns[i]
-	ui.Column(c).Gap(8).Children(func() {
+	turn := ui.Column(c).Gap(10)
+	turn.Children(func() {
 		if i > 0 {
-			ui.Text(c, t.Ask).FontSize(design.FontSecondary).TextColor(pal.TextMuted).
-				PaddingStart(10).BorderStartWidth(2).BorderColor(pal.Border).Selectable()
+			// A follow-up, as a prompt line in a terminal.
+			ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
+				ui.Text(c, "❯").FontSize(design.FontBody).TextColor(pal.Accent).FontWeight(700)
+				ui.Text(c, t.Ask).FontSize(design.FontBody).TextColor(pal.Bright).Grow(1).Selectable()
+			})
 		}
 		switch {
 		case t.Reply == "" && t.Status == session.Streaming:
-			ui.Text(c, "正在生成…").FontSize(design.FontSecondary).TextColor(pal.TextFaint)
+			thinking(c, pal)
 		case t.Status == session.Streaming && p.sess.Operator:
 			markdown.Stream(c, operator.Visible(t.Reply), &p.md)
 		case t.Status == session.Streaming:
@@ -208,81 +240,107 @@ func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 		default:
 			markdown.View(c, t.Reply, &p.md)
 		}
-		if i == len(p.sess.Turns)-1 {
+		last := i == len(p.sess.Turns)-1
+		if last || turn.Hovered() {
 			p.turnFooter(c, pal, i)
-		} else if t.Reply != "" {
-			ui.Row(c).Children(func() {
-				ui.Spacer(c)
-				if ui.Text(c, "复制").FontSize(design.FontCaption).TextColor(pal.TextMuted).Clicked() {
-					p.copyTurn(i)
-				}
-			})
 		}
 	})
 }
 
-// turnFooter shows how the latest turn ended and what to do next.
+// thinking shows that a reply is on its way: a pulse, as monocode's.
+func thinking(c *ui.Context, pal *design.Palette) {
+	row := ui.Row(c.Key("thinking")).Gap(8)
+	pulse := row.Loop("pulse", design.MotionThinking, ui.EaseInOut)
+	alpha := 0.35 + 0.55*float32(0.5-0.5*math.Cos(2*math.Pi*float64(pulse)))
+	row.Children(func() {
+		ui.Text(c, "●").FontSize(design.FontCaption).TextColor(pal.Accent.Alpha(alpha))
+		ui.Text(c, "思考中").FontSize(design.FontLabel).TextColor(pal.Muted.Alpha(alpha + 0.1))
+	})
+}
+
+// turnFooter shows how a turn ended and what can be done with it: always
+// under the latest turn, on hover under the others.
 func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 	t := &p.sess.Turns[i]
-	ui.Row(c).Gap(12).Children(func() {
-		status := map[session.Status]string{
-			session.Streaming: "生成中 · ⌘. 停止",
-			session.Done:      "完成",
-			session.Stopped:   "已停止",
-			session.Failed:    "失败",
-		}[t.Status]
-		if p.sess.Operator {
-			status = "Operator · " + status
-		}
-		if t.Local {
-			status = "cida-next"
-		} else if t.Model != "" {
-			status += " · " + t.Model
+	last := i == len(p.sess.Turns)-1
+	ui.Row(c.Key("footer")).Gap(10).Children(func() {
+		var parts []string
+		switch {
+		case t.Local:
+			parts = append(parts, "cida-next")
+		default:
+			if p.sess.Operator {
+				parts = append(parts, "operator")
+			}
+			parts = append(parts, map[session.Status]string{
+				session.Streaming: "生成中 ⌘. 停止",
+				session.Done:      "完成",
+				session.Stopped:   "已停止",
+				session.Failed:    "失败",
+			}[t.Status])
+			if t.Model != "" {
+				parts = append(parts, t.Model)
+			}
 		}
 		if t.Dropped > 0 {
-			status += fmt.Sprintf(" · 为放进上下文省略了之前 %d 轮", t.Dropped)
+			parts = append(parts, fmt.Sprintf("省略了之前 %d 轮", t.Dropped))
 		}
 		if t.Parts > 1 {
-			status += fmt.Sprintf(" · 原文较长，分 %d 段处理", t.Parts)
+			parts = append(parts, fmt.Sprintf("分 %d 段处理", t.Parts))
 		}
-		ui.Text(c, status).FontSize(design.FontCaption).TextColor(pal.TextMuted)
-		if p.stale() {
-			ui.Text(c, "原文或模式已改，⏎ 重新执行").FontSize(design.FontCaption).TextColor(pal.Accent)
+		ui.Text(c, strings.Join(parts, " · ")).FontSize(design.FontCaption).TextColor(pal.Faint)
+		if last && p.stale() {
+			ui.Text(c, "原文或模式已改 ⏎ 重新执行").FontSize(design.FontCaption).TextColor(pal.Sparkle)
 		}
 		ui.Spacer(c)
 		if t.Undoable {
-			if ui.Text(c, "撤销").FontSize(design.FontCaption).TextColor(pal.Operator).Clicked() {
-				p.undoOperator()
-			}
+			action(c, pal, "撤销", pal.Operator, func() { p.undoOperator() })
 		}
-		if t.Status != session.Streaming && !t.Local {
-			if ui.Text(c, "重新生成").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
-				p.retry()
-			}
-			if t.Reply != "" {
-				ui.Text(c, "复制为…").FontSize(design.FontCaption).TextColor(pal.TextControl).Menu(func(m *ui.Menu) {
-					if m.Item("纯文本").Chosen() {
-						p.writeClipboard(plaintext.FromMarkdown(t.Reply))
-					}
-					if m.Item("富文本（飞书、Notion、邮件）").Chosen() {
-						p.writeRich(parser.Parse(t.Reply).HTML(), plaintext.FromMarkdown(t.Reply))
-					}
-					if m.Item("Markdown").Chosen() {
-						p.writeClipboard(t.Reply)
-					}
-				})
-			}
-			if t.Reply != "" && ui.Text(c, "复制 ⌘C").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
-				p.copyTurn(i)
-			}
+		if t.Status == session.Streaming || t.Reply == "" {
+			return
 		}
+		if last && !t.Local {
+			action(c, pal, "重新生成", pal.Muted, p.retry)
+		}
+		ui.Text(c, "复制为…").FontSize(design.FontCaption).TextColor(pal.Muted).Menu(func(m *ui.Menu) {
+			if m.Item("纯文本").Chosen() {
+				p.writeClipboard(plaintext.FromMarkdown(t.Reply))
+			}
+			if m.Item("富文本（飞书、Notion、邮件）").Chosen() {
+				p.writeRich(parser.Parse(t.Reply).HTML(), plaintext.FromMarkdown(t.Reply))
+			}
+			if m.Item("Markdown").Chosen() {
+				p.writeClipboard(t.Reply)
+			}
+		})
+		label := "复制"
+		if last {
+			label = "复制 ⌘C"
+		}
+		if p.copiedTurn == i && c.Now().Sub(p.copiedAt) < design.MotionCopiedHold {
+			label = "✓ 已复制"
+			c.After(design.MotionCopiedHold)
+		}
+		action(c, pal, label, pal.Muted, func() { p.copyTurn(i) })
 	})
 	if t.Status == session.Failed {
 		title, next := failureText(t.Err)
-		ui.Column(c).Gap(2).Children(func() {
-			ui.Text(c, title).FontSize(design.FontSecondary).TextColor(pal.Text)
-			ui.Text(c, next).FontSize(design.FontSecondary).TextColor(pal.TextMuted)
+		ui.Column(c).Gap(2).PaddingStart(10).BorderStartWidth(2).BorderColor(pal.Danger).Children(func() {
+			ui.Text(c, title).FontSize(design.FontLabel).TextColor(pal.Bright)
+			ui.Text(c, next).FontSize(design.FontLabel).TextColor(pal.Muted)
 		})
+	}
+}
+
+// action is a text button of a turn's footer, brighter on hover.
+func action(c *ui.Context, pal *design.Palette, label string, color ui.Color, fn func()) {
+	t := ui.Text(c.Key(label), label).FontSize(design.FontCaption)
+	if t.Hovered() {
+		color = pal.Bright
+	}
+	t.TextColor(color)
+	if t.Clicked() {
+		fn()
 	}
 }
 
@@ -314,10 +372,15 @@ func failureText(err error) (title, next string) {
 }
 
 func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Shrink(0).PaddingX(design.SpaceWindowX).PaddingY(12).Gap(12).Children(func() {
+	ui.Row(c).Shrink(0).PaddingX(design.SpaceX).PaddingY(11).Gap(8).AlignItems(ui.Start).Children(func() {
+		prompt := pal.Faint
+		if p.followIn.Focused(c) {
+			prompt = pal.Accent
+		}
+		ui.Text(c, "❯").FontSize(design.FontBody).FontWeight(700).TextColor(prompt)
 		in := ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
 			Lines(1, 4).Placeholder(p.followPlaceholder()).Label("追问").
-			FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Text).
+			FontSize(design.FontBody).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
 			OnTextKey(func(k ui.TextKey) bool {
 				switch {
 				case k.Key == ui.KeyEnter && k.Mods == 0:
@@ -334,7 +397,7 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 			})
 		start, end := in.TextSelection()
 		p.followSelected = start != end
-		ui.Text(c, "⏎ 发送").FontSize(design.FontCaption).TextColor(pal.Hint)
+		kbd(c, pal, "⏎", "发送")
 	})
 }
 
@@ -355,5 +418,6 @@ func (p *Panel) copyTurn(i int) {
 	}
 	if reply := p.sess.Turns[i].Reply; reply != "" {
 		p.writeClipboard(reply)
+		p.copiedTurn, p.copiedAt = i, time.Now()
 	}
 }

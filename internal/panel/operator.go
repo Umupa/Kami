@@ -118,18 +118,18 @@ func (p *Panel) operatorPill(c *ui.Context, pal *design.Palette) {
 	pill := ui.Row(c.Key("operator-pill")).Gap(5).PaddingX(8).PaddingY(4).Radius(design.RadiusChip).Background(pal.OperatorFill)
 	pill.Children(func() {
 		ui.Icon(c, operatorIcon).Size(14, 14).TextColor(pal.Operator)
-		label := ui.Text(c, "Operator").FontSize(design.FontSecondary).FontWeight(600).TextColor(pal.Operator)
+		label := ui.Text(c, "Operator").FontSize(design.FontLabel).FontWeight(600).TextColor(pal.Operator)
 		if t := p.sheen(c); t < 1 {
 			label.TextColor(sheenColor(pal.Operator, t, 0.5))
 		}
-		x := ui.Text(c, "×").FontSize(design.FontSecondary).TextColor(pal.Operator).Label("退出 Operator")
+		x := ui.Text(c, "×").FontSize(design.FontLabel).TextColor(pal.Operator).Label("退出 Operator")
 		if x.Clicked() {
 			request, _ := operator.Leading(p.source)
 			p.source = request
 			p.sourceIn.Focus()
 		}
 	})
-	ui.Text(c, "用一句话查看或修改设置").FontSize(design.FontCaption).TextColor(pal.TextMuted).MarginStart(8)
+	ui.Text(c, "用一句话查看或修改设置").FontSize(design.FontCaption).TextColor(pal.Muted).MarginStart(8)
 }
 
 // sheen returns how far the sheen has crossed operator mode's name since the

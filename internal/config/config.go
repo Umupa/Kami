@@ -19,7 +19,12 @@ type Config struct {
 	Modes           []Mode    `json:"modes,omitempty"`
 	Shortcuts       Shortcuts `json:"shortcuts,omitzero"`
 	LaunchAtLogin   bool      `json:"launchAtLogin,omitempty"`
+	// Theme names the colors: "auto" follows the system's appearance.
+	Theme string `json:"theme,omitempty"`
 }
+
+// Themes are the values of Theme.
+var Themes = []string{"auto", "tokyo-night", "tokyo-night-day"}
 
 // Model is one named model service.
 type Model struct {
@@ -145,6 +150,9 @@ func (c *Config) applyDefaults() {
 		if c.Models[i].Auth == "" {
 			c.Models[i].Auth = c.Models[i].Format.DefaultAuth()
 		}
+	}
+	if c.Theme == "" {
+		c.Theme = "auto"
 	}
 	if c.Shortcuts.Panel == "" {
 		c.Shortcuts.Panel = DefaultPanelShortcut

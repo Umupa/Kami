@@ -76,12 +76,21 @@ type Panel struct {
 	cancel         context.CancelFunc
 
 	md       markdown.Options
+	mdFor    *design.Palette // the palette md.Theme was made for
 	result   ui.ScrollState
 	sourceIn ui.Handle
 	followIn ui.Handle
 	// Whether the inputs had a selection in the last frame: Cmd-C copies it
 	// when they do, and the latest reply when they don't.
 	sourceSelected, followSelected bool
+
+	// slashIdx is the chosen row of the slash menu; slashClosed the source
+	// the menu was closed for with Escape.
+	slashIdx    int
+	slashClosed string
+
+	copiedTurn int
+	copiedAt   time.Time
 
 	// place is where the panel shows: its top edge stays put as its height
 	// follows the content.
@@ -147,7 +156,7 @@ func New(d Deps) *Panel {
 func newPanel(d Deps) *Panel {
 	p := &Panel{deps: d, post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich}
 	p.applyConfig(d.Store.Snapshot().Config)
-	p.md = markdown.Options{Theme: &markdown.Theme{FontSize: design.FontResultCJK}}
+	p.md = markdown.Options{Reveal: &markdown.Reveal{Unit: markdown.ByWord, CatchUp: design.MotionCatchUp, Fade: design.MotionWordFade}}
 	return p
 }
 

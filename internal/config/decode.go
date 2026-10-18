@@ -195,6 +195,9 @@ func (c *Config) validate() []Problem {
 			add(p+".contextWindow", "不能是负数")
 		}
 	}
+	if c.Theme != "" && !slices.Contains(Themes, c.Theme) {
+		add("theme", "必须是 %s 之一", strings.Join(Themes, "、"))
+	}
 	if c.DefaultModel != "" && !names[c.DefaultModel] {
 		add("defaultModel", "没有名为「%s」的模型", c.DefaultModel)
 	}

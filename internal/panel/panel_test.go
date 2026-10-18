@@ -73,6 +73,7 @@ func newHarness(t *testing.T, client llm.Client) *harness {
 	h.p.writeClipboard = func(s string) { h.clip = s }
 	h.p.place = placeOn(mygo.Rectangle{Width: 1440, Height: 875})
 	h.tt = ui.NewTester(h.p.view, 820, 700)
+	h.tt.SetLocale("zh-Hans")
 	return h
 }
 
@@ -276,13 +277,13 @@ func TestStaleAfterEditingSource(t *testing.T) {
 	h.tt.Type("first")
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
-	if h.tt.HasText("原文或模式已改，⏎ 重新执行") {
+	if h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
 		t.Error("fresh result marked stale")
 	}
 	h.tt.Click("原文")
 	h.tt.Type(" more")
 	h.tt.Frame()
-	if !h.tt.HasText("原文或模式已改，⏎ 重新执行") {
+	if !h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
 		t.Error("result not marked stale after the source changed")
 	}
 	if h.p.sess.Busy() {
@@ -406,7 +407,7 @@ func TestLongReplyKeepsSourceAndBar(t *testing.T) {
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
 	h.tt.Frame()
-	bar, _ := h.tt.Find("执行 ⏎")
+	bar, _ := h.tt.Find("执行")
 	if bar.Y < 50 {
 		t.Errorf("the mode bar is at %v: the source above it was squeezed by a long reply", bar)
 	}

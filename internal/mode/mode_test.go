@@ -56,6 +56,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 	base := Mode{
 		ID:     "organize",
 		Name:   "整理",
+		Desc:   "把杂乱的文字整理成标题、列表和表格",
 		Prompt: organizePrompt,
 		Input:  config.InputMaterial,
 		Output: config.OutputMarkdown,
@@ -140,6 +141,7 @@ func TestResolveCustomModeDefaults(t *testing.T) {
 	want := Mode{
 		ID:     "summary",
 		Name:   "总结",
+		Desc:   "总结文本",
 		Prompt: "总结文本",
 		Input:  config.InputMaterial,
 		Output: config.OutputMarkdown,

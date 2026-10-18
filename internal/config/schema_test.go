@@ -72,6 +72,7 @@ func TestSchemaEnums(t *testing.T) {
 			"$defs.mode.properties.output.enum",
 			[]string{string(OutputAuto), string(OutputMarkdown), string(OutputPlain)},
 		},
+		{"properties.theme.enum", Themes},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("schema has %d enums at %v, want %d", len(got), sortedKeys(got), len(tests))
@@ -114,6 +115,7 @@ func TestSchemaDefaults(t *testing.T) {
 		"properties.shortcuts.properties.selection.default": DefaultSelectionShortcut,
 		"properties.shortcuts.properties.capture.default":   DefaultCaptureShortcut,
 		"properties.launchAtLogin.default":                  false,
+		"properties.theme.default":                          "auto",
 	}
 	if len(got) != len(want) {
 		t.Errorf("schema has %d defaults at %v, want %d", len(got), sortedKeys(got), len(want))

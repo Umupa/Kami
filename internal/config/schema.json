@@ -89,6 +89,11 @@
         }
       }
     },
+    "theme": {
+      "description": "配色，来自 Omarchy：auto 跟随系统的浅色/深色，tokyo-night 深色，tokyo-night-day 浅色。",
+      "enum": ["auto", "tokyo-night", "tokyo-night-day"],
+      "default": "auto"
+    },
     "launchAtLogin": {
       "description": "登录时自动启动。",
       "type": "boolean",
