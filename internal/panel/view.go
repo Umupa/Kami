@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
+	"github.com/egoist/mygo/ui/markdown/parser"
 
 	"github.com/Umupa/cida-next/internal/design"
 	"github.com/Umupa/cida-next/internal/llm"
@@ -80,6 +81,15 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 		})
 	start, end := in.TextSelection()
 	p.sourceSelected = start != end
+}
+
+// stale reports a result that no longer matches the source or the mode: it
+// stays until the user runs again, never refreshed on its own (F5.7).
+func (p *Panel) stale() bool {
+	if p.sess == nil || p.sess.Busy() || len(p.modes) == 0 {
+		return false
+	}
+	return p.sess.Turns[0].Ask != p.source || p.sess.Mode.ID != p.modes[p.modeIdx].ID
 }
 
 // sourceLines is how many lines the source grows to before it scrolls:
@@ -192,13 +202,26 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
 			status += " · " + t.Model
 		}
 		ui.Text(c, status).FontSize(design.FontCaption).TextColor(pal.TextMuted)
+		if p.stale() {
+			ui.Text(c, "原文或模式已改，⏎ 重新执行").FontSize(design.FontCaption).TextColor(pal.Accent)
+		}
 		ui.Spacer(c)
 		if t.Status != session.Streaming {
 			if ui.Text(c, "重新生成").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
 				p.retry()
 			}
-			if t.Reply != "" && ui.Text(c, "复制纯文本").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
-				p.writeClipboard(plaintext.FromMarkdown(t.Reply))
+			if t.Reply != "" {
+				ui.Text(c, "复制为…").FontSize(design.FontCaption).TextColor(pal.TextControl).Menu(func(m *ui.Menu) {
+					if m.Item("纯文本").Chosen() {
+						p.writeClipboard(plaintext.FromMarkdown(t.Reply))
+					}
+					if m.Item("富文本（飞书、Notion、邮件）").Chosen() {
+						p.writeRich(parser.Parse(t.Reply).HTML(), plaintext.FromMarkdown(t.Reply))
+					}
+					if m.Item("Markdown").Chosen() {
+						p.writeClipboard(t.Reply)
+					}
+				})
 			}
 			if t.Reply != "" && ui.Text(c, "复制 ⌘C").FontSize(design.FontCaption).TextColor(pal.TextControl).Clicked() {
 				p.copyTurn(i)

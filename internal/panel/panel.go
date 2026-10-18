@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
@@ -46,8 +47,10 @@ type Panel struct {
 	post func(func())
 	// resize sets the window's bounds after the view has been built.
 	resize func(mygo.Rectangle)
-	// writeClipboard copies text: the system clipboard, or a test's.
+	// writeClipboard copies text, and writeRich HTML with its plain text:
+	// the system clipboard, or a test's.
 	writeClipboard func(string)
+	writeRich      func(html, text string)
 
 	cfg   *config.Config
 	modes []mode.Mode
@@ -131,7 +134,7 @@ func New(d Deps) *Panel {
 
 // newPanel returns a panel without a window, as tests drive it.
 func newPanel(d Deps) *Panel {
-	p := &Panel{deps: d, post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText}
+	p := &Panel{deps: d, post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich}
 	p.applyConfig(d.Store.Snapshot().Config)
 	p.md = markdown.Options{Theme: &markdown.Theme{FontSize: design.FontResultCJK}}
 	return p
@@ -161,6 +164,15 @@ func (p *Panel) Show() {
 	p.sourceIn.Focus()
 	p.deps.Log.Info("panel show", "work", d.WorkArea, "want", p.place.bounds(p.height),
 		"got", p.win.Bounds(), "visible", p.win.IsVisible())
+}
+
+// writeRich puts HTML on the clipboard with its plain text, so that apps
+// that take rich text keep tables and lists, and the rest get clean text.
+func writeRich(html, text string) {
+	_ = mygo.Clipboard.Write(transfer.New(transfer.NewItem(
+		transfer.Bytes(transfer.HTML, []byte(html)),
+		transfer.Bytes(transfer.Text, []byte(text)),
+	)))
 }
 
 // Visible reports whether the panel shows.

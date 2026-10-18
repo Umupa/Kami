@@ -122,10 +122,14 @@ func (a *app) ready(ctx context.Context) {
 	a.tray = tray
 	a.showSnapshot(a.store.Snapshot())
 	a.applyShortcuts(a.store.Snapshot().Config)
+	a.applyLaunchAtLogin(a.store.Snapshot().Config)
 	a.store.Subscribe(func(s config.Snapshot) {
 		a.logSnapshot(s)
 		a.showSnapshot(s)
-		mygo.RunOnMain(func() { a.applyShortcuts(s.Config) })
+		mygo.RunOnMain(func() {
+			a.applyShortcuts(s.Config)
+			a.applyLaunchAtLogin(s.Config)
+		})
 	})
 	go a.watchConfig(ctx)
 }
@@ -143,6 +147,17 @@ func (a *app) applyShortcuts(c *config.Config) {
 		a.watchKeys()
 	}
 	a.menu.ItemByID("listen-access").SetVisible(a.doubleTap != nil && !a.tapping)
+}
+
+// applyLaunchAtLogin makes the app a login item, or not, as config.json says.
+// Only a packaged app can be one.
+func (a *app) applyLaunchAtLogin(c *config.Config) {
+	if !mygo.App.IsPackaged() || mygo.App.OpenAtLogin() == c.LaunchAtLogin {
+		return
+	}
+	if err := mygo.App.SetOpenAtLogin(c.LaunchAtLogin); err != nil {
+		a.log.Warn("open at login", "err", err)
+	}
 }
 
 // importSelection reads the selection of the frontmost app and shows the

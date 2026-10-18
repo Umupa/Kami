@@ -239,3 +239,24 @@ func TestShortWindowGrowsToPanel(t *testing.T) {
 		t.Errorf("panel measured %d high in a 1-high window; the window would never grow", h.p.height)
 	}
 }
+
+func TestStaleAfterEditingSource(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{"ok"}})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("first")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	if h.tt.HasText("原文或模式已改，⏎ 重新执行") {
+		t.Error("fresh result marked stale")
+	}
+	h.tt.Click("原文")
+	h.tt.Type(" more")
+	h.tt.Frame()
+	if !h.tt.HasText("原文或模式已改，⏎ 重新执行") {
+		t.Error("result not marked stale after the source changed")
+	}
+	if h.p.sess.Busy() {
+		t.Error("an edit started a request on its own")
+	}
+}
