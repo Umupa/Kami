@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Umupa/cida-next/internal/macos"
+	"github.com/Umupa/Gloss/internal/macos"
 )
 
 const fakePlainTextType = "public.utf8-plain-text"

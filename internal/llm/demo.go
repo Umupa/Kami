@@ -37,7 +37,7 @@ func utf8Start(b byte) bool { return b&0xC0 != 0x80 }
 const demoReply = "## 演示回复\n\n" +
 	"还没有配置模型，这是一段**演示用**的流式回复，用来检查 Markdown 渲染和出字手感。\n\n" +
 	"| 事项 | 负责人 | 截止 |\n|------|--------|------|\n| 面板唤起 | 我 | 周五 |\n| 流式渲染 | MyGo | 已完成 |\n| 宽表格里很长很长的一段说明文字，用来检查换行 | — | — |\n\n" +
-	"代码块：\n\n```go\nfunc main() {\n\tfmt.Println(\"你好，cida-next\")\n}\n```\n\n" +
+	"代码块：\n\n```go\nfunc main() {\n\tfmt.Println(\"你好，Gloss\")\n}\n```\n\n" +
 	"- 列表第一项，包含 `行内代码`\n- 第二项，[一个链接](https://example.com)\n  - 嵌套项\n- [x] 已完成的任务\n- [ ] 未完成的任务\n\n" +
 	"> 引用：配置提示词交给 Claude Code，它会帮你配好模型。\n\n" +
 	"最后一段英文混排 mixed with English words, to check the line height and the spacing between 中文 and Latin text."

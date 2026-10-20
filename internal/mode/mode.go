@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 // Mode is a resolved mode, every field filled in.

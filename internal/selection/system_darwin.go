@@ -3,7 +3,7 @@ package selection
 import (
 	"time"
 
-	"github.com/Umupa/cida-next/internal/macos"
+	"github.com/Umupa/Gloss/internal/macos"
 )
 
 // macSystem is System on the running Mac.

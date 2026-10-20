@@ -6,7 +6,7 @@ package llm
 import (
 	"context"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 // Role is who wrote a message.

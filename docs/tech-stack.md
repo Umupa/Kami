@@ -108,11 +108,11 @@ MyGo 内部有自己的 Objective-C 封装，但在 `internal/` 里，不能引�
 
 | 数据 | 存放 | 格式 |
 | --- | --- | --- |
-| 模型配置（不含 Key）、模式、快捷键、我的语言、外语、开机启动 | `~/Library/Application Support/cida-next/config.json` | JSON，带版本号与 `$schema`，原子写入（临时文件 + rename） |
+| 模型配置（不含 Key）、模式、快捷键、我的语言、外语、开机启动 | `~/Library/Application Support/Gloss/config.json` | JSON，带版本号与 `$schema`，原子写入（临时文件 + rename） |
 | 配置说明 | 同目录 `config.schema.json` | JSON Schema，应用启动时写出 |
 | API Key | 同 `config.json`，每个模型的 `apiKey` | 文件权限 0600 |
 | 会话、原文、结果 | **只在内存** | 不落盘 |
-| 日志 | `~/Library/Logs/cida-next/`，`log/slog` 文本格式 | 只记事件与耗时，不记文字 |
+| 日志 | `~/Library/Logs/Gloss/`，`log/slog` 文本格式 | 只记事件与耗时，不记文字 |
 
 agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后立即生效；命令行只负责检查（architecture.md §七）。
 
@@ -133,7 +133,7 @@ agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后
 
 | 阶段 | 做法 |
 | --- | --- |
-| 自用（现在） | 本机创建一个自签名的代码签名证书（如「cida-next Dev」），`mygo.json` 的 `signingIdentity` 指向它。签名身份稳定，重新构建后辅助功能和屏幕录制授权不丢失；临时签名（`-`）每次构建都会丢 |
+| 自用（现在） | 本机创建一个自签名的代码签名证书（如「Gloss Dev」），`mygo.json` 的 `signingIdentity` 指向它。签名身份稳定，重新构建后辅助功能和屏幕录制授权不丢失；临时签名（`-`）每次构建都会丢 |
 | CI | GitHub Actions：`go vet`、`go test`、`go tool mygo vet`、构建 |
 
 ## 九、风险与退路

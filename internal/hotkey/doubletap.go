@@ -3,7 +3,7 @@ package hotkey
 import (
 	"time"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 // DoubleTapWindow is how quickly a double tap is made, from the first press

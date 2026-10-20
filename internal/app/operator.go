@@ -6,10 +6,10 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/macos"
-	"github.com/Umupa/cida-next/internal/mode"
-	"github.com/Umupa/cida-next/internal/operator"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Gloss/internal/operator"
 )
 
 // permissions are the system permissions the app uses, with the System
@@ -45,7 +45,7 @@ func (a *app) operatorState() operator.State {
 func (a *app) agentPrompt() string {
 	exe, err := mygo.App.Path(mygo.PathExe)
 	if err != nil {
-		exe = "cida-next"
+		exe = "Gloss"
 	}
 	return config.AgentPrompt(config.PromptInput{Exe: exe, Dir: a.configDir, Snapshot: a.store.Snapshot()})
 }

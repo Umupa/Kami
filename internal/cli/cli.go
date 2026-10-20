@@ -10,10 +10,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/mode"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/mode"
 
-	"github.com/Umupa/cida-next/internal/llm"
+	"github.com/Umupa/Gloss/internal/llm"
 )
 
 // Exit codes, the same as Cida's (configuration.md §二).
@@ -64,7 +64,7 @@ func Run(env *Env, args []string) int {
 	return cmd(env, args[1:])
 }
 
-const usage = `用法：cida-next <命令> [参数]
+const usage = `用法：Gloss <命令> [参数]
 
 设置都在 config.json 里，直接编辑即可，保存后正在运行的应用立即生效。
 字段说明见同目录的 config.schema.json。

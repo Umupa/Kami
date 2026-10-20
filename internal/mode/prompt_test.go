@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 const (

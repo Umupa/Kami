@@ -14,12 +14,12 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/egoist/mygo/ui/markdown/parser"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/design"
-	"github.com/Umupa/cida-next/internal/llm"
-	"github.com/Umupa/cida-next/internal/operator"
-	"github.com/Umupa/cida-next/internal/plaintext"
-	"github.com/Umupa/cida-next/internal/session"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/design"
+	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Gloss/internal/operator"
+	"github.com/Umupa/Gloss/internal/plaintext"
+	"github.com/Umupa/Gloss/internal/session"
 )
 
 func (p *Panel) view(c *ui.Context) {

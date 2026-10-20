@@ -1,4 +1,4 @@
-// cida-next is a menu bar app: a panel that hands the text at hand to a model
+// Gloss is a menu bar app: a panel that hands the text at hand to a model
 // and renders the answer as Markdown. Run with a subcommand, the same
 // executable is its command line.
 package main
@@ -9,8 +9,8 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/Umupa/cida-next/internal/app"
-	"github.com/Umupa/cida-next/internal/cli"
+	"github.com/Umupa/Gloss/internal/app"
+	"github.com/Umupa/Gloss/internal/cli"
 )
 
 func main() {

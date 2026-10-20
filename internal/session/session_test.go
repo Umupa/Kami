@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Umupa/cida-next/internal/llm"
-	"github.com/Umupa/cida-next/internal/mode"
+	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Gloss/internal/mode"
 )
 
 func TestNew(t *testing.T) {

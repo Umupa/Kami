@@ -1,4 +1,4 @@
-module github.com/Umupa/cida-next
+module github.com/Umupa/Gloss
 
 go 1.27.2
 

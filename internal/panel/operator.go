@@ -8,11 +8,11 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/design"
-	"github.com/Umupa/cida-next/internal/mode"
-	"github.com/Umupa/cida-next/internal/operator"
-	"github.com/Umupa/cida-next/internal/session"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/design"
+	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Gloss/internal/operator"
+	"github.com/Umupa/Gloss/internal/session"
 )
 
 // Operator is what operator mode needs from the app.

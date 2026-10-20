@@ -3,7 +3,7 @@ package panel
 import (
 	"github.com/egoist/mygo"
 
-	"github.com/Umupa/cida-next/internal/design"
+	"github.com/Umupa/Gloss/internal/design"
 )
 
 // placement is where the panel shows on a display: centered, its top edge at

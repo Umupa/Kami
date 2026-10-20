@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 // step is one event: ms after the start, the modifiers held after it, and

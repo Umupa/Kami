@@ -1,4 +1,4 @@
-# cida-next
+# Gloss
 
 > 代号，正式名称待定。
 
@@ -10,7 +10,7 @@
 
 一期功能已实现，等待统一实测：面板与多轮对话、四个内置模式、三种模型格式、带入选区、截图识别、Operator（在面板里输入 `/operator` 查看和修改设置）、配置接口（`config.json` + `check`）。
 
-构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/cida-next.app`。
+构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/Gloss.app`。
 
 ## 文档
 

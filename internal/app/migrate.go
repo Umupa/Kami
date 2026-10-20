@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 // migrateKeys moves API keys that earlier builds kept in the login keychain

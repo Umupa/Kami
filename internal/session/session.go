@@ -4,8 +4,8 @@
 package session
 
 import (
-	"github.com/Umupa/cida-next/internal/llm"
-	"github.com/Umupa/cida-next/internal/mode"
+	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Gloss/internal/mode"
 )
 
 // Status is the state of a turn.

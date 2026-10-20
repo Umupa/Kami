@@ -10,7 +10,7 @@ import (
 // maxLogSize is how large the log grows before the next launch starts it over.
 const maxLogSize = 4 << 20
 
-// openLog returns the app's logger, writing to dir/cida-next.log and, under
+// openLog returns the app's logger, writing to dir/Gloss.log and, under
 // development builds, to stderr too. Log records carry events and timings,
 // never text the user selected, typed or received.
 func openLog(dir string, dev bool) *slog.Logger {
@@ -18,7 +18,7 @@ func openLog(dir string, dev bool) *slog.Logger {
 	if dev {
 		out = append(out, os.Stderr)
 	}
-	path := filepath.Join(dir, "cida-next.log")
+	path := filepath.Join(dir, "Gloss.log")
 	flags := os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	if fi, err := os.Stat(path); err == nil && fi.Size() > maxLogSize {
 		flags |= os.O_TRUNC

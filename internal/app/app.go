@@ -14,14 +14,14 @@ import (
 	// MyGo's own strings in Simplified Chinese.
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 
-	"github.com/Umupa/cida-next/internal/capture"
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/hotkey"
-	"github.com/Umupa/cida-next/internal/llm"
-	"github.com/Umupa/cida-next/internal/macos"
-	"github.com/Umupa/cida-next/internal/mode"
-	"github.com/Umupa/cida-next/internal/panel"
-	"github.com/Umupa/cida-next/internal/selection"
+	"github.com/Umupa/Gloss/internal/capture"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/hotkey"
+	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Gloss/internal/panel"
+	"github.com/Umupa/Gloss/internal/selection"
 )
 
 // app is the running application. Menu and tray methods are safe from any
@@ -119,12 +119,12 @@ func (a *app) ready(ctx context.Context) {
 		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
 		{Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
 		mygo.Separator(),
-		{Label: "退出 cida-next", Role: mygo.RoleQuit},
+		{Label: "退出 Gloss", Role: mygo.RoleQuit},
 	})
 	tray, err := mygo.NewTray(mygo.TrayOptions{
 		Icon:           trayIcon(false),
 		IconIsTemplate: true,
-		ToolTip:        "cida-next",
+		ToolTip:        "Gloss",
 		Menu:           a.menu,
 	})
 	if err != nil {
@@ -186,7 +186,7 @@ func (a *app) captured(r capture.Result) {
 	switch {
 	case r.Canceled:
 	case errors.Is(r.Err, macos.ErrNoScreenAccess):
-		a.panel.Notify("截图识别需要「屏幕录制」权限：在弹出的系统设置里允许 cida-next，然后退出并重新打开。")
+		a.panel.Notify("截图识别需要「屏幕录制」权限：在弹出的系统设置里允许 Gloss，然后退出并重新打开。")
 	case r.Err != nil:
 		a.log.Warn("capture", "err", r.Err)
 		a.panel.Notify("截图没有成功，再试一次。")
@@ -209,7 +209,7 @@ func (a *app) importSelection() {
 		// Without Accessibility there is no selection to read; macOS shows
 		// the way to grant it.
 		macos.RequestAXTrust()
-		a.panel.Notify("带入选中的文字需要「辅助功能」权限：在系统设置里允许 cida-next。")
+		a.panel.Notify("带入选中的文字需要「辅助功能」权限：在系统设置里允许 Gloss。")
 		return
 	}
 	if a.clipboard == nil {
@@ -290,7 +290,7 @@ func (a *app) showSnapshot(s config.Snapshot) {
 	if s.Err == nil {
 		item.SetVisible(false)
 		sep.SetVisible(false)
-		a.tray.SetToolTip("cida-next")
+		a.tray.SetToolTip("Gloss")
 		return
 	}
 	label := "配置有误，沿用上一份配置"
@@ -304,7 +304,7 @@ func (a *app) showSnapshot(s config.Snapshot) {
 	item.SetLabel(label)
 	item.SetVisible(true)
 	sep.SetVisible(true)
-	a.tray.SetToolTip("cida-next\n" + s.Err.Error())
+	a.tray.SetToolTip("Gloss\n" + s.Err.Error())
 }
 
 func (a *app) logSnapshot(s config.Snapshot) {

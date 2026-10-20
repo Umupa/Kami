@@ -1,6 +1,6 @@
 # AGENTS.md
 
-所有参与开发 cida-next 的人与 agent 的工作规则。项目目标见 [docs/vision.md](docs/vision.md)，需求见 [docs/requirements.md](docs/requirements.md)。
+所有参与开发 Gloss 的人与 agent 的工作规则。项目目标见 [docs/vision.md](docs/vision.md)，需求见 [docs/requirements.md](docs/requirements.md)。
 
 ## 目录
 

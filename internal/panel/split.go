@@ -3,7 +3,7 @@ package panel
 import (
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/cida-next/internal/design"
+	"github.com/Umupa/Gloss/internal/design"
 )
 
 // splitDrag is a drag of the divider between the source and the result, as

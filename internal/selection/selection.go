@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Umupa/cida-next/internal/macos"
+	"github.com/Umupa/Gloss/internal/macos"
 )
 
 // System is what reading a selection takes from macOS.

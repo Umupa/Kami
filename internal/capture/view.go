@@ -3,7 +3,7 @@ package capture
 import (
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/cida-next/internal/macos"
+	"github.com/Umupa/Gloss/internal/macos"
 )
 
 // selection is the region being dragged, in DIPs of the window.

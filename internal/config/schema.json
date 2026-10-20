@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "config.schema.json",
-  "title": "cida-next 配置",
-  "description": "cida-next 的全部设置，包括各模型的 API Key。应用监听这个文件，保存后立即生效；文件不合法时继续使用上一份合法配置，并在菜单栏里列出问题。改完用 `<可执行文件> check` 检查。",
+  "title": "Gloss 配置",
+  "description": "Gloss 的全部设置，包括各模型的 API Key。应用监听这个文件，保存后立即生效；文件不合法时继续使用上一份合法配置，并在菜单栏里列出问题。改完用 `<可执行文件> check` 检查。",
   "type": "object",
   "additionalProperties": false,
   "required": ["version"],

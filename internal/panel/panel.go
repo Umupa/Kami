@@ -15,13 +15,13 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/design"
-	"github.com/Umupa/cida-next/internal/llm"
-	"github.com/Umupa/cida-next/internal/mode"
-	"github.com/Umupa/cida-next/internal/operator"
-	"github.com/Umupa/cida-next/internal/segment"
-	"github.com/Umupa/cida-next/internal/session"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/design"
+	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Gloss/internal/operator"
+	"github.com/Umupa/Gloss/internal/segment"
+	"github.com/Umupa/Gloss/internal/session"
 )
 
 // Deps are what the panel works with.
@@ -136,7 +136,7 @@ const initialHeight = 110
 func New(d Deps) *Panel {
 	p := newPanel(d)
 	p.win = mygo.NewWindow(mygo.WindowOptions{
-		Title:             "cida-next",
+		Title:             "Gloss",
 		Panel:             true,
 		Hidden:            true,
 		Frameless:         true,

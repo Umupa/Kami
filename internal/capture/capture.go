@@ -11,7 +11,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/cida-next/internal/macos"
+	"github.com/Umupa/Gloss/internal/macos"
 )
 
 // Result is what a capture found.
@@ -87,7 +87,7 @@ func (c *Capturer) show() {
 	b := c.display.Bounds
 	if c.win == nil {
 		c.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:             "cida-next 截图",
+			Title:             "Gloss 截图",
 			Panel:             true,
 			Hidden:            true,
 			Frameless:         true,

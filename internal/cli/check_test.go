@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/llm"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/llm"
 )
 
 // checkTestAlphaConfig returns a config.json with one alpha model. apiKey is

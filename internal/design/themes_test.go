@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 func TestThemesMatchConfig(t *testing.T) {

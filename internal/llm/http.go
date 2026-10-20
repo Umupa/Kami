@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 // Timeouts of a request. A reply may take long to finish, but never goes

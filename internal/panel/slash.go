@@ -5,9 +5,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/design"
-	"github.com/Umupa/cida-next/internal/operator"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/design"
+	"github.com/Umupa/Gloss/internal/operator"
 )
 
 // A menu shows under the source while a command is typed, as monocode's
@@ -76,7 +76,7 @@ func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 }
 
 func (p *Panel) commandItems(query string, pal *design.Palette) []item {
-	all := []item{{key: "/operator", title: "Operator", desc: "用一句话查看或修改 cida-next 的设置", color: pal.Operator,
+	all := []item{{key: "/operator", title: "Operator", desc: "用一句话查看或修改 Gloss 的设置", color: pal.Operator,
 		take: func(p *Panel, set func(string)) { set(operator.Command + " "); p.caretToEnd = true }}}
 	for i, m := range p.modes {
 		all = append(all, item{key: "/" + m.ID, title: m.Name, desc: clip(m.Desc),

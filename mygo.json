@@ -1,6 +1,6 @@
 {
-  "name": "cida-next",
-  "identifier": "dev.umupa.cida-next",
+  "name": "Gloss",
+  "identifier": "dev.umupa.gloss",
   "version": "0.1.0",
   "out": "build",
   "macos": {

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Builds build/darwin-arm64/cida-next.app, signed with "cida-next Dev" when
+# Builds build/darwin-arm64/Gloss.app, signed with "Gloss Dev" when
 # scripts/dev-cert.sh has created it, so that permission grants survive the
 # rebuild. Extra arguments go to `mygo build`.
 set -euo pipefail
 
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
-name="cida-next Dev"
+name="Gloss Dev"
 
 if security find-identity -v -p codesigning | grep -q "\"$name\""; then
 	sign=(-sign "$name")

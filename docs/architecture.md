@@ -5,7 +5,7 @@
 ## 一、模块
 
 ```
-cida-next/
+Gloss/
 ├── main.go                 入口：有子命令（key、check）时走命令行，否则启动应用
 ├── internal/
 │   ├── app/                应用编排：生命周期、菜单栏、全局快捷键、各入口的调度
@@ -141,7 +141,7 @@ CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）
 配置的主要使用者是 agent：它读 schema、改文件、写 Key、跑检查，直到通过。
 
 ```
-~/Library/Application Support/cida-next/
+~/Library/Application Support/Gloss/
 ├── config.json          全部设置，带 "$schema" 指向旁边的 schema
 └── config.schema.json   每次启动由应用写出，与当前版本一致
 ```
@@ -181,7 +181,7 @@ CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）
                                               ─► 写入 config.json，记下改前的文件供撤销 ─► 回复末尾附上改前 → 改后
 ```
 
-- 改动块是回复末尾的一个 ` ```cida-operator ` 代码块：`{"ops": [{"path", "value"}], "actions": [...]}`。路径同 Problem 的路径；`null` 删除。动作：`copy-agent-prompt`、`open-permission:<accessibility|input-monitoring|screen-recording>`。
+- 改动块是回复末尾的一个 ` ```gloss-operator ` 代码块：`{"ops": [{"path", "value"}], "actions": [...]}`。路径同 Problem 的路径；`null` 删除。动作：`copy-agent-prompt`、`open-permission:<accessibility|input-monitoring|screen-recording>`。
 - 撤销只保留上一次修改前的文件；再改一次就以新的为准。
 - 视觉：命令着色与光扫（900ms）、模式条的「Operator ×」、发送时的星星（3.2s）都用 MyGo 的文本区间、元素和画笔完成，不引入新的窗口或组件；「减弱动态效果」时关闭。
 

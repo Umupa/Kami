@@ -18,10 +18,10 @@ import (
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/cida-next/internal/config"
-	"github.com/Umupa/cida-next/internal/llm"
-	"github.com/Umupa/cida-next/internal/mode"
-	"github.com/Umupa/cida-next/internal/session"
+	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Gloss/internal/session"
 )
 
 var update = flag.Bool("update", false, "rewrite the snapshots in testdata")

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 type capturedRequest struct {

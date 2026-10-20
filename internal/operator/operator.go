@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Umupa/cida-next/internal/config"
+	"github.com/Umupa/Gloss/internal/config"
 )
 
 // Command is what starts operator mode at the start of a source.
@@ -46,7 +46,7 @@ func Token(text string) (start, end int, ok bool) {
 }
 
 // fence opens the block at the end of a reply that carries what to change.
-const fence = "```cida-operator"
+const fence = "```gloss-operator"
 
 // Plan is what a reply asks the app to do.
 type Plan struct {
