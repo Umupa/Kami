@@ -177,6 +177,8 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
 
 ## 九、Operator
 
+原文输入区用 `operator.Leading` 统一识别 Operator 模式与子菜单，空请求显示全部主题，非空请求按主题过滤（需求 F9.2）。菜单记录方向键选择所对应的原文，原文变化时清除选择记录；裸 `/operator` 未用方向键选择时，⏎ 仍提交空请求以显示本地帮助，Tab 或显式选择则执行菜单项。
+
 ```
 原文 "/operator …" ─► operator.Leading ─► 空请求：operator.Guide，本地回复，不调用模型
                                    └─► 有请求：operator.System（schema、配置原文去掉 Key、生效值、各模式提示词全文、权限）

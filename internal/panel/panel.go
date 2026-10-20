@@ -105,9 +105,12 @@ type Panel struct {
 	sourceSelected, followSelected bool
 
 	// menuIdx is the chosen row of the menu under the source; menuClosed
-	// the source the menu was closed for with Escape.
+	// the source the menu was dismissed for.
 	menuIdx    int
 	menuClosed string
+	// menuChosenFor is the source for which an arrow key chose a menu row.
+	// Without that choice, Enter on bare /operator still opens the guide.
+	menuChosenFor string
 	// menuRows is how many rows the menu has; menuGrew counts the frames
 	// since it opened or grew, while it waits for the window (menuWaiting).
 	menuRows, menuGrew int

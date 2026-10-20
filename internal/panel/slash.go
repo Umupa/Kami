@@ -12,8 +12,9 @@ import (
 
 // A menu shows under the source while a command is typed, as monocode's
 // quick composer does: the commands after "/", the topics after
-// "/operator ", the themes after "/theme". The arrows choose, Tab
-// and Enter take, Escape closes.
+// "/operator", the themes after "/theme". The arrows choose, Tab
+// and Enter take, Escape closes. Enter on bare /operator opens the guide
+// unless the arrows explicitly chose a topic.
 type menuKind int
 
 const (
@@ -54,22 +55,25 @@ func (p *Panel) menu(pal *design.Palette) (menuKind, []item) {
 
 func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 	src := p.source
+	if src != p.menuChosenFor {
+		p.menuChosenFor = ""
+	}
+	if src != p.menuClosed {
+		p.menuClosed = ""
+	}
 	if src == p.menuClosed || strings.Contains(src, "\n") || p.noteMode() {
 		return menuNone, nil
 	}
+	request, isOperator := operator.Leading(src)
 	switch {
 	case themeTyped(src):
 		return menuThemes, p.themeItems(strings.TrimSpace(src[len(themeCommand):]))
-	case strings.HasPrefix(src, operator.Command+" "):
-		rest := src[len(operator.Command)+1:]
-		if strings.Contains(rest, " ") {
+	case isOperator:
+		if strings.ContainsAny(request, " \t") {
 			return menuNone, nil
 		}
-		return menuTopics, p.topicItems(rest)
+		return menuTopics, p.topicItems(request)
 	case strings.HasPrefix(src, "/") && !strings.ContainsAny(src, " \t"):
-		if _, ok := operator.Leading(src); ok {
-			return menuNone, nil
-		}
 		return menuCommands, p.commandItems(src[1:], pal)
 	}
 	return menuNone, nil
@@ -202,15 +206,21 @@ func (p *Panel) menuKey(k ui.TextKey, pal *design.Palette) bool {
 	switch {
 	case k.Key == ui.KeyEscape && k.Mods == 0:
 		p.menuClosed = p.source
+		p.menuChosenFor = ""
 		return true
 	case len(items) == 0:
 		return false
 	case k.Key == ui.KeyDown && k.Mods == 0:
 		p.menuIdx = (p.menuIdx + 1) % len(items)
+		p.menuChosenFor = p.source
 		return true
 	case k.Key == ui.KeyUp && k.Mods == 0:
 		p.menuIdx = (p.menuIdx - 1 + len(items)) % len(items)
+		p.menuChosenFor = p.source
 		return true
+	case k.Key == ui.KeyEnter && k.Mods == 0 && p.source == operator.Command && p.menuChosenFor != p.source:
+		p.menuClosed = p.source
+		return false
 	case (k.Key == ui.KeyTab || k.Key == ui.KeyEnter) && k.Mods == 0:
 		it := items[min(p.menuIdx, len(items)-1)]
 		p.menuIdx = 0
@@ -287,6 +297,10 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 		})
 		hint := "tab ⏎ 确定"
 		switch kind {
+		case menuTopics:
+			if p.source == operator.Command && p.menuChosenFor != p.source {
+				hint = "tab 选择 · ⏎ 帮助"
+			}
 		case menuThemes:
 			hint = "⏎ 用这个主题"
 		}
