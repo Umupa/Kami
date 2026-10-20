@@ -241,8 +241,7 @@ func ImageFromRGBA(src *image.RGBA) (*Image, error) {
 }
 
 // WarmUpVision runs one recognition on a blank image, so that the first real
-// one does not pay for loading the models (about 13 seconds in Cida, then
-// 0.4).
+// one does not pay for loading the models.
 func WarmUpVision() {
 	img, err := ImageFromRGBA(image.NewRGBA(image.Rect(0, 0, 32, 32)))
 	if err != nil {

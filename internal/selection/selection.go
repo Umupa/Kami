@@ -1,6 +1,6 @@
 // Package selection reads the text selected in the frontmost app: through
 // Accessibility first, and by a synthetic Cmd-C when that gives nothing,
-// with the clipboard put back exactly as it was (Cida's panel.md §一).
+// with the clipboard put back exactly as it was.
 package selection
 
 import (

@@ -17,8 +17,8 @@ type PromptInput struct {
 }
 
 // AgentPrompt returns the prompt the user hands an AI assistant to configure
-// the app (Cida's configuration.md §五): where everything is, how keys stay
-// are handled, how to check, and the task that fits the current state. It
+// the app: file locations, key handling, validation, and the task that
+// fits the current state. It
 // never contains a key.
 func AgentPrompt(in PromptInput) string {
 	exe := quote(in.Exe)

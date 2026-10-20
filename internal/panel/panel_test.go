@@ -19,6 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/design"
 	"github.com/Umupa/Gloss/internal/llm"
 	"github.com/Umupa/Gloss/internal/mode"
 	"github.com/Umupa/Gloss/internal/session"
@@ -54,6 +55,9 @@ type harness struct {
 
 func newHarness(t *testing.T, client llm.Client) *harness {
 	t.Helper()
+	if err := design.LoadFont(); err != nil {
+		t.Fatal(err)
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, config.FileName)
 	if err := os.WriteFile(path, []byte(testConfig), 0o600); err != nil {
@@ -64,7 +68,12 @@ func newHarness(t *testing.T, client llm.Client) *harness {
 		Store:  config.NewStore(path, mode.Check),
 		Client: func(config.Model) llm.Client { return client },
 		Log:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		// The notes go next to the test's config.json; deleting one
+		// removes it, as there is no Trash to test with.
+		NotesDir: func(*config.Config) string { return filepath.Join(dir, "notes") },
 	})
+	h.p.background = func(fn func()) { fn() }
+	h.p.after = func(time.Duration, func()) {}
 	h.p.post = func(fn func()) {
 		h.mu.Lock()
 		defer h.mu.Unlock()
@@ -186,8 +195,12 @@ func TestTabCyclesModes(t *testing.T) {
 	}
 	h.tt.Key(ui.Shift, ui.KeyTab)
 	h.tt.Key(ui.Shift, ui.KeyTab)
+	if !h.p.noteMode() {
+		t.Errorf("after two Shift-Tabs: mode %d, want notes, after the modes", h.p.modeIdx)
+	}
+	h.tt.Key(ui.Shift, ui.KeyTab)
 	if got := h.p.modes[h.p.modeIdx].ID; got != "ask" {
-		t.Errorf("after two Shift-Tabs: %s, want ask", got)
+		t.Errorf("after three Shift-Tabs: %s, want ask", got)
 	}
 	h.snapshot("empty")
 }
@@ -574,7 +587,7 @@ func TestConversationFollowsItsEnd(t *testing.T) {
 
 	h.tt.Scroll(400, 300, 0, -600)
 	h.tt.Advance(time.Second)
-	if h.p.list.AtEnd() || !h.tt.HasText("↓ 最新") {
+	if _, ok := h.tt.Find("回到底部"); h.p.list.AtEnd() || !ok {
 		t.Error("scrolling up did not stop following or show the way back")
 	}
 	h.snapshot("scrolled-up")

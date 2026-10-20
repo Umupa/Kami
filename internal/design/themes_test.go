@@ -15,13 +15,6 @@ func TestThemesMatchConfig(t *testing.T) {
 	if !slices.Equal(config.Themes, want) {
 		t.Errorf("config.Themes = %v\nwant %v", config.Themes, want)
 	}
-	var fonts []string
-	for _, f := range Fonts {
-		fonts = append(fonts, f.Name)
-	}
-	if !slices.Equal(config.Fonts, fonts) || FontNamed(config.Fonts[0]).Name != DefaultFont {
-		t.Errorf("config.Fonts = %v, presets %v", config.Fonts, fonts)
-	}
 	if MinFontSize != config.MinFontSize || MaxFontSize != config.MaxFontSize || FontBody != config.DefaultFontSize {
 		t.Error("font size limits differ between config and design")
 	}

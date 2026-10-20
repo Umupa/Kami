@@ -38,6 +38,10 @@ type Deps struct {
 	// OnBusy, when set, hears when a request starts and ends, on the main
 	// thread, as the menu bar icon shows it.
 	OnBusy func(busy bool)
+	// NotesDir is where a configuration keeps the notes, and Trash moves a
+	// deleted note's file to the Trash.
+	NotesDir func(*config.Config) string
+	Trash    func(path string) error
 }
 
 // Panel is the panel window and its state. Everything but Show, Hide and
@@ -54,6 +58,12 @@ type Panel struct {
 	// the system clipboard, or a test's.
 	writeClipboard func(string)
 	writeRich      func(html, text string)
+	// background runs file work off the main thread, after runs a function
+	// on the main thread a while later, and openURL opens a link in the
+	// browser: the system's, or a test's.
+	background func(func())
+	after      func(time.Duration, func())
+	openURL    func(string)
 
 	cfg   *config.Config
 	modes []mode.Mode
@@ -71,22 +81,23 @@ type Panel struct {
 	sparklePending bool
 	sparkles       []sparkle
 	follow         string
-	modeIdx        int
-	sess           *session.Session
-	cancel         context.CancelFunc
+	// modeIdx is the current mode, len(modes) for notes.
+	modeIdx int
+	notes   notes
+	sess    *session.Session
+	cancel  context.CancelFunc
 
 	md    markdown.Options
 	mdFor mdKey           // what md.Theme was made for
 	pal   *design.Palette // the palette of the last frame
 	sz    design.Sizes    // the type sizes of the last frame
-	font  design.FontPreset
 
 	// pinned keeps the panel when another app takes the keyboard.
 	pinned bool
 	// list is the conversation, which follows its end as a coding agent's
 	// transcript does: a reply streaming in stays in view until the user
 	// scrolls up, and scrolling back down follows again.
-	list     ui.ListState
+	list     conversationList
 	sourceIn ui.Handle
 	followIn ui.Handle
 	// Whether the inputs had a selection in the last frame: Cmd-C copies it
@@ -153,7 +164,10 @@ func New(d Deps) *Panel {
 	// at once the next time.
 	// Quitting must still close it, or the app could not quit.
 	quitting := false
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting = true })
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		quitting = true
+		p.saveNote()
+	})
 	p.win.OnClose(func(e *mygo.CloseEvent) {
 		if quitting {
 			return
@@ -190,7 +204,10 @@ func New(d Deps) *Panel {
 	})
 	p.win.OnFocus(func() { d.Log.Debug("panel focus") })
 	p.win.OnShow(func() { d.Log.Debug("panel shown", "bounds", p.win.Bounds()) })
-	p.win.OnHide(func() { d.Log.Debug("panel hidden") })
+	p.win.OnHide(func() {
+		d.Log.Debug("panel hidden")
+		p.leaveNote()
+	})
 	p.post = p.win.Update
 	// Resizing re-enters layout, so it waits until the view has been built.
 	// The window is resized as soon as the frame that measured the content
@@ -216,7 +233,10 @@ func New(d Deps) *Panel {
 
 // newPanel returns a panel without a window, as tests drive it.
 func newPanel(d Deps) *Panel {
-	p := &Panel{deps: d, list: newList(), post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich}
+	p := &Panel{deps: d, list: newList(), post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich,
+		background: func(fn func()) { go fn() },
+		openURL:    func(url string) { _ = mygo.Shell.OpenExternal(url) }}
+	p.after = func(d time.Duration, fn func()) { time.AfterFunc(d, func() { p.post(fn) }) }
 	p.applyConfig(d.Store.Snapshot().Config)
 	p.md = markdown.Options{Reveal: &markdown.Reveal{Unit: markdown.ByWord, CatchUp: design.MotionCatchUp, Fade: design.MotionWordFade}}
 	return p
@@ -253,7 +273,11 @@ func (p *Panel) Show() {
 	p.requested = p.place.bounds(p.height).Height
 	p.win.SetBounds(p.place.bounds(p.height))
 	p.win.Show()
-	p.sourceIn.Focus()
+	if p.noteMode() {
+		p.notes.focusNote = true
+	} else {
+		p.sourceIn.Focus()
+	}
 	p.deps.Log.Info("panel show", "work", d.WorkArea, "want", p.place.bounds(p.height),
 		"got", p.win.Bounds(), "visible", p.win.IsVisible())
 }
@@ -272,7 +296,7 @@ func (p *Panel) Visible() bool { return p.win.IsVisible() }
 
 // Import shows the panel with text selected in another app. New text starts
 // a session in the default mode at once; the same text as last time, or none,
-// shows the panel as it was (Cida's panel.md §一).
+// shows the panel as it was.
 func (p *Panel) Import(text string) {
 	switch {
 	case text == "":
@@ -280,7 +304,7 @@ func (p *Panel) Import(text string) {
 	case text != p.lastImport:
 		p.lastImport = text
 		p.source = text
-		p.modeIdx = 0
+		p.setMode(0)
 		p.run()
 	}
 	p.Show()
@@ -291,7 +315,7 @@ func (p *Panel) Import(text string) {
 func (p *Panel) ImportCaptured(text string) {
 	p.notice = ""
 	p.source = text
-	p.modeIdx = 0
+	p.setMode(0)
 	p.run()
 	p.Show()
 }
@@ -318,11 +342,18 @@ func (p *Panel) applyConfig(c *config.Config) {
 	if p.modeIdx < len(p.modes) {
 		current = p.modes[p.modeIdx].ID
 	}
+	inNotes := p.cfg != nil && p.noteMode()
 	p.cfg, p.modes, p.modeIdx = c, modes, 0
 	for i, m := range modes {
 		if m.ID == current {
 			p.modeIdx = i
 		}
+	}
+	if inNotes {
+		p.modeIdx = len(modes)
+	}
+	if p.deps.NotesDir != nil {
+		p.setNotesDir(p.deps.NotesDir(c))
 	}
 }
 
@@ -332,7 +363,7 @@ func (p *Panel) run() {
 		p.runOperator(request)
 		return
 	}
-	if strings.TrimSpace(p.source) == "" || len(p.modes) == 0 {
+	if strings.TrimSpace(p.source) == "" || len(p.modes) == 0 || p.noteMode() || themeTyped(p.source) {
 		return
 	}
 	p.stop()
@@ -494,7 +525,14 @@ func (p *Panel) finish(sess *session.Session, turn int, err error) {
 	}
 }
 
+// conversationList keeps the measured scroll extent with the list so both
+// reset together when a new conversation starts.
+type conversationList struct {
+	ui.ListState
+	scroll ui.ScrollState
+}
+
 // newList returns the state of a new conversation's list.
-func newList() ui.ListState {
-	return ui.ListState{FollowEnd: true, FollowAnimation: &ui.Smooth}
+func newList() conversationList {
+	return conversationList{}
 }

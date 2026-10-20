@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Umupa/Gloss/internal/capture"
 	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Gloss/internal/design"
 	"github.com/Umupa/Gloss/internal/hotkey"
 	"github.com/Umupa/Gloss/internal/llm"
 	"github.com/Umupa/Gloss/internal/macos"
@@ -34,12 +36,12 @@ type app struct {
 	menu      *mygo.Menu
 	panel     *panel.Panel
 	hotkeys   *hotkey.Manager
-	// doubleTap watches for the panel's double tap; nil when the panel
-	// shortcut is a key combination. Main thread only.
-	doubleTap *hotkey.DoubleTap
-	tapping   bool
-	clipboard *macos.Pasteboard
-	capturer  *capture.Capturer
+	// doubleTaps are the shortcuts that are double taps, each with its
+	// action. Main thread only.
+	doubleTaps []doubleTap
+	tapping    bool
+	clipboard  *macos.Pasteboard
+	capturer   *capture.Capturer
 	// askedListen is set once Input Monitoring has been asked for.
 	askedListen bool
 	// undo is config.json before the last operator edit.
@@ -56,6 +58,10 @@ func Run() error {
 	// The app is written in Simplified Chinese only, so MyGo's own controls
 	// and menu items speak it too.
 	mygo.App.SetLanguages("zh-Hans")
+
+	if err := design.LoadFont(); err != nil {
+		return err
+	}
 
 	dataDir, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
@@ -103,6 +109,11 @@ func (a *app) ready(ctx context.Context) {
 			Undo:  a.undoOps,
 			Run:   a.runAction,
 		},
+		NotesDir: func(c *config.Config) string {
+			home, _ := os.UserHomeDir()
+			return c.Notes(a.configDir, home)
+		},
+		Trash: macos.Trash,
 		OnBusy: func(busy bool) {
 			if a.tray != nil {
 				a.tray.SetIcon(trayIcon(busy), true)
@@ -150,17 +161,31 @@ func (a *app) ready(ctx context.Context) {
 
 // applyShortcuts registers the global shortcuts of c.
 func (a *app) applyShortcuts(c *config.Config) {
-	a.log.Info("apply shortcuts", "panel", c.Shortcuts.Panel, "selection", c.Shortcuts.Selection)
-	a.hotkeys.Apply([]hotkey.Binding{
+	a.log.Info("apply shortcuts", "panel", c.Shortcuts.Panel, "selection", c.Shortcuts.Selection, "capture", c.Shortcuts.Capture)
+	bindings := []hotkey.Binding{
 		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
 		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.importSelection},
 		{Name: "capture", Shortcut: c.Shortcuts.Capture, Action: a.startCapture},
-	})
-	a.doubleTap = nil
-	if sc, err := config.ParseShortcut(c.Shortcuts.Panel); err == nil && sc.Double != 0 {
-		a.doubleTap = &hotkey.DoubleTap{Mod: sc.Double, Window: hotkey.DoubleTapWindow}
+	}
+	a.hotkeys.Apply(bindings)
+	a.doubleTaps = a.doubleTaps[:0]
+	for _, b := range bindings {
+		if sc, err := config.ParseShortcut(b.Shortcut); err == nil && sc.Double != 0 {
+			a.doubleTaps = append(a.doubleTaps, doubleTap{
+				tap:    &hotkey.DoubleTap{Mod: sc.Double, Window: hotkey.DoubleTapWindow},
+				action: b.Action,
+			})
+		}
+	}
+	if len(a.doubleTaps) > 0 {
 		a.watchKeys()
 	}
+}
+
+// doubleTap is a shortcut that is a double tap, and what it does.
+type doubleTap struct {
+	tap    *hotkey.DoubleTap
+	action func()
 }
 
 // applyLaunchAtLogin makes the app a login item, or not, as config.json says.
@@ -239,8 +264,11 @@ func (a *app) watchKeys() {
 		return
 	}
 	err := macos.WatchKeys(func(ev macos.KeyEvent) {
-		if d := a.doubleTap; d != nil && d.Feed(time.Now(), hotkey.ModifiersOf(ev.Flags), ev.KeyDown) {
-			a.panel.Toggle()
+		now, mods := time.Now(), hotkey.ModifiersOf(ev.Flags)
+		for _, d := range a.doubleTaps {
+			if d.tap.Feed(now, mods, ev.KeyDown) {
+				d.action()
+			}
 		}
 	})
 	if errors.Is(err, macos.ErrNoListenAccess) && !a.askedListen {

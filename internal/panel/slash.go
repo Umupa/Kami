@@ -12,7 +12,7 @@ import (
 
 // A menu shows under the source while a command is typed, as monocode's
 // quick composer does: the commands after "/", the topics after
-// "/operator ", the themes after "/operator theme". The arrows choose, Tab
+// "/operator ", the themes after "/theme". The arrows choose, Tab
 // and Enter take, Escape closes.
 type menuKind int
 
@@ -21,7 +21,6 @@ const (
 	menuCommands
 	menuTopics
 	menuThemes
-	menuFonts
 )
 
 // item is an entry of a menu.
@@ -29,15 +28,18 @@ type item struct {
 	key, title, desc string
 	color            ui.Color   // the key's, zero for the default
 	swatch           []ui.Color // a theme's colors
-	font             string     // a font preset's family, to show its name in it
 	take             func(p *Panel, setText func(string))
 }
 
-// themeCommand and fontCommand open the pickers.
-const (
-	themeCommand = operator.Command + " theme"
-	fontCommand  = operator.Command + " font"
-)
+// themeCommand opens the theme picker. Picking a theme needs no model, so
+// it is a command of its own rather than an operator request.
+const themeCommand = "/theme"
+
+// themeTyped reports whether src is the theme command, with or without a
+// query after it.
+func themeTyped(src string) bool {
+	return strings.HasPrefix(src, themeCommand) && (len(src) == len(themeCommand) || src[len(themeCommand)] == ' ')
+}
 
 // menu returns the menu the source calls for, with its items filtered by
 // what is typed.
@@ -52,13 +54,11 @@ func (p *Panel) menu(pal *design.Palette) (menuKind, []item) {
 
 func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 	src := p.source
-	if src == p.menuClosed || strings.Contains(src, "\n") {
+	if src == p.menuClosed || strings.Contains(src, "\n") || p.noteMode() {
 		return menuNone, nil
 	}
 	switch {
-	case strings.HasPrefix(src, fontCommand) && (len(src) == len(fontCommand) || src[len(fontCommand)] == ' '):
-		return menuFonts, p.fontItems(strings.TrimSpace(src[len(fontCommand):]))
-	case strings.HasPrefix(src, themeCommand) && (len(src) == len(themeCommand) || src[len(themeCommand)] == ' '):
+	case themeTyped(src):
 		return menuThemes, p.themeItems(strings.TrimSpace(src[len(themeCommand):]))
 	case strings.HasPrefix(src, operator.Command+" "):
 		rest := src[len(operator.Command)+1:]
@@ -77,11 +77,15 @@ func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 
 func (p *Panel) commandItems(query string, pal *design.Palette) []item {
 	all := []item{{key: "/operator", title: "Operator", desc: "用一句话查看或修改 Gloss 的设置", color: pal.Operator,
-		take: func(p *Panel, set func(string)) { set(operator.Command + " "); p.caretToEnd = true }}}
+		take: func(p *Panel, set func(string)) { set(operator.Command + " "); p.caretToEnd = true }},
+		{key: themeCommand, title: "主题", desc: "切换配色主题",
+			take: func(p *Panel, set func(string)) { set(themeCommand + " "); p.caretToEnd = true }}}
 	for i, m := range p.modes {
 		all = append(all, item{key: "/" + m.ID, title: m.Name, desc: clip(m.Desc),
-			take: func(p *Panel, set func(string)) { p.modeIdx = i; set("") }})
+			take: func(p *Panel, set func(string)) { p.setMode(i); set("") }})
 	}
+	all = append(all, item{key: "/note", title: "笔记", desc: "随手记点什么，自动保存",
+		take: func(p *Panel, set func(string)) { set(""); p.setMode(len(p.modes)) }})
 	return filter(all, "/"+query)
 }
 
@@ -89,7 +93,6 @@ func (p *Panel) commandItems(query string, pal *design.Palette) []item {
 // answers or, for themes, the picker.
 var topics = []struct{ key, title, ask string }{
 	{"theme", "切换配色主题", ""},
-	{"font", "切换字体，⌘= ⌘- 调字号", ""},
 	{"模型", "各模式用哪个模型，默认模型是哪个", "现在各模式用的是哪个模型？默认模型是哪个？"},
 	{"快捷键", "查看或修改全局快捷键", "现在的快捷键有哪些？"},
 	{"模式", "查看模式和完整提示词，增删模式", "列出所有模式，以及每个模式的提示词。"},
@@ -104,7 +107,7 @@ func (p *Panel) topicItems(query string) []item {
 	for _, t := range topics {
 		all = append(all, item{key: t.key, title: t.title, take: func(p *Panel, set func(string)) {
 			if t.ask == "" {
-				set(operator.Command + " " + t.key + " ")
+				set(themeCommand + " ")
 				p.caretToEnd = true
 				return
 			}
@@ -133,32 +136,9 @@ func (p *Panel) themeItems(query string) []item {
 func takeTheme(name string) func(p *Panel, set func(string)) {
 	return func(p *Panel, set func(string)) {
 		p.setConfig("theme", name, func(c *config.Config) { c.Theme = name })
-		p.notice = "主题已切换为 " + name + "，可以随时用 /operator theme 再换。"
+		p.notice = "主题已切换为 " + name + "，可以随时用 /theme 再换。"
 		set("")
 	}
-}
-
-func (p *Panel) fontItems(query string) []item {
-	var all []item
-	for _, f := range design.Fonts {
-		label, sample := f.Label, "敏捷的狐狸 The quick fox 0123"
-		all = append(all, item{key: f.Name, title: label, desc: sample, font: f.Use().Family, take: func(p *Panel, set func(string)) {
-			p.setConfig("font", f.Name, func(c *config.Config) { c.Font = f.Name })
-			p.notice = "字体已切换为 " + label + "；⌘= ⌘- 调字号，⌘0 恢复。"
-			set("")
-		}})
-	}
-	return filter(all, query)
-}
-
-// previewFont is the font chosen in the font picker, shown until the picker
-// closes; "" when no picker shows.
-func (p *Panel) previewFont() string {
-	kind, items := p.menu(p.pal)
-	if kind != menuFonts || len(items) == 0 {
-		return ""
-	}
-	return items[min(p.menuIdx, len(items)-1)].key
 }
 
 // filter keeps the items whose key or title has query, those starting with
@@ -293,18 +273,15 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 							}
 						})
 					}
-					title := ui.Text(c, it.title).FontSize(p.sz.Label).TextColor(pal.Text).MinWidth(70)
-					desc := ui.Text(c, it.desc).FontSize(p.sz.Caption).TextColor(pal.Muted).Grow(1).MaxLines(1)
-					if kind == menuFonts {
-						// Each font shows its name and a sample in itself.
-						title.Font(it.font)
-						desc.Font(it.font).FontSize(p.sz.Label)
-					}
+					ui.Text(c, it.title).FontSize(p.sz.Label).TextColor(pal.Text).MinWidth(70)
+					ui.Text(c, it.desc).FontSize(p.sz.Caption).TextColor(pal.Muted).Grow(1).MaxLines(1)
 				})
 				if row.Clicked() {
 					p.menuIdx = 0
 					it.take(p, func(s string) { p.source = s })
-					p.sourceIn.Focus()
+					if !p.noteMode() {
+						p.sourceIn.Focus()
+					}
 				}
 			}
 		})
@@ -312,8 +289,6 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 		switch kind {
 		case menuThemes:
 			hint = "⏎ 用这个主题"
-		case menuFonts:
-			hint = "⏎ 用这个字体"
 		}
 		ui.Row(c).Gap(14).Padding(6, 10, 2, 10).Children(func() {
 			for _, h := range []string{"↑↓ 选择", hint, "esc 关闭"} {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"slices"
@@ -199,13 +200,16 @@ func (c *Config) validate() []Problem {
 		add("theme", "必须是 %s 之一", strings.Join(Themes, "、"))
 	}
 	if c.Font != "" && !slices.Contains(Fonts, c.Font) {
-		add("font", "必须是 %s 之一", strings.Join(Fonts, "、"))
+		add("font", "仅支持 caskaydia（应用内置的 CaskaydiaCove Nerd Font）")
 	}
 	if c.FontSize != 0 && (c.FontSize < MinFontSize || c.FontSize > MaxFontSize) {
 		add("fontSize", "必须在 %d 到 %d 之间", MinFontSize, MaxFontSize)
 	}
 	if c.Background != "" && !slices.Contains(Backgrounds, c.Background) {
 		add("background", "必须是 %s 之一", strings.Join(Backgrounds, "、"))
+	}
+	if d := c.NotesDir; d != "" && d != "~" && !strings.HasPrefix(d, "~/") && !filepath.IsAbs(d) {
+		add("notesDir", "必须是绝对路径，或以 ~/ 开头")
 	}
 	if c.DefaultModel != "" && !names[c.DefaultModel] {
 		add("defaultModel", "没有名为「%s」的模型", c.DefaultModel)

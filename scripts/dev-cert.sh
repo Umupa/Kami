@@ -9,7 +9,7 @@ name="Gloss Dev"
 keychain="$HOME/Library/Keychains/login.keychain-db"
 
 if security find-identity -v -p codesigning | grep -q "\"$name\""; then
-	echo "已经有签名身份「$name」。"
+	echo "已经有签名身份「${name}」。"
 	exit 0
 fi
 
@@ -32,8 +32,8 @@ CONF
 /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 	-config "$tmp/cert.conf" -keyout "$tmp/key.pem" -out "$tmp/cert.pem" 2>/dev/null
 /usr/bin/openssl pkcs12 -export -inkey "$tmp/key.pem" -in "$tmp/cert.pem" \
-	-out "$tmp/id.p12" -passout pass:Gloss
-security import "$tmp/id.p12" -k "$keychain" -P Gloss -T /usr/bin/codesign
+	-out "$tmp/id.p12" -passout pass:gloss
+security import "$tmp/id.p12" -k "$keychain" -P gloss -T /usr/bin/codesign
 security add-trusted-cert -p codeSign -k "$keychain" "$tmp/cert.pem"
 
 security find-identity -v -p codesigning | grep "\"$name\""

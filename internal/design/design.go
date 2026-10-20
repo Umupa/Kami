@@ -92,7 +92,7 @@ const (
 
 // UITheme turns a palette into the window theme, so that MyGo's own widgets
 // (scroll bars, menus, text selection) take its colors and font too.
-func UITheme(base ui.Theme, p *Palette, font string, size float32) *ui.Theme {
+func UITheme(base ui.Theme, p *Palette, size float32) *ui.Theme {
 	t := base
 	t.Dark = p.Dark
 	t.Background, t.Surface = p.Background, p.Surface
@@ -104,6 +104,6 @@ func UITheme(base ui.Theme, p *Palette, font string, size float32) *ui.Theme {
 	t.Focus = p.Accent
 	t.Scrollbar = p.Faint.Alpha(0.5)
 	t.Radius = RadiusChip
-	t.Font, t.FontSize = font, size
+	t.Font, t.FontSize = FontFamily, size
 	return &t
 }

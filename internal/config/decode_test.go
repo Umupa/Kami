@@ -407,7 +407,7 @@ func TestDecodeProblems(t *testing.T) {
 		},
 		{
 			name:     "shortcut matches another default",
-			input:    `{"version":1,"shortcuts":{"selection":"double-option"}}`,
+			input:    `{"version":1,"shortcuts":{"selection":"option+space"}}`,
 			path:     "shortcuts.selection",
 			contains: "相同",
 		},

@@ -16,7 +16,7 @@ import (
 	"github.com/Umupa/Gloss/internal/llm"
 )
 
-// Exit codes, the same as Cida's (configuration.md §二).
+// Exit codes distinguish invalid configuration from a failed service check.
 const (
 	ExitOK          = 0
 	ExitUsage       = 64 // also: the configuration is invalid

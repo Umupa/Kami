@@ -4,6 +4,11 @@
 // last valid configuration while the file is broken.
 package config
 
+import (
+	"path/filepath"
+	"strings"
+)
+
 // Version is the only config.json version this build understands.
 const Version = 1
 
@@ -21,18 +26,21 @@ type Config struct {
 	LaunchAtLogin   bool      `json:"launchAtLogin,omitempty"`
 	// Theme names the colors: "auto" follows the system's appearance.
 	Theme string `json:"theme,omitempty"`
-	// Font names a font preset, and FontSize is the body text's size in
-	// points; the panel's other sizes keep their ratio to it.
+	// Font only accepts "caskaydia"; the family is bundled with the app.
+	// FontSize is the body size in points; other sizes scale with it.
 	Font     string  `json:"font,omitempty"`
 	FontSize float32 `json:"fontSize,omitempty"`
 	// Background is "blur", the desktop showing blurred through the panel,
 	// or "solid".
 	Background string `json:"background,omitempty"`
+	// NotesDir is where the notes are kept: an absolute path, or one
+	// starting with ~/; empty keeps them in the notes folder next to
+	// config.json.
+	NotesDir string `json:"notesDir,omitempty"`
 }
 
-// Fonts are the values of Font; a test of package design checks them
-// against its presets.
-var Fonts = []string{"caskaydia", "jetbrains-mono", "sf-mono", "cida-serif", "songti", "kaiti", "inter", "system"}
+// Fonts contains the only supported font setting.
+var Fonts = []string{"caskaydia"}
 
 // Backgrounds are the values of Background.
 var Backgrounds = []string{"blur", "solid"}
@@ -139,12 +147,29 @@ type Shortcuts struct {
 const (
 	DefaultMyLanguage      = "简体中文"
 	DefaultForeignLanguage = "English"
-	DefaultPanelShortcut   = "double-option"
-	// Selection and capture use ⌃⌥ until Cida is retired, because macOS
-	// delivers a hotkey to every app that registered it.
-	DefaultSelectionShortcut = "control+option+a"
-	DefaultCaptureShortcut   = "control+option+s"
+	DefaultPanelShortcut   = "option+space"
+	// A double tap needs Input Monitoring but takes no key combination
+	// from other apps; macOS delivers a hotkey to every app that
+	// registered it.
+	DefaultSelectionShortcut = "double-option"
+	DefaultCaptureShortcut   = "option+s"
 )
+
+// NotesFolder is the folder next to config.json that keeps the notes when
+// NotesDir is empty.
+const NotesFolder = "notes"
+
+// Notes returns the notes directory, with ~ expanded to home; configDir
+// is config.json's directory.
+func (c *Config) Notes(configDir, home string) string {
+	switch {
+	case c.NotesDir == "":
+		return filepath.Join(configDir, NotesFolder)
+	case c.NotesDir == "~" || strings.HasPrefix(c.NotesDir, "~/"):
+		return filepath.Join(home, c.NotesDir[1:])
+	}
+	return filepath.Clean(c.NotesDir)
+}
 
 // Model returns the model with the given name.
 func (c *Config) Model(name string) (Model, bool) {

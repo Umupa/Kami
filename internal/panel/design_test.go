@@ -47,10 +47,11 @@ func TestDesignSnapshots(t *testing.T) {
 	}
 	h.snapshot("slash-menu")
 	h.tt.Key(0, ui.KeyDown)
+	h.tt.Key(0, ui.KeyDown)
 	h.tt.Key(0, ui.KeyTab)
 	h.tt.Frame()
 	if h.p.source != "" || h.p.modes[h.p.modeIdx].ID != "translate" {
-		t.Errorf("picking the second command: source %q, mode %s", h.p.source, h.p.modes[h.p.modeIdx].ID)
+		t.Errorf("picking the first mode, after /operator and /theme: source %q, mode %s", h.p.source, h.p.modes[h.p.modeIdx].ID)
 	}
 	h.tt.Type("/op")
 	h.tt.Key(0, ui.KeyEnter)
@@ -77,7 +78,7 @@ func TestThemePicker(t *testing.T) {
 	h.snapshot("operator-topics")
 	h.tt.Key(0, ui.KeyEnter) // theme, the first topic
 	h.tt.Frame()
-	if h.p.source != "/operator theme " {
+	if h.p.source != "/theme " {
 		t.Fatalf("source %q", h.p.source)
 	}
 	h.tt.Type("gruv")
@@ -94,9 +95,11 @@ func TestThemePicker(t *testing.T) {
 	h.snapshot("theme-gruvbox")
 }
 
-func TestFontPickerAndSize(t *testing.T) {
+func TestFontSize(t *testing.T) {
 	var applied []config.Op
 	h := newHarness(t, script{pieces: []string{designReply}})
+	h.p.place = placeOn(mygo.Rectangle{Width: 1440, Height: 1500})
+	h.tt.SetSize(820, 1100)
 	h.p.deps.Operator.Apply = func(ops []config.Op) ([]config.Change, error) {
 		applied = append(applied, ops...)
 		return nil, nil
@@ -104,17 +107,6 @@ func TestFontPickerAndSize(t *testing.T) {
 	h.tt.SetDark(true)
 	h.tt.Frame()
 	h.tt.Click("原文")
-	h.tt.Type("/operator font cida")
-	h.tt.Frame()
-	if h.p.previewFont() != "cida-serif" || h.p.font.Name != "cida-serif" {
-		t.Errorf("previewing %q, panel font %q", h.p.previewFont(), h.p.font.Name)
-	}
-	h.snapshot("font-picker")
-	h.tt.Key(0, ui.KeyEnter)
-	h.tt.Frame()
-	if h.p.cfg.Font != "cida-serif" {
-		t.Errorf("font = %q after Enter", h.p.cfg.Font)
-	}
 	h.tt.Key(ui.Cmd, ui.KeyEqual)
 	h.tt.Key(ui.Cmd, ui.KeyEqual)
 	h.tt.Frame()
@@ -125,14 +117,14 @@ func TestFontPickerAndSize(t *testing.T) {
 	h.tt.Type("hello")
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
-	h.snapshot("font-cida-serif")
+	h.snapshot("font-caskaydia")
 	h.tt.Key(ui.Cmd, ui.Key0)
 	h.tt.Frame()
 	if h.p.sz.Body != 13.5 {
 		t.Errorf("⌘0 left the body at %v", h.p.sz.Body)
 	}
-	if len(applied) != 4 {
-		t.Errorf("applied %d edits, want font and three sizes", len(applied))
+	if len(applied) != 3 {
+		t.Errorf("applied %d edits, want three size changes", len(applied))
 	}
 }
 
@@ -140,9 +132,9 @@ func TestPinAndUnmatchedMenu(t *testing.T) {
 	h := newHarness(t, script{})
 	h.tt.Frame()
 	h.tt.Click("原文")
-	h.tt.Key(ui.Cmd, ui.KeyP)
+	h.tt.Key(ui.Cmd|ui.Shift, ui.KeyP)
 	if !h.p.pinned {
-		t.Error("⌘P did not pin the panel")
+		t.Error("⌘⇧P did not pin the panel")
 	}
 	h.tt.Type("/operator 我的语言和外语分别是什么？")
 	h.tt.Frame()
@@ -153,5 +145,23 @@ func TestPinAndUnmatchedMenu(t *testing.T) {
 	h.tt.Frame()
 	if kind, _ := h.p.menu(h.p.pal); kind != menuNone {
 		t.Error("an unknown command shows an empty menu")
+	}
+}
+
+func TestThemeCommand(t *testing.T) {
+	h := newHarness(t, script{})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("/theme nord")
+	h.tt.Frame()
+	if got := h.p.previewTheme(h.p.pal); got != "nord" {
+		t.Errorf("previewing %q, want nord", got)
+	}
+	h.tt.Type("zzz")
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	if h.p.sess != nil {
+		t.Error("Enter on a theme no name matches sent it to the model")
 	}
 }

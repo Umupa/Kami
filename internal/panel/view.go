@@ -23,39 +23,43 @@ import (
 )
 
 func (p *Panel) view(c *ui.Context) {
-	theme, fontName, size, blur := "", "", float32(0), true
+	theme, size, blur := "", float32(0), true
 	if p.cfg != nil {
-		theme, fontName, size, blur = p.cfg.Theme, p.cfg.Font, p.cfg.FontSize, p.cfg.Background != "solid"
+		theme, size, blur = p.cfg.Theme, p.cfg.FontSize, p.cfg.Background != "solid"
 	}
 	dark := c.Theme().Dark
 	pal := design.For(theme, dark)
 	if preview := p.previewTheme(pal); preview != "" {
 		pal = design.For(preview, dark)
 	}
-	if preview := p.previewFont(); preview != "" {
-		fontName = preview
-	}
-	p.pal, p.sz, p.font = pal, design.SizesFor(size), design.FontNamed(fontName).Use()
-	c.SetTheme(design.UITheme(*c.Theme(), pal, p.font.Family, p.sz.Body))
-	if key := (mdKey{pal, p.font.Name, p.sz.Body}); p.mdFor != key {
-		p.md.Theme, p.mdFor = design.Markdown(pal, p.font, p.sz.Body), key
+	p.pal, p.sz = pal, design.SizesFor(size)
+	c.SetTheme(design.UITheme(*c.Theme(), pal, p.sz.Body))
+	if key := (mdKey{pal, p.sz.Body}); p.mdFor != key {
+		p.md.Theme, p.mdFor = design.Markdown(pal, p.sz.Body), key
 	}
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyEqual, func() { p.stepFontSize(1) })
 	c.OnShortcut(ui.Cmd, ui.KeyMinus, func() { p.stepFontSize(-1) })
 	c.OnShortcut(ui.Cmd, ui.Key0, func() { p.stepFontSize(0) })
-	c.OnShortcut(ui.Cmd, ui.KeyP, p.togglePin)
+	c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyP, p.togglePin)
 	background := pal.Background
 	if blur && c.Vibrancy() {
 		// The desktop shows blurred through the panel's tint.
 		background = background.Alpha(0.78)
 	}
-	c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
-	c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
-	c.OnShortcut(ui.Cmd, ui.KeyJ, func() { p.switchInput(c) })
-	// Cmd-C copies the latest reply, unless the focused input has a
-	// selection, which it copies itself.
-	c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })
+	if p.noteMode() {
+		c.OnShortcut(ui.Cmd, ui.KeyN, p.newNote)
+		c.OnShortcut(ui.Cmd, ui.KeyP, p.toggleList)
+		c.OnShortcut(ui.Cmd, ui.KeyBracketLeft, func() { p.stepNote(-1) })
+		c.OnShortcut(ui.Cmd, ui.KeyBracketRight, func() { p.stepNote(1) })
+	} else {
+		c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
+		c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
+		c.OnShortcut(ui.Cmd, ui.KeyJ, func() { p.switchInput(c) })
+		// Cmd-C copies the latest reply, unless the focused input has a
+		// selection, which it copies itself.
+		c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })
+	}
 
 	maxHeight := float32(p.place.maxHeight)
 	if maxHeight <= 0 {
@@ -70,16 +74,22 @@ func (p *Panel) view(c *ui.Context) {
 	// the very frame it is laid out, and the window follows at once.
 	panel := ui.Column(c).FillWidth().MinHeight(min(windowH, maxHeight)).Shrink(0).
 		Background(background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip()
-	if p.fixedHeight > 0 && p.sess != nil {
+	if p.fixedLayout() {
 		panel.Height(float32(p.fixedHeight))
 	}
 	panel.Children(func() {
 		content := ui.Column(c.Key("content")).MaxHeight(maxHeight).Shrink(0)
-		if p.fixedHeight > 0 && p.sess != nil {
+		if p.fixedLayout() {
 			content.Grow(1).Shrink(1).MinHeight(0)
 		}
 		content.Draw(func(_ *ui.Painter, r ui.Rect) { p.fit(r.H) })
 		content.Children(func() {
+			if p.noteMode() {
+				p.noteView(c, pal)
+				ui.Divider(c).Background(pal.Border)
+				p.modeBar(c, pal)
+				return
+			}
 			p.sourceView(c, pal)
 			p.menuView(c, pal)
 			p.splitter(c, pal)
@@ -104,7 +114,7 @@ func (p *Panel) view(c *ui.Context) {
 // covers. A height the user set by resizing stays.
 func (p *Panel) fit(contentH float32) {
 	p.panelH = contentH
-	if p.fixedHeight > 0 && p.sess != nil {
+	if p.fixedLayout() {
 		return
 	}
 	h := int(math.Ceil(float64(contentH)))
@@ -113,6 +123,13 @@ func (p *Panel) fit(contentH float32) {
 	}
 	p.height = h
 	p.resize(p.place.bounds(h))
+}
+
+// fixedLayout reports whether the panel keeps the height the user resized
+// it to, rather than following its content: with a result or a note, which
+// fill it.
+func (p *Panel) fixedLayout() bool {
+	return p.fixedHeight > 0 && (p.sess != nil || p.noteMode())
 }
 
 func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
@@ -195,7 +212,7 @@ func (p *Panel) translateTarget() string {
 // stale reports a result that no longer matches the source or the mode: it
 // stays until the user runs again, never refreshed on its own (F5.7).
 func (p *Panel) stale() bool {
-	if p.sess == nil || p.sess.Busy() || p.sess.Operator || len(p.modes) == 0 {
+	if p.sess == nil || p.sess.Busy() || p.sess.Operator || len(p.modes) == 0 || p.noteMode() {
 		return false
 	}
 	return p.sess.Turns[0].Ask != p.source || p.sess.Mode.ID != p.modes[p.modeIdx].ID
@@ -213,16 +230,17 @@ func (p *Panel) sourceLines() int {
 	return max(3, int(visible*design.SourceMaxRatio/line))
 }
 
+// cycleMode moves to the next mode (Tab) or the one before (Shift-Tab),
+// notes being the last.
 func (p *Panel) cycleMode(step int) {
-	if n := len(p.modes); n > 0 {
-		p.modeIdx = (p.modeIdx + step + n) % n
-	}
+	n := len(p.modes) + 1
+	p.setMode((p.modeIdx + step + n) % n)
 }
 
 func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 	// The bar is where the panel is held to move it.
 	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).DragWindow().Children(func() {
-		if p.operatorActive() {
+		if p.operatorActive() && !p.noteMode() {
 			p.operatorPill(c, pal)
 			ui.Spacer(c)
 			p.pinButton(c, pal)
@@ -254,18 +272,47 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 						chip.Background(pal.Raised)
 					}
 					if chip.Clicked() {
-						p.modeIdx = i
+						p.setMode(i)
 						p.sourceIn.Focus()
 					}
 				}
+				p.notesChip(c, pal)
 			})
 		})
 		ui.Spacer(c)
+		if p.noteMode() {
+			p.noteBar(c, pal)
+			p.pinButton(c, pal)
+			return
+		}
 		p.pinButton(c, pal)
 		p.themeButton(c, pal)
 		p.kbd(c, pal, "tab", "模式")
 		p.runButton(c, pal)
 	})
+}
+
+// notesChip is the tab of notes mode, after the modes.
+func (p *Panel) notesChip(c *ui.Context, pal *design.Palette) {
+	chip := ui.Box(c.Key("notes")).PaddingX(8).PaddingY(4).Radius(design.RadiusChip).MarginStart(6)
+	on := p.noteMode()
+	chip.Children(func() {
+		t := ui.Text(c, "笔记").FontSize(p.sz.Label)
+		switch {
+		case on:
+			t.TextColor(pal.Accent).FontWeight(700)
+		case chip.Hovered():
+			t.TextColor(pal.Text)
+		default:
+			t.TextColor(pal.Muted)
+		}
+	})
+	if on {
+		chip.Background(pal.Raised)
+	}
+	if chip.Clicked() && !on {
+		p.setMode(len(p.modes))
+	}
 }
 
 // kbd shows a key and what it does, as monocode's hints: the key in a chip.
@@ -279,11 +326,11 @@ func (p *Panel) kbd(c *ui.Context, pal *design.Palette, key, does string) {
 
 var pinIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 2.2l4 4-2.3.9-2.6 2.6.3 2.8-1.2 1.2-2.4-3.5-3.2 3.2M5.6 7.9L2.1 5.5l1.2-1.2 2.8.3 2.6-2.6z"/></svg>`))
 
-// pinButton keeps the panel up while other apps have the keyboard (Cmd-P).
+// pinButton keeps the panel up while other apps have the keyboard (Cmd-Shift-P).
 func (p *Panel) pinButton(c *ui.Context, pal *design.Palette) {
-	label := "固定面板 ⌘P"
+	label := "固定面板 ⌘⇧P"
 	if p.pinned {
-		label = "取消固定 ⌘P"
+		label = "取消固定 ⌘⇧P"
 	}
 	b := ui.Box(c.Key("pin")).Padding(4).MarginEnd(6).Radius(design.RadiusChip).Label(label).Tooltip(label)
 	col := pal.Faint
@@ -335,16 +382,30 @@ func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
 
 func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 	ui.Box(c.Key("result")).Grow(1).Shrink(1).MinHeight(0).Children(func() {
-		list := ui.List(c, &p.list, len(p.sess.Turns), func(i int) {
+		// FollowAnimation also offsets rows that fit in mygo's List. Only
+		// animate once there is an actual scroll range; Reveal handles the
+		// appearance of text while the result still fits.
+		// While the window can grow, List measures its intrinsic height
+		// from the previous frame. Following that temporary end scrolls
+		// upward for one frame before the window catches up.
+		if !p.list.FollowEnd && (p.fixedLayout() || p.panelH >= float32(p.place.maxHeight)-0.5) {
+			p.list.FollowEnd = true
+			p.list.ScrollToEnd()
+		}
+		p.list.FollowAnimation = nil
+		if p.list.FollowEnd && p.list.scroll.MaxY > 0.5 {
+			p.list.FollowAnimation = &ui.Smooth
+		}
+		list := ui.List(c, &p.list.ListState, len(p.sess.Turns), func(i int) {
 			p.turnView(c, pal, i)
-		}).Fill().PaddingX(design.SpaceX).PaddingY(design.SpaceResultY).Gap(design.SpaceTurns)
+		}).Fill().PaddingX(design.SpaceX).PaddingY(design.SpaceResultY).Gap(design.SpaceTurns).TrackScroll(&p.list.scroll)
 		p.sparkle(c, list, pal)
-		if !p.list.AtEnd() {
+		if p.list.FollowEnd && !p.list.AtEnd() {
 			// Back to the latest, and following it again.
-			jump := ui.Row(c.Key("latest")).Gap(4).PaddingX(9).PaddingY(4).Radius(design.RadiusChip).
-				Background(pal.Raised).Border(1, pal.Border).Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Right(18).Bottom(10)
+			jump := ui.Box(c.Key("latest")).PaddingX(9).PaddingY(4).Radius(design.RadiusChip).Label("回到底部").
+				Background(pal.Raised).Border(1, pal.Border).Attach(ui.AnchorBottom, ui.AnchorBottom).Bottom(10)
 			jump.Children(func() {
-				ui.Text(c, "↓ 最新").FontSize(p.sz.Caption).TextColor(pal.Bright)
+				ui.Text(c, "↓").FontSize(p.sz.Caption).TextColor(pal.Bright)
 			})
 			if jump.Clicked() {
 				p.list.ScrollToEnd()
@@ -356,6 +417,18 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 	t := &p.sess.Turns[i]
 	turn := ui.Column(c).Gap(10)
+	if !p.fixedLayout() {
+		// List's intrinsic size uses cached row heights. Rebuild after
+		// measurement so the auto-sized window grows and shrinks without
+		// relying on a scroll animation to schedule the next frame.
+		height := ui.Local(turn, "measured-height", func() float32 { return 0 })
+		turn.Draw(func(_ *ui.Painter, r ui.Rect) {
+			if *height != r.H {
+				*height = r.H
+				c.Invalidate()
+			}
+		})
+	}
 	turn.Children(func() {
 		if i > 0 {
 			// A follow-up, as a prompt line in a terminal.
@@ -375,9 +448,7 @@ func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 			markdown.View(c, t.Reply, &p.md)
 		}
 		last := i == len(p.sess.Turns)-1
-		if last || turn.Hovered() {
-			p.turnFooter(c, pal, i)
-		}
+		p.turnFooter(c, pal, i, last || turn.Hovered())
 	})
 }
 
@@ -392,13 +463,15 @@ func (p *Panel) thinking(c *ui.Context, pal *design.Palette) {
 	})
 }
 
-// turnFooter shows what can be done with a turn, as icons: always under
-// the latest turn, on hover under the others. Its left says only what is
-// unusual: a stale result, turns left out, a source answered in parts.
-func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int) {
+// turnFooter reserves its height even when the historical turn's actions
+// are hidden: scrolling under the pointer must not resize list rows.
+func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int, visible bool) {
 	t := &p.sess.Turns[i]
 	last := i == len(p.sess.Turns)-1
 	ui.Row(c.Key("footer")).Gap(2).Height(p.sz.Label + 14).Children(func() {
+		if !visible {
+			return
+		}
 		var notes []string
 		if t.Dropped > 0 {
 			notes = append(notes, fmt.Sprintf("省略了之前 %d 轮", t.Dropped))
@@ -480,8 +553,7 @@ func (p *Panel) iconButton(c *ui.Context, pal *design.Palette, key string, icon 
 	return b
 }
 
-// failureText says what failed and what to do, by what the user can do
-// about it (Cida's panel.md §四).
+// failureText groups failures by the next action the user can take.
 func failureText(err error) (title, next string) {
 	var le *llm.Error
 	if !errors.As(err, &le) {
@@ -562,7 +634,6 @@ func (p *Panel) copyTurn(i int) {
 // mdKey is what the Markdown theme depends on.
 type mdKey struct {
 	pal  *design.Palette
-	font string
 	size float32
 }
 
