@@ -88,7 +88,7 @@ MyGo 内部有自己的 Objective-C 封装，但在 `internal/` 里，不能引�
 | Carbon / HIToolbox | `TISCopyCurrentKeyboardLayoutInputSource`、`UCKeyTranslate`、`IsSecureEventInputEnabled` | 按当前键盘布局找 C 键，安全输入时不复制 |
 | AppKit | `NSPasteboard`（`changeCount`、`pasteboardItems`、`types`、`dataForType:`、`writeObjects:`）、`NSWorkspace.frontmostApplication`、`NSRunningApplication` | 剪贴板逐项备份与恢复（`org.nspasteboard.TransientType`），前台应用 |
 | Vision | `VNRecognizeTextRequest`（accurate，`zh-Hans` + `en-US`，自动判断语言）、`VNImageRequestHandler` | 截图识别文字 |
-| ScreenCaptureKit | `SCScreenshotManager captureImageInRect:completionHandler:`（macOS 15.2+） | 冻结鼠标所在屏幕的截图 |
+| ScreenCaptureKit | `SCShareableContent`、`SCContentFilter`、`SCScreenshotManager captureImageWithFilter:configuration:completionHandler:` | 按显示器 ID，以原生像素、best 质量、无指针冻结鼠标所在屏幕 |
 | CoreImage / CoreGraphics 图像 | `CGImage` ↔ Go `image.Image` | 截图裁剪、送入 Vision |
 
 线程约定：辅助功能、Vision、截图都在后台 goroutine 上调用（`runtime.LockOSThread` + autorelease pool），带超时；只有窗口操作回到主线程。
@@ -133,7 +133,7 @@ agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后
 
 | 阶段 | 做法 |
 | --- | --- |
-| 自用（现在） | 本机创建一个自签名的代码签名证书（如「Gloss Dev」），`mygo.json` 的 `signingIdentity` 指向它。签名身份稳定，重新构建后辅助功能和屏幕录制授权不丢失；临时签名（`-`）每次构建都会丢 |
+| 自用（现在） | 运行一次 `scripts/dev-cert.sh` 创建本机 `Gloss Dev` 代码签名身份，`scripts/build.sh` 通过 `-sign` 使用它。缺少该身份时停止构建；临时产物须显式传 `--ad-hoc`。签名身份稳定后重建可保留授权；由旧临时签名迁入时需移除并重新添加 Gloss 自身的旧授权条目 |
 | CI | GitHub Actions：`go vet`、`go test`、`go tool mygo vet`、构建 |
 
 ## 九、风险与退路

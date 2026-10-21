@@ -10,7 +10,7 @@
 
 一期功能已实现，等待统一实测：面板与多轮对话、四个内置模式、三种模型格式、带入选区、截图识别、Operator（在面板里输入 `/operator` 查看和修改设置）、配置接口（`config.json` + `check`）。
 
-构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/Gloss.app`。
+构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/Gloss.app`。没有固定签名时构建直接失败，避免重新构建后陷入系统权限反复申请；仅需临时产物时可显式运行 `scripts/build.sh --ad-hoc`，该产物的权限不保证在重建后保留。
 
 ## 文档
 

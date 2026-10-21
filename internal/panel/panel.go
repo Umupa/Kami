@@ -69,6 +69,8 @@ type Panel struct {
 	modes []mode.Mode
 
 	source string
+	// captureSource keeps unedited OCR material out of the command parser.
+	captureSource string
 	// lastImport is the selection last brought in, so that importing it
 	// again shows the panel as the user left it.
 	lastImport string
@@ -303,6 +305,7 @@ func (p *Panel) Import(text string) {
 		p.lastImport = ""
 	case text != p.lastImport:
 		p.lastImport = text
+		p.captureSource = ""
 		p.source = text
 		p.setMode(0)
 		p.run()
@@ -311,13 +314,43 @@ func (p *Panel) Import(text string) {
 }
 
 // ImportCaptured shows the panel with text recognized in a screenshot and
-// runs the default mode on it.
+// always translates it, superseding a running request.
 func (p *Panel) ImportCaptured(text string) {
-	p.notice = ""
-	p.source = text
-	p.setMode(0)
-	p.run()
+	p.importCaptured(text)
 	p.Show()
+}
+
+// importCaptured is the window-independent part of importing OCR output.
+func (p *Panel) importCaptured(text string) {
+	p.stop()
+	p.source, p.follow, p.lastImport = text, "", ""
+	p.captureSource = text
+	p.sess, p.list, p.notice = nil, newList(), ""
+	p.setMode(0)
+	index := -1
+	for i, m := range p.modes {
+		if m.ID == "translate" {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		c := *p.cfg
+		c.Modes = []config.Mode{{ID: "translate"}}
+		modes, _ := mode.Resolve(&c)
+		index = len(p.modes)
+		p.modes = append(p.modes, modes[0])
+	}
+	p.setMode(index)
+	if strings.TrimSpace(text) == "" {
+		p.source = ""
+		p.notice = "截图里没有识别到文字"
+		p.setBusy(false)
+		return
+	}
+	// OCR is material, including text that happens to start with a slash
+	// command. It must never be interpreted as an Operator instruction.
+	p.runMaterial()
 }
 
 // Notify shows the panel with a short notice in place of a result, as when
@@ -359,16 +392,24 @@ func (p *Panel) applyConfig(c *config.Config) {
 
 // run starts a new session with the source in the current mode.
 func (p *Panel) run() {
-	if request, ok := operator.Leading(p.source); ok {
+	if request, ok := operator.Leading(p.source); ok && !p.capturedSource() {
 		p.runOperator(request)
 		return
 	}
-	if strings.TrimSpace(p.source) == "" || len(p.modes) == 0 || p.noteMode() || themeTyped(p.source) {
+	if strings.TrimSpace(p.source) == "" || len(p.modes) == 0 || p.noteMode() || (!p.capturedSource() && themeTyped(p.source)) {
 		return
 	}
+	p.runMaterial()
+}
+
+// runMaterial starts a session without interpreting source text as commands.
+func (p *Panel) runMaterial() {
 	p.stop()
 	p.notice = ""
 	m := p.modes[p.modeIdx]
+	if p.capturedSource() && m.ID == "translate" {
+		m.Input = config.InputMaterial
+	}
 	p.sess = session.New(m, p.source, m.Model)
 	p.list = newList()
 	p.start()
@@ -408,6 +449,7 @@ func (p *Panel) stop() {
 func (p *Panel) reset() {
 	p.stop()
 	p.sess, p.source, p.follow = nil, "", ""
+	p.captureSource = ""
 	p.sourceIn.Focus()
 }
 
@@ -536,3 +578,5 @@ type conversationList struct {
 func newList() conversationList {
 	return conversationList{}
 }
+
+func (p *Panel) capturedSource() bool { return p.captureSource != "" && p.source == p.captureSource }

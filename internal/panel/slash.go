@@ -54,7 +54,7 @@ func (p *Panel) menu(pal *design.Palette) (menuKind, []item) {
 
 func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 	src := p.source
-	if src == p.menuClosed || strings.Contains(src, "\n") || p.noteMode() {
+	if p.capturedSource() || src == p.menuClosed || strings.Contains(src, "\n") || p.noteMode() {
 		return menuNone, nil
 	}
 	switch {

@@ -1,9 +1,11 @@
 package macos
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -35,6 +37,9 @@ var (
 	cgContextDrawImage             func(ctx uintptr, r cgRect, img uintptr)
 	cgContextRelease               func(ctx uintptr)
 	cgBitmapContextCreateImage     func(ctx uintptr) uintptr
+	cgContextSetRGBFillColor       func(ctx uintptr, r, g, b, a float64)
+	cgContextFillRect              func(ctx uintptr, r cgRect)
+	nsBeep                         func()
 )
 
 // Bitmap layout of RGBA images: premultiplied alpha last, bytes in order.
@@ -67,6 +72,9 @@ func loadCapture() error {
 		purego.RegisterLibFunc(&cgContextDrawImage, libCG, "CGContextDrawImage")
 		purego.RegisterLibFunc(&cgContextRelease, libCG, "CGContextRelease")
 		purego.RegisterLibFunc(&cgBitmapContextCreateImage, libCG, "CGBitmapContextCreateImage")
+		purego.RegisterLibFunc(&cgContextSetRGBFillColor, libCG, "CGContextSetRGBFillColor")
+		purego.RegisterLibFunc(&cgContextFillRect, libCG, "CGContextFillRect")
+		purego.RegisterLibFunc(&nsBeep, libAppKit, "NSBeep")
 	})
 	return captureErr
 }
@@ -76,7 +84,19 @@ func ScreenAccess() bool { return loadCapture() == nil && cgPreflightScreenCaptu
 
 // RequestScreenAccess asks for Screen Recording: macOS prompts the first
 // time, and lists the app in System Settings after that.
-func RequestScreenAccess() bool { return loadCapture() == nil && cgRequestScreenCaptureAccess() }
+func RequestScreenAccess() bool {
+	if loadCapture() != nil {
+		return false
+	}
+	if cgRequestScreenCaptureAccess() {
+		return true
+	}
+	withPool(func() {
+		url := send(class("NSURL"), "URLWithString:", nsString("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"))
+		send(send(class("NSWorkspace"), "sharedWorkspace"), "openURL:", url)
+	})
+	return false
+}
 
 // Image is a captured image. Release it when done.
 type Image struct {
@@ -95,47 +115,11 @@ func (img *Image) Release() {
 // ErrNoScreenAccess means Screen Recording has not been granted.
 var ErrNoScreenAccess = errors.New("macos: Screen Recording is not granted")
 
-// CaptureRect captures a rectangle of the screen, in points of the global
-// display space, at the display's pixel density.
-func CaptureRect(r Rect, timeout time.Duration) (*Image, error) {
-	if err := loadCapture(); err != nil {
-		return nil, err
-	}
-	if !cgPreflightScreenCaptureAccess() {
-		return nil, ErrNoScreenAccess
-	}
-	type result struct {
-		ref uintptr
-		err string
-	}
-	done := make(chan result, 1)
-	block := objc.NewBlock(func(_ objc.Block, img uintptr, nserr objc.ID) {
-		var res result
-		if img != 0 {
-			res.ref = cgImageRetain(img)
-		}
-		if nserr != 0 {
-			res.err = goString(send(nserr, "localizedDescription"))
-		}
-		done <- res
-	})
-	defer block.Release()
-	withPool(func() {
-		send(class("SCScreenshotManager"), "captureImageInRect:completionHandler:", cgRect(r), block)
-	})
-	select {
-	case res := <-done:
-		if res.ref == 0 {
-			return nil, fmt.Errorf("macos: capture failed: %s", res.err)
-		}
-		return &Image{ref: res.ref, W: cgImageGetWidth(res.ref), H: cgImageGetHeight(res.ref)}, nil
-	case <-time.After(timeout):
-		return nil, errors.New("macos: capture timed out")
-	}
-}
-
 // Crop returns the part of img inside r, in pixels.
 func (img *Image) Crop(r Rect) (*Image, error) {
+	if img == nil || img.ref == 0 || r.W <= 0 || r.H <= 0 {
+		return nil, errors.New("macos: crop is empty")
+	}
 	ref := cgImageCreateWithImageInRect(img.ref, cgRect(r))
 	if ref == 0 {
 		return nil, errors.New("macos: crop is empty")
@@ -169,8 +153,41 @@ type Line struct {
 
 // RecognizeText reads the text in img on this Mac, accurately, in Simplified
 // Chinese and English, each line in the language Vision finds for it.
-// Lines come in reading order: top to bottom, then left to right.
+// Lines are ordered by vertical center; capture reconstructs rows and paragraphs.
 func RecognizeText(img *Image) ([]Line, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return RecognizeTextContext(ctx, img)
+}
+
+// RecognizeTextContext bounds recognition and cancels Vision when the caller
+// leaves. The worker owns its image until Vision has actually returned.
+func RecognizeTextContext(ctx context.Context, img *Image) ([]Line, error) {
+	if err := loadCapture(); err != nil {
+		return nil, err
+	}
+	if img == nil || img.ref == 0 {
+		return nil, errors.New("macos: recognition image is empty")
+	}
+	type result struct {
+		lines []Line
+		err   error
+	}
+	r, err := awaitNative(ctx, func(deliver func(result)) {
+		owned := &Image{ref: cgImageRetain(img.ref), W: img.W, H: img.H}
+		go func() {
+			defer owned.Release()
+			lines, err := recognizeText(ctx, owned)
+			deliver(result{lines, err})
+		}()
+	}, func(result) {})
+	if err != nil {
+		return nil, fmt.Errorf("macos: text recognition: %w", err)
+	}
+	return r.lines, r.err
+}
+
+func recognizeText(ctx context.Context, img *Image) ([]Line, error) {
 	if err := loadCapture(); err != nil {
 		return nil, err
 	}
@@ -178,6 +195,16 @@ func RecognizeText(img *Image) ([]Line, error) {
 	var err error
 	withPool(func() {
 		req := send(send(send(class("VNRecognizeTextRequest"), "alloc"), "init"), "autorelease")
+		cancelDone := make(chan struct{})
+		stop := context.AfterFunc(ctx, func() { send(req, "cancel"); close(cancelDone) })
+		defer func() {
+			if !stop() {
+				<-cancelDone
+			}
+		}()
+		if err = ctx.Err(); err != nil {
+			return
+		}
 		send(req, "setRecognitionLevel:", 0) // accurate
 		send(req, "setUsesLanguageCorrection:", true)
 		langs := send(class("NSMutableArray"), "array")
@@ -208,10 +235,10 @@ func RecognizeText(img *Image) ([]Line, error) {
 	})
 	sort.SliceStable(lines, func(i, j int) bool {
 		a, b := lines[i].Box, lines[j].Box
-		if overlap := min(a.Y+a.H, b.Y+b.H) - max(a.Y, b.Y); overlap > 0.5*min(a.H, b.H) {
-			return a.X < b.X // the same row
+		if a.Y+a.H/2 == b.Y+b.H/2 {
+			return a.X < b.X
 		}
-		return a.Y < b.Y
+		return a.Y+a.H/2 < b.Y+b.H/2
 	})
 	return lines, err
 }
@@ -234,19 +261,56 @@ func ImageFromRGBA(src *image.RGBA) (*Image, error) {
 	}
 	defer cgContextRelease(ctx)
 	ref := cgBitmapContextCreateImage(ctx)
+	runtime.KeepAlive(buf)
 	if ref == 0 {
 		return nil, errors.New("macos: image creation failed")
 	}
 	return &Image{ref: ref, W: w, H: h}, nil
 }
 
-// WarmUpVision runs one recognition on a blank image, so that the first real
-// one does not pay for loading the models.
+// WarmUpVision loads both recognizers with actual Chinese and English text.
 func WarmUpVision() {
-	img, err := ImageFromRGBA(image.NewRGBA(image.Rect(0, 0, 32, 32)))
-	if err != nil {
+	img := warmUpImage()
+	if img == nil {
 		return
 	}
 	defer img.Release()
 	_, _ = RecognizeText(img)
+}
+
+func warmUpImage() *Image {
+	if loadCapture() != nil {
+		return nil
+	}
+	var img *Image
+	withPool(func() {
+		rep := send(send(class("NSBitmapImageRep"), "alloc"), "initWithBitmapDataPlanes:pixelsWide:pixelsHigh:bitsPerSample:samplesPerPixel:hasAlpha:isPlanar:colorSpaceName:bytesPerRow:bitsPerPixel:", uintptr(0), 480, 64, 8, 4, true, false, nsString("NSDeviceRGBColorSpace"), 0, 0)
+		if rep == 0 {
+			return
+		}
+		defer send(rep, "release")
+		graphics := class("NSGraphicsContext")
+		send(graphics, "saveGraphicsState")
+		defer send(graphics, "restoreGraphicsState")
+		send(graphics, "setCurrentContext:", send(graphics, "graphicsContextWithBitmapImageRep:", rep))
+		cg := uintptr(send(send(graphics, "currentContext"), "CGContext"))
+		cgContextSetRGBFillColor(cg, 1, 1, 1, 1)
+		cgContextFillRect(cg, cgRect{W: 480, H: 64})
+		attrs := send(class("NSMutableDictionary"), "dictionary")
+		send(attrs, "setObject:forKey:", send(class("NSFont"), "systemFontOfSize:", float64(28)), nsString("NSFont"))
+		send(attrs, "setObject:forKey:", send(class("NSColor"), "blackColor"), nsString("NSColor"))
+		send(nsString("截图翻译 Gloss"), "drawAtPoint:withAttributes:", struct{ X, Y float64 }{16, 20}, attrs)
+		ref := uintptr(send(rep, "CGImage"))
+		if ref != 0 {
+			img = &Image{ref: cgImageRetain(ref), W: 480, H: 64}
+		}
+	})
+	return img
+}
+
+// CaptureFailureFeedback matches the capture shortcut's nonmodal failure cue.
+func CaptureFailureFeedback() {
+	if loadCapture() == nil {
+		nsBeep()
+	}
 }
