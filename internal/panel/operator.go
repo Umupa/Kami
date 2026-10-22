@@ -43,7 +43,7 @@ func (p *Panel) operatorActive() bool {
 
 // runOperator starts an operator session with the request after /operator.
 func (p *Panel) runOperator(request string) {
-	p.stop()
+	p.park()
 	p.notice = ""
 	p.list = newList()
 	m := operatorMode

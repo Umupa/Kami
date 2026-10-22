@@ -58,11 +58,14 @@ func (p *Panel) noteMode() bool { return p.modeIdx == len(p.modes) }
 // saveDelay is how long typing pauses before a note is saved.
 const saveDelay = 500 * time.Millisecond
 
-// setMode makes the mode at i current, or notes at len(p.modes), saving the
-// note being left.
+// setMode makes the mode at i current, with its own result, or notes at
+// len(p.modes), saving the note being left.
 func (p *Panel) setMode(i int) {
 	was := p.noteMode()
 	p.modeIdx = i
+	if !p.noteMode() {
+		p.showResult(p.modes[i].ID)
+	}
 	switch {
 	case was && !p.noteMode():
 		p.leaveNote()

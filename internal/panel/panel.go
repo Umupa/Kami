@@ -89,6 +89,8 @@ type Panel struct {
 	notes   notes
 	sess    *session.Session
 	cancel  context.CancelFunc
+	// results holds the other modes' sessions, by mode id.
+	results map[string]result
 
 	md    markdown.Options
 	mdFor mdKey           // what md.Theme was made for
@@ -314,6 +316,7 @@ func (p *Panel) Import(text string) {
 		p.lastImport = text
 		p.captureSource = ""
 		p.source = text
+		p.clearResults()
 		p.setMode(0)
 		p.run()
 	}
@@ -329,10 +332,10 @@ func (p *Panel) ImportCaptured(text string) {
 
 // importCaptured is the window-independent part of importing OCR output.
 func (p *Panel) importCaptured(text string) {
-	p.stop()
+	p.clearResults()
 	p.source, p.follow, p.lastImport = text, "", ""
 	p.captureSource = text
-	p.sess, p.list, p.notice = nil, newList(), ""
+	p.notice = ""
 	p.setMode(0)
 	index := -1
 	for i, m := range p.modes {
@@ -418,6 +421,7 @@ func (p *Panel) runMaterial() {
 	p.stop()
 	p.notice = ""
 	m := p.modes[p.modeIdx]
+	p.dropResult(m.ID)
 	if p.capturedSource() && m.ID == "translate" {
 		m.Input = config.InputMaterial
 	}
@@ -458,8 +462,8 @@ func (p *Panel) stop() {
 
 // reset starts over with an empty source.
 func (p *Panel) reset() {
-	p.stop()
-	p.sess, p.source, p.follow = nil, "", ""
+	p.clearResults()
+	p.source, p.follow = "", ""
 	p.captureSource = ""
 	p.sourceIn.Focus()
 }
@@ -503,9 +507,7 @@ func (p *Panel) start() {
 		emit := func(text string) {
 			replied = true
 			p.post(func() {
-				if p.sess == sess {
-					sess.Turns[turn].Reply += text
-				}
+				sess.Turns[turn].Reply += text
 			})
 		}
 		send := func(ctx context.Context, msgs []llm.Message, onText func(string)) error {
@@ -554,7 +556,7 @@ func fitContext(req llm.Request, m config.Model) ([]llm.Message, int) {
 // finish records how a turn ended.
 func (p *Panel) finish(sess *session.Session, turn int, err error) {
 	t := &sess.Turns[turn]
-	defer func() { p.setBusy(p.sess != nil && p.sess.Busy()) }()
+	defer func() { p.setBusy(p.busy()) }()
 	if sess.Operator {
 		defer func() {
 			if t.Status == session.Done {

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -100,7 +101,7 @@ func (h *harness) drain() {
 			fn()
 		}
 		h.tt.Frame()
-		if h.p.sess == nil || !h.p.sess.Busy() {
+		if !h.p.busy() {
 			return
 		}
 		if time.Now().After(deadline) {
@@ -302,6 +303,58 @@ func TestStaleAfterEditingSource(t *testing.T) {
 	}
 	if h.p.sess.Busy() {
 		t.Error("an edit started a request on its own")
+	}
+}
+
+func TestEachModeKeepsItsResult(t *testing.T) {
+	release := make(chan struct{})
+	var calls atomic.Int32
+	client := clientFunc(func(ctx context.Context, req llm.Request, onText func(string)) error {
+		if calls.Add(1) == 1 { // improve's request
+			<-release
+			onText("润色的结果")
+			return nil
+		}
+		onText("其他模式的结果")
+		return nil
+	})
+	h := newHarness(t, client)
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("first")
+	h.tt.Key(0, ui.KeyTab) // improve
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+
+	// The reply goes on streaming while another mode shows.
+	h.tt.Key(0, ui.KeyTab)
+	h.tt.Frame()
+	if h.p.sess != nil {
+		t.Fatalf("%s shows improve's result", h.p.modes[h.p.modeIdx].ID)
+	}
+	h.tt.Key(0, ui.KeyEnter)
+	close(release)
+	h.drain()
+	if !h.tt.HasText("其他模式的结果") || h.tt.HasText("润色的结果") {
+		t.Errorf("after running a second mode: %q", h.tt.Texts())
+	}
+
+	h.tt.Key(ui.Shift, ui.KeyTab) // back to improve
+	h.tt.Frame()
+	if !h.tt.HasText("润色的结果") || h.tt.HasText("其他模式的结果") {
+		t.Errorf("back in improve: %q", h.tt.Texts())
+	}
+	if h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
+		t.Error("improve's own result marked stale")
+	}
+
+	// A new source marks every mode's result stale.
+	h.tt.Click("原文")
+	h.tt.Type(" more")
+	h.tt.Key(0, ui.KeyTab)
+	h.tt.Frame()
+	if !h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
+		t.Error("a result for the earlier source not marked stale")
 	}
 }
 
