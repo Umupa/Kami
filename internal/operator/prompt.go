@@ -73,6 +73,7 @@ Each op sets the value at a path of config.json as written (dotted keys and [ind
 		}
 	}
 	w("\nPermissions:\n")
+	w("(macOS ties a grant to the app's signature. A switch shown on in System Settings while the app reports it not granted belongs to an earlier build: the user removes Kami from that list with −, then adds it again. Input Monitoring and Screen Recording take effect after a restart: 重新启动 Kami in the menu bar menu.)\n")
 	for _, p := range s.Permissions {
 		w("- %s (%s): %s\n", p.Name, p.Purpose, map[bool]string{true: "granted", false: "not granted"}[p.Granted])
 	}

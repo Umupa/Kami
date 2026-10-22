@@ -25,7 +25,7 @@
 | --- | --- | --- |
 | 语言 | Go 1.27.x | MyGo 要求 1.27+；`go.mod` 写 `go 1.27.2`，`GOTOOLCHAIN=auto` 自动下载 |
 | 构建 | `go build` / `go tool mygo` | MyGo 的 CLI 作为 module tool（`go.mod` 的 `tool` 指令），不全局安装 |
-| 开发 | `go tool mygo dev` | 带热重载的开发运行 |
+| 开发 | `scripts/dev.sh`（`go tool mygo dev -sign "Kami Dev"`） | 带热重载的开发运行，签名固定以保留授权 |
 | 打包 | `go tool mygo build` | 生成 `.app`、DMG，按 `mygo.json` 签名 |
 | 静态检查 | `go vet`、`gofmt`、`go tool mygo vet`（检查 UI 代码） | CI 必过 |
 | 不需要 | Xcode、cgo、Node/Bun | 原生 UI 模板只要 Go；只装 Command Line Tools 即可 |
@@ -133,7 +133,7 @@ agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后
 
 | 阶段 | 做法 |
 | --- | --- |
-| 自用（现在） | 运行一次 `scripts/dev-cert.sh` 创建本机 `Kami Dev` 代码签名身份，`scripts/build.sh` 通过 `-sign` 使用它。缺少该身份时停止构建；临时产物须显式传 `--ad-hoc`。签名身份稳定后重建可保留授权；由旧临时签名迁入时需移除并重新添加 Kami 自身的旧授权条目 |
+| 自用（现在） | `scripts/build.sh` 与 `scripts/dev.sh` 用本机 `Kami Dev` 代码签名身份签名，缺少时先运行 `scripts/dev-cert.sh` 创建；`build.sh` 构建后检查签名不是临时签名。临时产物须显式传 `--ad-hoc`。签名身份稳定后重建可保留授权；由旧临时签名迁入时运行 `scripts/reset-permissions.sh` 清除旧授权记录，再重新授权 |
 | CI | GitHub Actions：`go vet`、`go test`、`go tool mygo vet`、构建 |
 
 ## 九、风险与退路

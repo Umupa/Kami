@@ -10,7 +10,19 @@
 
 一期功能已实现，等待统一实测：面板与多轮对话、四个内置模式、三种模型格式、带入选区、截图识别、Operator（在面板里输入 `/operator` 查看和修改设置）、配置接口（`config.json` + `check`）。
 
-构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/Kami.app`。没有固定签名时构建直接失败，避免重新构建后陷入系统权限反复申请；仅需临时产物时可显式运行 `scripts/build.sh --ad-hoc`，该产物的权限不保证在重建后保留。
+## 构建与开发
+
+| 命令 | 作用 |
+| --- | --- |
+| `scripts/build.sh` | 构建 `build/darwin-arm64/Kami.app`，用本机签名身份 `Kami Dev` 签名；第一次运行时自动创建该身份（需要输入一次系统密码） |
+| `scripts/dev.sh` | 带热重载的开发运行，同样签名。它是另一个应用 `Kami Dev`，权限与数据目录和正式构建分开 |
+| `scripts/reset-permissions.sh [--dev]` | 清除 Kami 的辅助功能、输入监控、屏幕录制记录，用于授权错乱时 |
+
+签名固定后，重新构建不会丢失系统权限。`scripts/build.sh --ad-hoc` 只用于临时产物，它的权限在重新构建后失效。
+
+**权限总是要重新授予？** 系统设置里的开关可能属于之前的某次构建，所以显示开启却不生效。运行 `scripts/reset-permissions.sh`，或在系统设置里用「−」移除 Kami 后重新添加。输入监控和屏幕录制授权后，从菜单栏选「重新启动 Kami」才会生效。
+
+**API Key 在哪里？** 在 `~/Library/Application Support/Kami/config.json` 里每个模型的 `apiKey` 字段，文件权限 0600，不进钥匙串（见 [D12](docs/decisions.md)）。
 
 ## 文档
 

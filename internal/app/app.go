@@ -79,7 +79,6 @@ func Run() error {
 		a.log.Error("prepare config", "err", err)
 	}
 	a.store = config.NewStore(filepath.Join(dataDir, config.FileName), mode.Check)
-	a.migrateKeys()
 	a.logSnapshot(a.store.Snapshot())
 
 	ctx, stop := context.WithCancel(context.Background())
@@ -133,6 +132,9 @@ func (a *app) ready(ctx context.Context) {
 		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
 		{Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
 		mygo.Separator(),
+		// Input Monitoring and Screen Recording grants apply from the next
+		// launch.
+		{Label: "重新启动 Kami", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Relaunch() }},
 		{Label: "退出 Kami", Role: mygo.RoleQuit},
 	})
 	tray, err := mygo.NewTray(mygo.TrayOptions{
@@ -243,7 +245,7 @@ func (a *app) importSelection() {
 		// Without Accessibility there is no selection to read; macOS shows
 		// the way to grant it.
 		macos.RequestAXTrust()
-		a.panel.Notify("带入选中的文字需要「辅助功能」权限：在系统设置里允许 Kami。")
+		a.panel.Notify("带入选中的文字需要「辅助功能」权限：在系统设置里允许 Kami。开关已经打开却仍然无效时，先用「−」把 Kami 从列表里移除，再重新添加。")
 		return
 	}
 	if a.clipboard == nil {
