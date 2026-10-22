@@ -2,6 +2,7 @@ package panel
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -135,5 +136,50 @@ func TestOperatorBlockHiddenWhileStreaming(t *testing.T) {
 		if got := operator.Visible(in); got != "改好了。" {
 			t.Errorf("Visible(%q) = %q", in, got)
 		}
+	}
+}
+
+func TestOperatorCustomThemeContrast(t *testing.T) {
+	for _, tc := range []struct {
+		name, text string
+		warn       bool
+	}{
+		{"low", "#111111", true}, {"normal", "#FFFFFF", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, script{})
+			h.p.deps.Operator.Apply = func(ops []config.Op) ([]config.Change, error) {
+				before, err := os.ReadFile(h.p.deps.Store.Path())
+				if err != nil {
+					return nil, err
+				}
+				after, changes, err := config.ApplyOps(before, ops, nil)
+				if err != nil {
+					return nil, err
+				}
+				if err := config.WriteFile(h.p.deps.Store.Path(), after); err != nil {
+					return nil, err
+				}
+				h.p.deps.Store.Reload()
+				return changes, nil
+			}
+			turn := &session.Turn{Reply: "已修改。\n```kami-operator\n" + `{"ops":[{"path":"themes","value":[{"id":"custom","base":"flexoki-night","colors":{"background":"#000000","text":"` + tc.text + `"}}]},{"path":"theme","value":"custom"}]}` + "\n```"}
+			h.p.finishOperator(turn)
+			if !turn.Undoable {
+				t.Fatalf("ops not applied: %s", turn.Reply)
+			}
+			if got := strings.Contains(turn.Reply, "低于 4.5:1"); got != tc.warn {
+				t.Fatalf("warning %v: %s", got, turn.Reply)
+			}
+			if h.p.cfg.Theme == "custom" {
+				t.Fatal("test must read fresh store while panel config is stale")
+			}
+			// An edit that leaves the theme alone says nothing about it.
+			other := &session.Turn{Reply: "已修改。\n```kami-operator\n" + `{"ops":[{"path":"launchAtLogin","value":true}]}` + "\n```"}
+			h.p.finishOperator(other)
+			if !other.Undoable || strings.Contains(other.Reply, "对比度") {
+				t.Fatalf("non-theme edit: %s", other.Reply)
+			}
+		})
 	}
 }

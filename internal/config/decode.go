@@ -148,6 +148,8 @@ func joinPath(path, key string) string {
 	return path + "." + key
 }
 
+var colorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
+
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 // validate checks what JSON types alone cannot, before defaults are applied.
@@ -196,8 +198,37 @@ func (c *Config) validate() []Problem {
 			add(p+".contextWindow", "不能是负数")
 		}
 	}
-	if c.Theme != "" && !slices.Contains(Themes, c.Theme) {
-		add("theme", "必须是 %s 之一", strings.Join(Themes, "、"))
+	themeIDs := map[string]bool{}
+	for i, t := range c.Themes {
+		p := fmt.Sprintf("themes[%d]", i)
+		switch {
+		case !idPattern.MatchString(t.ID):
+			add(p+".id", "只能用小写字母、数字和连字符")
+		case slices.Contains(Themes, t.ID) || slices.Contains(RemovedThemes, t.ID):
+			add(p+".id", "不能使用内置或已移除的主题名：%s", t.ID)
+		case themeIDs[t.ID]:
+			add(p+".id", "与前面的主题重复：%s", t.ID)
+		}
+		themeIDs[t.ID] = true
+		if t.Base == "auto" || !slices.Contains(Themes, t.Base) {
+			add(p+".base", "必须是 auto 以外的内置主题名")
+		}
+		keys := make([]string, 0, len(t.Colors))
+		for k := range t.Colors {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			if !slices.Contains(ThemeColors, k) {
+				add(p+".colors."+k, "不认识的颜色")
+			}
+			if !colorPattern.MatchString(t.Colors[k]) {
+				add(p+".colors."+k, "必须是 #RRGGBB 或 #RRGGBBAA 十六进制颜色")
+			}
+		}
+	}
+	if c.Theme != "" && !themeIDs[c.Theme] && !slices.Contains(Themes, c.Theme) && !slices.Contains(RemovedThemes, c.Theme) {
+		add("theme", "必须是 %s 之一，或 themes 里某个主题的 id", strings.Join(Themes, "、"))
 	}
 	if c.Font != "" && !slices.Contains(Fonts, c.Font) {
 		add("font", "仅支持 caskaydia（应用内置的 CaskaydiaCove Nerd Font）")

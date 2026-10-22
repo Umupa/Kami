@@ -90,9 +90,209 @@
       }
     },
     "theme": {
-      "description": "配色，来自 Omarchy 的主题：auto 跟随系统，深色用 tokyo-night，浅色用 catppuccin-latte。",
-      "enum": ["auto", "catppuccin", "catppuccin-latte", "ethereal", "everforest", "flexoki-light", "gruvbox", "hackerman", "kanagawa", "last-horizon", "lumon", "lupine", "matte-black", "miasma", "nord", "osaka-jade", "retro-82", "ristretto", "rose-pine", "solitude", "starship", "tokyo-night", "vantablack", "white"],
-      "default": "auto"
+      "description": "配色，来自 Omarchy 的主题与 Flexoki：默认 flexoki-night；auto 跟随系统，深色用 flexoki-night，浅色用 flexoki-light。也可填写 themes 中自定义主题的 id。",
+      "default": "flexoki-night",
+      "anyOf": [
+        {
+          "enum": [
+            "auto",
+            "catppuccin",
+            "catppuccin-latte",
+            "ethereal",
+            "flexoki-light",
+            "flexoki-night",
+            "gruvbox",
+            "hackerman",
+            "kanagawa",
+            "lumon",
+            "lupine",
+            "matte-black",
+            "osaka-jade",
+            "rose-pine",
+            "solitude",
+            "starship",
+            "tokyo-night",
+            "vantablack",
+            "white"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        }
+      ]
+    },
+    "themes": {
+      "description": "自定义主题：以一套内置主题为基础，仅填写要修改的颜色。",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "base"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "唯一标识，不能与内置或已移除主题重名。"
+          },
+          "name": {
+            "type": "string",
+            "description": "主题菜单显示的名称，省略时显示 id。"
+          },
+          "base": {
+            "enum": [
+              "catppuccin",
+              "catppuccin-latte",
+              "ethereal",
+              "flexoki-light",
+              "flexoki-night",
+              "gruvbox",
+              "hackerman",
+              "kanagawa",
+              "lumon",
+              "lupine",
+              "matte-black",
+              "osaka-jade",
+              "rose-pine",
+              "solitude",
+              "starship",
+              "tokyo-night",
+              "vantablack",
+              "white"
+            ],
+            "description": "基础内置主题。"
+          },
+          "colors": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "background": {
+                "type": "string",
+                "description": "面板背景",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "surface": {
+                "type": "string",
+                "description": "代码块、表头、标签的底色",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "raised": {
+                "type": "string",
+                "description": "选中行、当前标签",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "border": {
+                "type": "string",
+                "description": "分隔线、区块边框",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "edge": {
+                "type": "string",
+                "description": "面板外框",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "text": {
+                "type": "string",
+                "description": "正文",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "bright": {
+                "type": "string",
+                "description": "加粗文字、原文",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "muted": {
+                "type": "string",
+                "description": "说明、元信息",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "faint": {
+                "type": "string",
+                "description": "占位符、按键提示",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "accent": {
+                "type": "string",
+                "description": "执行按钮、标题、当前模式",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "accentText": {
+                "type": "string",
+                "description": "强调色上的文字",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "link": {
+                "type": "string",
+                "description": "链接",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "code": {
+                "type": "string",
+                "description": "行内代码",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "quote": {
+                "type": "string",
+                "description": "引用竖线",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "operator": {
+                "type": "string",
+                "description": "Operator 的命令、标签与星星",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "operatorFill": {
+                "type": "string",
+                "description": "Operator 标签底色",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "sparkle": {
+                "type": "string",
+                "description": "修改生效时的星星",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "danger": {
+                "type": "string",
+                "description": "错误、删除",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "keyword": {
+                "type": "string",
+                "description": "代码高亮",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "string": {
+                "type": "string",
+                "description": "代码高亮",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "number": {
+                "type": "string",
+                "description": "代码高亮",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "comment": {
+                "type": "string",
+                "description": "代码高亮",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "function": {
+                "type": "string",
+                "description": "代码高亮",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "type": {
+                "type": "string",
+                "description": "代码高亮",
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              }
+            }
+          }
+        }
+      }
     },
     "font": {
       "description": "固定使用应用内置的 CaskaydiaCove Nerd Font，正文和代码使用同一字体。仅接受 caskaydia，不支持切换字体。",

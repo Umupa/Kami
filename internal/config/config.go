@@ -6,6 +6,7 @@ package config
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -25,7 +26,8 @@ type Config struct {
 	Shortcuts       Shortcuts `json:"shortcuts,omitzero"`
 	LaunchAtLogin   bool      `json:"launchAtLogin,omitempty"`
 	// Theme names the colors: "auto" follows the system's appearance.
-	Theme string `json:"theme,omitempty"`
+	Theme  string  `json:"theme,omitempty"`
+	Themes []Theme `json:"themes,omitempty"`
 	// Font only accepts "caskaydia"; the family is bundled with the app.
 	// FontSize is the body size in points; other sizes scale with it.
 	Font     string  `json:"font,omitempty"`
@@ -54,7 +56,41 @@ const (
 
 // Themes are the values of Theme.
 // The names follow internal/design/themes, which a test of design checks.
-var Themes = []string{"auto", "catppuccin", "catppuccin-latte", "ethereal", "everforest", "flexoki-light", "gruvbox", "hackerman", "kanagawa", "last-horizon", "lumon", "lupine", "matte-black", "miasma", "nord", "osaka-jade", "retro-82", "ristretto", "rose-pine", "solitude", "starship", "tokyo-night", "vantablack", "white"}
+var Themes = []string{"auto", "catppuccin", "catppuccin-latte", "ethereal", "flexoki-light", "flexoki-night", "gruvbox", "hackerman", "kanagawa", "lumon", "lupine", "matte-black", "osaka-jade", "rose-pine", "solitude", "starship", "tokyo-night", "vantablack", "white"}
+
+// DefaultTheme is the theme of a config that names none.
+const DefaultTheme = "flexoki-night"
+
+// RemovedThemes were themes once; a config naming one gets DefaultTheme
+// rather than an error.
+var RemovedThemes = []string{"everforest", "last-horizon", "miasma", "nord", "retro-82", "ristretto"}
+
+// Theme is a theme of the user's: a built-in theme with some colors changed.
+type Theme struct {
+	ID     string            `json:"id"`
+	Name   string            `json:"name,omitempty"`
+	Base   string            `json:"base"`
+	Colors map[string]string `json:"colors,omitempty"`
+}
+
+// ThemeColors are the color names a Theme may set, in prompt and schema order.
+var ThemeColors = []string{
+	"background", "surface", "raised", "border", "edge",
+	"text", "bright", "muted", "faint",
+	"accent", "accentText", "link", "code", "quote",
+	"operator", "operatorFill", "sparkle", "danger",
+	"keyword", "string", "number", "comment", "function", "type",
+}
+
+// CustomTheme returns the user's theme with id.
+func (c *Config) CustomTheme(id string) (Theme, bool) {
+	for _, t := range c.Themes {
+		if t.ID == id {
+			return t, true
+		}
+	}
+	return Theme{}, false
+}
 
 // Model is one named model service.
 type Model struct {
@@ -198,8 +234,8 @@ func (c *Config) applyDefaults() {
 			c.Models[i].Auth = c.Models[i].Format.DefaultAuth()
 		}
 	}
-	if c.Theme == "" {
-		c.Theme = "auto"
+	if c.Theme == "" || slices.Contains(RemovedThemes, c.Theme) {
+		c.Theme = DefaultTheme
 	}
 	if c.Font == "" {
 		c.Font = Fonts[0]

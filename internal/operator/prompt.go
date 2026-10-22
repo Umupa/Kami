@@ -7,11 +7,16 @@ import (
 	"strings"
 
 	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
 	"github.com/Umupa/Kami/internal/mode"
 )
 
 // State is what the operator knows about the app.
 type State struct {
+	// Palettes holds every built-in and custom palette by theme name.
+	Palettes map[string]map[string]string
+	// Dark is the system appearance, which auto follows.
+	Dark    bool
 	Version string
 	// ConfigPath is config.json's path; File its contents as written.
 	ConfigPath string
@@ -72,6 +77,7 @@ Each op sets the value at a path of config.json as written (dotted keys and [ind
 			}
 		}
 	}
+	w("%s", themeSection(s))
 	w("\nPermissions:\n")
 	w("(macOS ties a grant to the app's signature. A switch shown on in System Settings while the app reports it not granted belongs to an earlier build: the user removes Kami from that list with −, then adds it again. Input Monitoring and Screen Recording take effect after a restart: 重新启动 Kami in the menu bar menu.)\n")
 	for _, p := range s.Permissions {
@@ -118,6 +124,8 @@ func Guide(s State) string {
 		"翻译模式用的提示词是什么",
 		"加一个把改动写成 commit message 的模式",
 		"问答默认用 strong 模型",
+		"把强调色改成橙色",
+		"基于 gruvbox 做一个更暗的版本",
 		"登录时自动打开",
 		"哪些权限还没给",
 	} {
@@ -129,5 +137,69 @@ func Guide(s State) string {
 	}
 	b.WriteString("\n还没有配置模型，Operator 需要一个模型来理解你的话。把这段提示词交给 Claude Code 等 Coding Agent，它会帮你配好：\n\n")
 	b.WriteString("```text\n" + s.AgentPrompt + "\n```\n")
+	return b.String()
+}
+
+func themeSection(s State) string {
+	var b strings.Builder
+	b.WriteString(`
+## Custom themes
+
+Custom themes live in config.json "themes", an array. A theme resolves its built-in base plus its colors overrides. Unless explicitly set, border/muted/faint/accentText follow background and text; edge follows accent; operatorFill follows operator.
+
+Never edit built-in themes. To change one, append a custom theme at themes[N] where N is the current array length, or write the whole array. Use that built-in as base and include only changed colors. Use the user's id, or <base>-custom, adding -2, -3 if taken. Set theme to the new id in the same ops block. If the theme in effect is already custom, edit its colors in place.
+
+Keep text against background at 4.5:1 or more, muted at 3:1; when changing accent, keep accentText readable on it. Colors are #RRGGBB. After changing, say in one sentence what changed and that ⌘Z undoes it.
+
+| name | where |
+| --- | --- |
+| background | 面板背景 |
+| surface | 代码块、表头、标签的底色 |
+| raised | 选中行、当前标签 |
+| border | 分隔线、区块边框 |
+| edge | 面板外框 |
+| text | 正文 |
+| bright | 加粗文字、原文 |
+| muted | 说明、元信息 |
+| faint | 占位符、按键提示 |
+| accent | 执行按钮、标题、当前模式 |
+| accentText | 强调色上的文字 |
+| link | 链接 |
+| code | 行内代码 |
+| quote | 引用竖线 |
+| operator | Operator 的命令、标签与星星 |
+| operatorFill | Operator 标签底色 |
+| sparkle | 修改生效时的星星 |
+| danger | 错误、删除 |
+| keyword / string / number / comment / function / type | 代码高亮 |
+
+`)
+	name := config.DefaultTheme
+	if s.Config != nil {
+		name = s.Config.Theme
+	}
+	if name == "" {
+		name = config.DefaultTheme
+	}
+	configured := name
+	if name == "auto" {
+		name = design.AutoLight
+		if s.Dark {
+			name = design.AutoDark
+		}
+	}
+	fmt.Fprintf(&b, "Theme in effect: %s (configured: %s).\n\n", name, configured)
+	for _, key := range config.ThemeColors {
+		fmt.Fprintf(&b, "- %s: %s\n", key, s.Palettes[name][key])
+	}
+	b.WriteString("\nBuilt-in themes (name, appearance, background, text, accent):\n")
+	for _, name := range design.ThemeNames {
+		appearance := "light"
+		if design.Themes[name].Dark {
+			appearance = "dark"
+		}
+		colors := s.Palettes[name]
+		fmt.Fprintf(&b, "- %s, %s, %s, %s, %s\n", name, appearance, colors["background"], colors["text"], colors["accent"])
+	}
 	return b.String()
 }

@@ -65,8 +65,9 @@ type Panel struct {
 	after      func(time.Duration, func())
 	openURL    func(string)
 
-	cfg   *config.Config
-	modes []mode.Mode
+	custom map[string]*design.Palette
+	cfg    *config.Config
+	modes  []mode.Mode
 
 	source string
 	// captureSource keeps unedited OCR material out of the command parser.
@@ -380,6 +381,10 @@ func (p *Panel) applyConfig(c *config.Config) {
 	}
 	inNotes := p.cfg != nil && p.noteMode()
 	p.cfg, p.modes, p.modeIdx = c, modes, 0
+	p.custom = make(map[string]*design.Palette, len(c.Themes))
+	for _, t := range c.Themes {
+		p.custom[t.ID] = design.Derive(design.Themes[t.Base], t.Colors)
+	}
 	for i, m := range modes {
 		if m.ID == current {
 			p.modeIdx = i
@@ -583,3 +588,11 @@ func newList() conversationList {
 }
 
 func (p *Panel) capturedSource() bool { return p.captureSource != "" && p.source == p.captureSource }
+
+// paletteFor resolves configured and preview themes from cached palettes.
+func (p *Panel) paletteFor(name string, dark bool) *design.Palette {
+	if pal := p.custom[name]; pal != nil {
+		return pal
+	}
+	return design.For(name, dark)
+}

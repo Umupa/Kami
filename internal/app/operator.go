@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo"
 
 	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
 	"github.com/Umupa/Kami/internal/macos"
 	"github.com/Umupa/Kami/internal/mode"
 	"github.com/Umupa/Kami/internal/operator"
@@ -33,6 +34,16 @@ func (a *app) operatorState() operator.State {
 		File:        file,
 		Config:      a.store.Snapshot().Config,
 		AgentPrompt: a.agentPrompt(),
+	}
+	s.Dark = mygo.Theme.IsDark()
+	s.Palettes = make(map[string]map[string]string)
+	for _, name := range design.ThemeNames {
+		s.Palettes[name] = design.Themes[name].Colors()
+	}
+	if s.Config != nil {
+		for _, t := range s.Config.Themes {
+			s.Palettes[t.ID] = design.Derive(design.Themes[t.Base], t.Colors).Colors()
+		}
 	}
 	for _, p := range permissions {
 		s.Permissions = append(s.Permissions, operator.Permission{ID: p.id, Name: p.name, Purpose: p.purpose, Granted: p.granted()})

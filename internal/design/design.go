@@ -1,5 +1,5 @@
 // Package design holds the design tokens of every window: the themes,
-// Omarchy's (Tokyo Night by default), one monospaced font, flat shapes with
+// Omarchy's and Flexoki's (flexoki-night by default), one monospaced font, flat shapes with
 // hairline borders and no shadows, and the measures and motion of the chat,
 // after monocode's. Views take colors from a Palette and sizes from the
 // constants here, never literals of their own.

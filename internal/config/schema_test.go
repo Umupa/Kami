@@ -31,6 +31,7 @@ func TestSchemaCoversStructFields(t *testing.T) {
 		got  map[string]any
 	}{
 		{"Config", reflect.TypeFor[Config](), schemaObject(t, schema, "properties")},
+		{"Theme", reflect.TypeFor[Theme](), schemaObject(t, schema, "properties", "themes", "items", "properties")},
 		{"Model", reflect.TypeFor[Model](), schemaObject(t, schema, "$defs", "model", "properties")},
 		{"Mode", reflect.TypeFor[Mode](), schemaObject(t, schema, "$defs", "mode", "properties")},
 		{"Shortcuts", reflect.TypeFor[Shortcuts](), schemaObject(t, schema, "properties", "shortcuts", "properties")},
@@ -72,7 +73,8 @@ func TestSchemaEnums(t *testing.T) {
 			"$defs.mode.properties.output.enum",
 			[]string{string(OutputAuto), string(OutputMarkdown), string(OutputPlain)},
 		},
-		{"properties.theme.enum", Themes},
+		{"properties.theme.anyOf[0].enum", Themes},
+		{"properties.themes.items.properties.base.enum", Themes[1:]},
 		{"properties.font.enum", Fonts},
 		{"properties.background.enum", Backgrounds},
 	}
@@ -117,7 +119,7 @@ func TestSchemaDefaults(t *testing.T) {
 		"properties.shortcuts.properties.selection.default": DefaultSelectionShortcut,
 		"properties.shortcuts.properties.capture.default":   DefaultCaptureShortcut,
 		"properties.launchAtLogin.default":                  false,
-		"properties.theme.default":                          "auto",
+		"properties.theme.default":                          DefaultTheme,
 		"properties.font.default":                           Fonts[0],
 		"properties.fontSize.default":                       float64(DefaultFontSize),
 		"properties.background.default":                     Backgrounds[0],
@@ -289,4 +291,14 @@ func marshalConfig(t *testing.T, cfg map[string]any) []byte {
 		t.Fatalf("marshal config: %v", err)
 	}
 	return data
+}
+
+func TestSchemaThemeColors(t *testing.T) {
+	colors := schemaObject(t, loadSchema(t), "properties", "themes", "items", "properties", "colors")
+	if colors["additionalProperties"] != false {
+		t.Error("colors must reject unknown properties")
+	}
+	if !equalStringSets(sortedKeys(colors["properties"].(map[string]any)), ThemeColors) {
+		t.Error("schema colors differ from ThemeColors")
+	}
 }

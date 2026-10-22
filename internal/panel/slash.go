@@ -97,6 +97,7 @@ func (p *Panel) commandItems(query string, pal *design.Palette) []item {
 // answers or, for themes, the picker.
 var topics = []struct{ key, title, ask string }{
 	{"theme", "切换配色主题", ""},
+	{"自定义主题", "改颜色，或基于内置主题新建一套", "基于当前主题新建一套自定义主题之前，先告诉我能改哪些颜色，以及现在每个颜色的值。"},
 	{"模型", "各模式用哪个模型，默认模型是哪个", "现在各模式用的是哪个模型？默认模型是哪个？"},
 	{"快捷键", "查看或修改全局快捷键", "现在的快捷键有哪些？"},
 	{"模式", "查看模式和完整提示词，增删模式", "列出所有模式，以及每个模式的提示词。"},
@@ -125,6 +126,19 @@ func (p *Panel) topicItems(query string) []item {
 
 func (p *Panel) themeItems(query string) []item {
 	all := []item{{key: "auto", title: "跟随系统", desc: design.AutoDark + " / " + design.AutoLight, take: takeTheme("auto")}}
+	var custom []config.Theme
+	if p.cfg != nil {
+		custom = p.cfg.Themes
+	}
+	for _, theme := range custom {
+		title := theme.Name
+		if title == "" {
+			title = theme.ID
+		}
+		t := p.custom[theme.ID]
+		all = append(all, item{key: theme.ID, title: title, desc: "基于 " + theme.Base,
+			swatch: []ui.Color{t.Background, t.Accent, t.Code, t.Quote, t.Sparkle}, take: takeTheme(theme.ID)})
+	}
 	for _, name := range design.ThemeNames {
 		t := design.Themes[name]
 		mode := "浅色"

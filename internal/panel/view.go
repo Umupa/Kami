@@ -28,9 +28,9 @@ func (p *Panel) view(c *ui.Context) {
 		theme, size, blur = p.cfg.Theme, p.cfg.FontSize, p.cfg.Background != "solid"
 	}
 	dark := c.Theme().Dark
-	pal := design.For(theme, dark)
+	pal := p.paletteFor(theme, dark)
 	if preview := p.previewTheme(pal); preview != "" {
-		pal = design.For(preview, dark)
+		pal = p.paletteFor(preview, dark)
 	}
 	p.pal, p.sz = pal, design.SizesFor(size)
 	c.SetTheme(design.UITheme(*c.Theme(), pal, p.sz.Body))

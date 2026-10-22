@@ -1,0 +1,33 @@
+# Flexoki dark (github.com/kepano/flexoki, MIT), in the roles of Omarchy colors.toml
+
+mode = "dark"
+
+accent = "#4385BE"
+selection = "#343331"
+muted = "#575653"
+
+background = "#100F0F"
+dark_background = "#1C1B1A"
+darker_background = "#282726"
+lighter_background = "#282726"
+
+foreground = "#CECDC3"
+dark_foreground = "#878580"
+light_foreground = "#B7B5AC"
+bright_foreground = "#FFFCF0"
+
+red = "#D14D41"
+yellow = "#D0A215"
+orange = "#DA702C"
+green = "#879A39"
+cyan = "#3AA99F"
+blue = "#4385BE"
+magenta = "#CE5D97"
+brown = "#683b15"
+
+bright_red = "#E8705F"
+bright_yellow = "#DFB431"
+bright_green = "#A0AF54"
+bright_cyan = "#5ABDAC"
+bright_blue = "#66A0C8"
+bright_magenta = "#E47DA8"

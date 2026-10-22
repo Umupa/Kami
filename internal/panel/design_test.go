@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
 )
 
 const designReply = "## 会议纪要\n\n今天讨论了**三件事**，配置文件在 `~/Library/Application Support/Kami/config.json`，详见[文档](https://example.com)。\n\n" +
@@ -20,6 +21,7 @@ func renderDesign(t *testing.T, name string, dark bool) {
 	h.p.place = placeOn(mygo.Rectangle{Width: 1440, Height: 1500})
 	h.tt.SetSize(820, 1100)
 	h.tt.SetDark(dark)
+	h.p.cfg.Theme = "auto" // the pair that follows the appearance
 	h.tt.Frame()
 	h.tt.Click("原文")
 	h.tt.Type("Summarize today's meeting")
@@ -152,10 +154,10 @@ func TestThemeCommand(t *testing.T) {
 	h := newHarness(t, script{})
 	h.tt.Frame()
 	h.tt.Click("原文")
-	h.tt.Type("/theme nord")
+	h.tt.Type("/theme kanagawa")
 	h.tt.Frame()
-	if got := h.p.previewTheme(h.p.pal); got != "nord" {
-		t.Errorf("previewing %q, want nord", got)
+	if got := h.p.previewTheme(h.p.pal); got != "kanagawa" {
+		t.Errorf("previewing %q, want kanagawa", got)
 	}
 	h.tt.Type("zzz")
 	h.tt.Frame()
@@ -163,5 +165,59 @@ func TestThemeCommand(t *testing.T) {
 	h.drain()
 	if h.p.sess != nil {
 		t.Error("Enter on a theme no name matches sent it to the model")
+	}
+}
+
+func TestCustomThemeRenderingAndPicker(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{designReply}})
+	h.p.place = placeOn(mygo.Rectangle{Width: 1440, Height: 1500})
+	h.tt.SetSize(820, 1100)
+	c := *h.p.cfg
+	c.Theme = "my-night"
+	c.Themes = []config.Theme{{ID: "my-night", Name: "我的夜间", Base: "flexoki-night", Colors: map[string]string{"accent": "#DA702C"}}, {ID: "plain-name", Base: "gruvbox"}}
+	h.p.applyConfig(&c)
+	h.tt.Frame()
+	pal := h.p.pal
+	if pal.Accent != ui.Hex("#DA702C") || pal == design.Themes["flexoki-night"] {
+		t.Fatal("custom palette not rendered")
+	}
+	for range 3 {
+		h.tt.Frame()
+		if h.p.pal != pal || h.p.mdFor != (mdKey{pal, h.p.sz.Body}) {
+			t.Fatal("palette pointer changed between frames")
+		}
+	}
+	h.p.source = "Summarize today's meeting"
+	h.p.run()
+	h.drain()
+	h.snapshot("theme-custom")
+	items := h.p.themeItems("")
+	if items[0].key != "auto" || items[1].key != "my-night" || items[1].title != "我的夜间" || items[1].desc != "基于 flexoki-night" || items[2].title != "plain-name" {
+		t.Fatalf("custom menu: %+v", items[:3])
+	}
+	h.p.cfg.Theme = "gruvbox"
+	h.p.source = "/theme my-night"
+	h.tt.Frame()
+	if h.p.previewTheme(h.p.pal) != "my-night" || h.p.pal != pal {
+		t.Fatal("custom preview missing")
+	}
+	h.p.menuClosed = h.p.source
+	h.tt.Frame()
+	if h.p.pal != design.Themes["gruvbox"] {
+		t.Fatal("closing preview did not restore theme")
+	}
+	var applied string
+	h.p.deps.Operator.Apply = func(ops []config.Op) ([]config.Change, error) { applied = string(ops[0].Value); return nil, nil }
+	items[1].take(h.p, func(text string) { h.p.source = text })
+	h.tt.Frame()
+	if applied != `"my-night"` || h.p.cfg.Theme != "my-night" || h.p.pal != pal {
+		t.Fatal("custom selection did not persist")
+	}
+	c = *h.p.cfg
+	c.Themes = []config.Theme{{ID: "my-night", Base: "flexoki-night", Colors: map[string]string{"accent": "#FFFFFF"}}}
+	h.p.applyConfig(&c)
+	h.tt.Frame()
+	if h.p.pal == pal || h.p.pal.Accent != ui.Hex("#FFFFFF") {
+		t.Fatal("config update did not rebuild palette")
 	}
 }

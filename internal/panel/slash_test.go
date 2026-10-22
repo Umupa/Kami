@@ -10,6 +10,7 @@ import (
 // operatorTopicTitles are the topics the operator menu lists, in order.
 var operatorTopicTitles = []string{
 	"切换配色主题",
+	"改颜色，或基于内置主题新建一套",
 	"各模式用哪个模型，默认模型是哪个",
 	"查看或修改全局快捷键",
 	"查看模式和完整提示词，增删模式",

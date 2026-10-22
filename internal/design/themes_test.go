@@ -8,7 +8,7 @@ import (
 )
 
 func TestThemesMatchConfig(t *testing.T) {
-	if len(ThemeNames) < 20 {
+	if len(ThemeNames) < 15 {
 		t.Fatalf("loaded %d themes", len(ThemeNames))
 	}
 	want := append([]string{"auto"}, ThemeNames...)
@@ -21,7 +21,10 @@ func TestThemesMatchConfig(t *testing.T) {
 	if For("auto", true) != Themes[AutoDark] || For("auto", false) != Themes[AutoLight] {
 		t.Error("auto does not follow the appearance")
 	}
-	if !Themes["tokyo-night"].Dark || Themes["catppuccin-latte"].Dark {
+	if Themes[config.DefaultTheme] == nil {
+		t.Error("no default theme")
+	}
+	if !Themes["flexoki-night"].Dark || Themes["flexoki-light"].Dark {
 		t.Error("modes misread")
 	}
 }

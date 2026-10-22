@@ -1,6 +1,7 @@
 package panel
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"strings"
@@ -87,6 +88,15 @@ func (p *Panel) finishOperator(t *session.Turn) {
 		} else {
 			t.Reply += operator.ChangesText(changes)
 			t.Undoable = len(changes) > 0
+			if p.deps.Store != nil && touchesTheme(changes) {
+				c := p.deps.Store.Snapshot().Config
+				if theme, ok := c.CustomTheme(c.Theme); ok {
+					pal := design.Derive(design.Themes[theme.Base], theme.Colors)
+					if ratio := design.Contrast(pal.Text, pal.Background); ratio < 4.5 {
+						t.Reply += fmt.Sprintf("\n\n正文与背景的对比度是 %.1f:1，低于 4.5:1，可能不易阅读。", ratio)
+					}
+				}
+			}
 		}
 	}
 	for _, a := range plan.Actions {
@@ -94,6 +104,16 @@ func (p *Panel) finishOperator(t *session.Turn) {
 			p.deps.Operator.Run(a)
 		}
 	}
+}
+
+// touchesTheme reports whether an edit changed the theme or a custom theme.
+func touchesTheme(changes []config.Change) bool {
+	for _, c := range changes {
+		if strings.HasPrefix(c.Path, "theme") {
+			return true
+		}
+	}
+	return false
 }
 
 // undoOperator puts back the configuration before the latest operator edit.
