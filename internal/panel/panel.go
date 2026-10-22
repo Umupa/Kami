@@ -279,9 +279,12 @@ func (p *Panel) Show() {
 	p.requested = p.place.bounds(p.height).Height
 	p.win.SetBounds(p.place.bounds(p.height))
 	p.win.Show()
-	if p.noteMode() {
+	switch {
+	case p.noteMode():
 		p.notes.focusNote = true
-	} else {
+	case p.operatorSession():
+		p.followIn.Focus()
+	default:
 		p.sourceIn.Focus()
 	}
 	p.deps.Log.Info("panel show", "work", d.WorkArea, "want", p.place.bounds(p.height),

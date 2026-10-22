@@ -93,14 +93,22 @@ func (p *Panel) view(c *ui.Context) {
 			p.sourceView(c, pal)
 			p.menuView(c, pal)
 			p.splitter(c, pal)
-			p.modeBar(c, pal)
+			// Once an operator request is under way, the source says the
+			// mode and the follow-up line goes on; the bar would only
+			// repeat them.
+			bar := !p.operatorSession()
+			if bar {
+				p.modeBar(c, pal)
+			}
 			if p.notice != "" {
 				ui.Divider(c).Background(pal.Border)
 				ui.Text(c, p.notice).FontSize(p.sz.Label).TextColor(pal.Muted).
 					PaddingX(design.SpaceX).PaddingY(12)
 			}
 			if p.sess != nil {
-				ui.Divider(c).Background(pal.Border)
+				if bar {
+					ui.Divider(c).Background(pal.Border)
+				}
 				p.resultView(c, pal)
 				ui.Divider(c).Background(pal.Border)
 				p.followView(c, pal)
@@ -176,13 +184,14 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 }
 
 // switchInput moves the keyboard between the source and the follow-up
-// (Cmd-J).
+// (Cmd-J), into the source after its text.
 func (p *Panel) switchInput(c *ui.Context) {
 	if p.sess != nil && !p.followIn.Focused(c) {
 		p.followIn.Focus()
 		return
 	}
 	p.sourceIn.Focus()
+	p.caretToEnd = true
 }
 
 // translateTarget is where translation goes for the source as typed: into
@@ -369,11 +378,17 @@ func (p *Panel) themeButton(c *ui.Context, pal *design.Palette) {
 	}
 }
 
+// runButton runs the source; in operator mode it takes the pill's colors,
+// so the bar has one tint.
 func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
-	run := ui.Row(c.Key("run")).Gap(6).PaddingX(10).PaddingY(4).Radius(design.RadiusChip).Background(pal.Accent)
+	fill, text := pal.Accent, pal.AccentText
+	if p.operatorActive() && !p.noteMode() {
+		fill, text = pal.OperatorFill, pal.Operator
+	}
+	run := ui.Row(c.Key("run")).Gap(6).PaddingX(10).PaddingY(4).Radius(design.RadiusChip).Background(fill)
 	run.Children(func() {
-		ui.Text(c, "⏎").FontSize(p.sz.Label).TextColor(pal.AccentText)
-		ui.Text(c, "执行").FontSize(p.sz.Label).FontWeight(700).TextColor(pal.AccentText)
+		ui.Text(c, "⏎").FontSize(p.sz.Label).TextColor(text)
+		ui.Text(c, "执行").FontSize(p.sz.Label).FontWeight(700).TextColor(text)
 	})
 	if run.Clicked() {
 		p.run()
@@ -579,8 +594,10 @@ func failureText(err error) (title, next string) {
 	return "请求没有完成。", "重试 ⏎"
 }
 
+// followView is the follow-up line. Around its input it moves the window,
+// as the mode bar does, which an operator session hides.
 func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Shrink(0).PaddingX(design.SpaceX).PaddingY(11).Gap(8).AlignItems(ui.Start).Children(func() {
+	ui.Row(c).Shrink(0).PaddingX(design.SpaceX).PaddingY(11).Gap(8).AlignItems(ui.Start).DragWindow().Children(func() {
 		prompt := pal.Faint
 		if p.followIn.Focused(c) {
 			prompt = pal.Accent

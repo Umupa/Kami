@@ -463,6 +463,25 @@ func TestSwitchInputAndCaret(t *testing.T) {
 	if h.p.source != "/operator 主题" {
 		t.Errorf("typing after picking /operator gave %q; the caret was not at the end", h.p.source)
 	}
+
+	// A topic sends its question, and the keyboard goes to the follow-up;
+	// ⌘J goes back to the source after its text.
+	h.p.source = "/operator "
+	h.p.caretToEnd = true
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyDown)
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	h.tt.Frame()
+	if !h.tt.Focused("追问") {
+		t.Fatalf("the topic left the keyboard in the source: %q", h.p.source)
+	}
+	h.tt.Key(ui.Cmd, ui.KeyJ)
+	h.tt.Frame()
+	h.tt.Type("！")
+	if !strings.HasSuffix(h.p.source, "颜色的值。！") {
+		t.Errorf("typing after ⌘J gave %q; the caret was not at the end", h.p.source)
+	}
 }
 
 func TestTranslateLabel(t *testing.T) {

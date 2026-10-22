@@ -99,10 +99,23 @@ func TestOperatorAppliesPlanAndUndoes(t *testing.T) {
 	if strings.Contains(turn.Reply, "kami-operator") || !strings.Contains(turn.Reply, "已修改") || !turn.Undoable {
 		t.Errorf("reply %q, undoable %v", turn.Reply, turn.Undoable)
 	}
+	if oh.tt.HasText("执行") {
+		t.Error("the mode bar still shows during the operator session")
+	}
+	if !oh.tt.Focused("追问") {
+		t.Error("the keyboard stayed in the source after the operator request")
+	}
 	oh.tt.Advance(time.Second)
 	oh.snapshotNow("operator-sparkles")
 	oh.tt.Advance(3 * time.Second) // past the sparkles
 	oh.snapshot("operator-changed")
+	oh.p.source = "截图识别改成 ⌥S" // leaving operator mode brings the bar back
+	oh.tt.Frame()
+	if !oh.tt.HasText("执行") {
+		t.Error("no mode bar after leaving operator mode")
+	}
+	oh.p.source = "/operator 截图识别改成 ⌥S"
+	oh.tt.Frame()
 
 	oh.tt.Click("追问")
 	oh.tt.Key(ui.Cmd, ui.KeyZ)

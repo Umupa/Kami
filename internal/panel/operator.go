@@ -50,6 +50,9 @@ func (p *Panel) runOperator(request string) {
 	m.Model = p.cfg.DefaultModel
 	p.sess = session.New(m, request, m.Model)
 	p.sess.Operator = true
+	// The request is sent; what comes next is a follow-up, and ⌘Z there
+	// undoes the edit.
+	p.followIn.Focus()
 	_, hasModel := p.cfg.Model(m.Model)
 	if request == "" || !hasModel || p.deps.Operator.State == nil {
 		p.answerLocally(p.sess.Last())
@@ -135,6 +138,12 @@ func quoteLines(s string) string {
 
 var operatorIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 6.2l7.3 2.6-3.1 1.1-1.1 3.1z"/><path d="M3 1.5v2M1.5 3h2M6.5 2.2l-.8.8M2.2 6.5l.8-.8"/></svg>`))
 
+// operatorSession reports whether the result shows an operator session the
+// source still asks for.
+func (p *Panel) operatorSession() bool {
+	return p.sess != nil && p.sess.Operator && p.operatorActive() && !p.noteMode()
+}
+
 // operatorPill takes the place of the mode tabs while the source asks for
 // operator mode; its × leaves the mode.
 func (p *Panel) operatorPill(c *ui.Context, pal *design.Palette) {
@@ -152,7 +161,6 @@ func (p *Panel) operatorPill(c *ui.Context, pal *design.Palette) {
 			p.sourceIn.Focus()
 		}
 	})
-	ui.Text(c, "用一句话查看或修改设置").FontSize(p.sz.Caption).TextColor(pal.Muted).MarginStart(8)
 }
 
 // sheen returns how far the sheen has crossed operator mode's name since the

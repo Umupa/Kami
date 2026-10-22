@@ -203,7 +203,7 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
 
 - 改动块是回复末尾的一个 ` ```kami-operator ` 代码块：`{"ops": [{"path", "value"}], "actions": [...]}`。路径同 Problem 的路径；`null` 删除。动作：`copy-agent-prompt`、`open-permission:<accessibility|input-monitoring|screen-recording>`。
 - 撤销只保留上一次修改前的文件；再改一次就以新的为准。
-- 视觉：命令着色与光扫（900ms）、模式条的「Operator ×」、发送时的星星（3.2s）都用 MyGo 的文本区间、元素和画笔完成，不引入新的窗口或组件；「减弱动态效果」时关闭。
+- 视觉：命令着色与光扫（900ms）、模式条的「Operator ×」（Operator 会话进行中隐藏模式条，追问行承担拖动）、发送时的星星（3.2s）都用 MyGo 的文本区间、元素和画笔完成，不引入新的窗口或组件；「减弱动态效果」时关闭。
 
 ## 十、笔记
 

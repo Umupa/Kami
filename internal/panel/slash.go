@@ -118,6 +118,7 @@ func (p *Panel) topicItems(query string) []item {
 			}
 			set(operator.Command + " " + t.ask)
 			p.source = operator.Command + " " + t.ask
+			p.caretToEnd = true
 			p.run()
 		}})
 	}
