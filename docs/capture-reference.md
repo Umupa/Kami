@@ -1,0 +1,43 @@
+# 截图体验参考与验收
+
+## 基准
+
+采用已有参考图（EXISTING_BASELINE），由用户「保持和 cida 完全一致的使用体验」指定。范围是截图入口、框选层、识别与导入结果；品牌为 Gloss，主面板继续采用项目现有设计。
+
+- 固定来源：[cida 3099e0d](https://github.com/Xuanwo/cida/tree/3099e0dcbc2bafe0a86e6a04d1941b78afacbfd6)。
+- 行为：[Design/spec/panel.md §一](https://github.com/Xuanwo/cida/blob/3099e0dcbc2bafe0a86e6a04d1941b78afacbfd6/Design/spec/panel.md)、ScreenCapture.swift、CaptureOverlay.swift、TextRecognition.swift、AppLifecycle.swift。
+- 视觉：[Design/boards/capture.html](https://github.com/Xuanwo/cida/blob/3099e0dcbc2bafe0a86e6a04d1941b78afacbfd6/Design/boards/capture.html)、tokens.css、DesignSystem.swift。
+- 原图：Design/rendered/states/capture-veiled.png、capture-lifted.png、capture-lifted-dark.png，均为 2400×1500；逻辑视口 1200×750，2×。
+- 状态：纸雾淡入、亮屏未框选、亮屏框选、暗屏框选、深色提示、选区覆盖提示、取消、空识别、固定翻译、旧请求被取代。
+
+## 不变量
+
+冻结图像先出现，只有纸雾与提示做 120ms ease-out 淡入；纸雾依冻结画面平均亮度选择，提示依应用外观选择。窗口必须真正无边框，frame 与整屏 bounds 一致；MyGo 的 `Frameless` 只隐藏标题栏，仍需移除原生 titled style，避免菜单栏位置约束使真实与冻结的工具栏同时露出。选区为 8pt 圆角，亮屏双层阴影、暗屏白色细边。提示顶边在屏幕可见高度 20%，被选区碰到时淡出。只在当前屏幕内框选，按实际图像双轴比例裁剪，向外取整并限制边界。
+
+Esc、右键、点击取消且不显示面板；普通失焦不取消。鼠标松开后隐藏框选层，继续识别，所有入口等待识别结束。识别结果开始新会话并执行翻译；空结果清除旧会话，不发请求。未授权直接申请并打开系统设置。主面板的快捷键保持 Gloss 的 ⌥空格、双击 ⌥ 和 ⌥S。
+
+## 验证
+
+- 离屏生成同视口的亮暗屏文章，保存并逐张检查 PNG；检查淡入中间帧、纸雾颜色、圆角、阴影、提示遮挡恢复与选择边界。
+- 通过依赖注入验证重复触发、识别占用、退出后迟到结果丢弃和失败后重试。
+- 只用生成图片验证中英文识别、方向、裁剪与预热；不捕获实时桌面。
+- 临时配置和模型替身验证固定翻译、隐藏翻译模式、命令文本作为材料、空识别取代请求。
+- 运行 AGENTS.md 的所有本地检查及 macOS 只读集成测试。
+
+常规自动验证按 AGENTS.md 不捕获或操作开发者桌面。真实验收需要用户单独授权，不能用上述离屏结果替代。
+
+## 真实验收记录（2026-10-21）
+
+本次用户明确授权屏幕录制、临时模拟键鼠及前置专用测试窗口；不读取或修改真实配置，不写系统剪贴板。初次对照使用公开示例网页；后续用户框选当前验收对话，验证中英文识别。
+
+- 用户实际按 ⌥S，系统弹出屏幕录制申请，授权并重启后可以进入真实框选。
+- ScreenCaptureKit 采集成功，已记录的采集耗时为 89–131ms；真实显示器为 1920×1080pt、2×。
+- 自动拖选公开英文段落，Vision 识别耗时为 206ms、336ms，结果进入原文栏并固定切换翻译。段落恢复成功，仍有 `service` → `spice` 的单词识别错误，不能宣称逐字准确。
+- 翻译请求被配置检查阻止。启动日志为 `models=0`，实际面板显示「还没有配置模型」；真实模型翻译尚未通过验收。
+- 实测发现临时签名重建后，系统设置里开关虽为开启，TCC 仍以签名不匹配拒绝请求。已在本机建立 `Gloss Dev`，连续两次构建的 designated requirement 一致，并将固定签名版安装到 `~/Applications/Gloss.app`。仅移除、重建 Gloss 自身的录屏授权条目；随后再次重建和安装，当前进程启动日志确认 `screen recording access allowed=true`。输入监控等其他权限的旧签名记录未改动。
+- 用户指出屏幕顶部真实 Chrome 地址栏与冻结地址栏同时出现；源码确认 MyGo 框选窗口保留原生 titled style，已改为真正无边框的非激活 NSPanel。修复后用户明确实测确认「顶部只有一层」；整屏位置由下述窗口日志核对。工具未取得修复后框选层的实拍，顶部视觉结论来自用户确认，不表述为工具自动视觉验收。
+- 固定签名和无边框修复后，用户连续完成三次真实框选，采集耗时 133ms、118ms、109ms，OCR 耗时 223ms、279ms、506ms，均识别出文字且进入原文栏。三次窗口日志均为 `want={X:0 Y:0 Width:1920 Height:1080}`、`got={X:0 Y:0 Width:1920 Height:1080}`，未再出现录屏申请。
+
+用户确认本轮只验截图与 OCR；真实模型翻译留待配置模型后单独验收。
+
+本轮单屏截图与 OCR 主要流程验收通过；另有两次真实取消，取消后未重开结果面板。仍不能宣称所有场景与 cida 完全一致：真实模型翻译，以及暗屏、多屏和全屏 Space 的实际流程尚未验收。OCR 对快捷键符号等特殊字形仍会误识别。

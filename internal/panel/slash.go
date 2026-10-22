@@ -61,7 +61,7 @@ func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 	if src != p.menuClosed {
 		p.menuClosed = ""
 	}
-	if src == p.menuClosed || strings.Contains(src, "\n") || p.noteMode() {
+	if p.capturedSource() || src == p.menuClosed || strings.Contains(src, "\n") || p.noteMode() {
 		return menuNone, nil
 	}
 	request, isOperator := operator.Leading(src)

@@ -3,14 +3,34 @@
 package macos
 
 import (
+	"context"
+	"errors"
 	"image"
+	"image/color"
 	"image/draw"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/ebitengine/purego/objc"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestCaptureAPIsAvailable(t *testing.T) {
+	if err := loadCapture(); err != nil {
+		t.Fatal(err)
+	}
+	for _, api := range []struct{ class, query, method string }{
+		{"SCShareableContent", "respondsToSelector:", "getShareableContentExcludingDesktopWindows:onScreenWindowsOnly:completionHandler:"},
+		{"SCScreenshotManager", "respondsToSelector:", "captureImageWithFilter:configuration:completionHandler:"},
+		{"SCContentFilter", "instancesRespondToSelector:", "initWithDisplay:excludingWindows:"},
+		{"SCStreamConfiguration", "instancesRespondToSelector:", "setCaptureResolution:"},
+	} {
+		if !objc.Send[bool](class(api.class), sel(api.query), sel(api.method)) {
+			t.Errorf("unavailable API: %s.%s", api.class, api.method)
+		}
+	}
+}
 
 // TestRecognizeText reads text rendered offscreen: tests never capture the
 // live screen.
@@ -47,5 +67,62 @@ func TestRecognizeText(t *testing.T) {
 		if len(lines) == 2 && lines[0].Box.Y > lines[1].Box.Y {
 			t.Error("lines are not in reading order")
 		}
+	}
+}
+
+func TestWarmupRecognizesBothScripts(t *testing.T) {
+	img := warmUpImage()
+	if img == nil {
+		t.Fatal("warmup image creation failed")
+	}
+	defer img.Release()
+	lines, err := RecognizeText(img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var text string
+	for _, l := range lines {
+		text += l.Text
+	}
+	if !strings.Contains(text, "截图翻译") || !strings.Contains(text, "Gloss") {
+		t.Fatalf("warmup text: %q", text)
+	}
+}
+
+func TestImageRoundTripAndTopCrop(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 128, 96))
+	for y := range 96 {
+		for x := range 128 {
+			col := color.RGBA{R: 240, A: 255}
+			if y >= 48 {
+				col = color.RGBA{B: 240, A: 255}
+			}
+			src.SetRGBA(x, y, col)
+		}
+	}
+	img, err := ImageFromRGBA(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Release()
+	got := img.RGBA()
+	if got.RGBAAt(50, 10) != (color.RGBA{R: 240, A: 255}) || got.RGBAAt(50, 80) != (color.RGBA{B: 240, A: 255}) {
+		t.Fatal("image roundtrip changed orientation")
+	}
+	crop, err := img.Crop(Rect{W: 128, H: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer crop.Release()
+	if crop.RGBA().RGBAAt(50, 10) != (color.RGBA{R: 240, A: 255}) {
+		t.Fatal("crop used a bottom-left origin")
+	}
+	if _, err := img.Crop(Rect{}); err == nil {
+		t.Fatal("empty crop succeeded")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := RecognizeTextContext(ctx, img); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled recognition: %v", err)
 	}
 }

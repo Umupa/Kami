@@ -33,6 +33,9 @@ var operatorMode = mode.Mode{ID: "operator", Name: "Operator", Input: config.Inp
 
 // operatorActive reports whether the source asks for operator mode.
 func (p *Panel) operatorActive() bool {
+	if p.capturedSource() {
+		return false
+	}
 	_, ok := operator.Leading(p.source)
 	return ok
 }

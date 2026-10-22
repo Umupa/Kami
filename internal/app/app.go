@@ -43,7 +43,8 @@ type app struct {
 	clipboard  *macos.Pasteboard
 	capturer   *capture.Capturer
 	// askedListen is set once Input Monitoring has been asked for.
-	askedListen bool
+	askedListen      bool
+	readingSelection bool
 	// undo is config.json before the last operator edit.
 	undo []byte
 }
@@ -84,7 +85,7 @@ func Run() error {
 	ctx, stop := context.WithCancel(context.Background())
 	mygo.App.OnSecondInstance(func([]string, string) {
 		if a.panel != nil {
-			a.panel.Show()
+			a.showPanel()
 		}
 	})
 	mygo.App.WhenReady(func() { a.ready(ctx) })
@@ -122,12 +123,14 @@ func (a *app) ready(ctx context.Context) {
 	})
 	a.hotkeys = hotkey.NewManager(a.log)
 	a.capturer = capture.New(a.log, a.captured)
+	a.log.Info("screen recording access", "allowed", macos.ScreenAccess())
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.capturer.Close() })
 
 	// Everything else is in the panel: /operator shows and changes settings.
 	a.menu = mygo.NewMenu([]*mygo.MenuItem{
-		{ID: "config-error", Hidden: true, Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
+		{ID: "config-error", Hidden: true, Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
 		{ID: "config-error-sep", Type: mygo.MenuItemSeparator, Hidden: true},
-		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.panel.Show() }},
+		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
 		{Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
 		mygo.Separator(),
 		{Label: "退出 Gloss", Role: mygo.RoleQuit},
@@ -163,7 +166,7 @@ func (a *app) ready(ctx context.Context) {
 func (a *app) applyShortcuts(c *config.Config) {
 	a.log.Info("apply shortcuts", "panel", c.Shortcuts.Panel, "selection", c.Shortcuts.Selection, "capture", c.Shortcuts.Capture)
 	bindings := []hotkey.Binding{
-		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.panel.Toggle},
+		{Name: "panel", Shortcut: c.Shortcuts.Panel, Action: a.togglePanel},
 		{Name: "selection", Shortcut: c.Shortcuts.Selection, Action: a.importSelection},
 		{Name: "capture", Shortcut: c.Shortcuts.Capture, Action: a.startCapture},
 	}
@@ -201,6 +204,9 @@ func (a *app) applyLaunchAtLogin(c *config.Config) {
 
 // startCapture hides the panel and freezes the screen for a region.
 func (a *app) startCapture() {
+	if a.captureBusy() || a.readingSelection {
+		return
+	}
 	a.panel.Hide()
 	a.capturer.Start()
 }
@@ -211,12 +217,12 @@ func (a *app) captured(r capture.Result) {
 	switch {
 	case r.Canceled:
 	case errors.Is(r.Err, macos.ErrNoScreenAccess):
-		a.panel.Notify("截图识别需要「屏幕录制」权限：在弹出的系统设置里允许 Gloss，然后退出并重新打开。")
+		a.log.Info("capture permission requested")
 	case r.Err != nil:
 		a.log.Warn("capture", "err", r.Err)
-		a.panel.Notify("截图没有成功，再试一次。")
+		macos.CaptureFailureFeedback()
 	case r.Text == "":
-		a.panel.Notify("截图里没有识别到文字。")
+		a.panel.ImportCaptured("")
 	default:
 		a.panel.ImportCaptured(r.Text)
 	}
@@ -226,6 +232,9 @@ func (a *app) captured(r capture.Result) {
 // panel with it; pressed while the panel shows, it hides the panel. It runs
 // on the main thread, where the keyboard layout is read.
 func (a *app) importSelection() {
+	if a.captureBusy() || a.readingSelection {
+		return
+	}
 	if a.panel.Visible() {
 		a.panel.Hide()
 		return
@@ -241,19 +250,20 @@ func (a *app) importSelection() {
 		pb, err := macos.GeneralPasteboard()
 		if err != nil {
 			a.log.Error("pasteboard", "err", err)
-			a.panel.Show()
+			a.showPanel()
 			return
 		}
 		a.clipboard = pb
 	}
 	r := &selection.Reader{Sys: selection.NewSystem(a.clipboard, macos.KeyCodeFor('c'))}
+	a.readingSelection = true
 	go func() {
 		start := time.Now()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		text := r.Read(ctx)
 		a.log.Info("selection read", "found", text != "", "ms", time.Since(start).Milliseconds())
-		mygo.RunOnMain(func() { a.panel.Import(text) })
+		mygo.RunOnMain(func() { a.readingSelection = false; a.panel.Import(text) })
 	}()
 }
 
@@ -341,4 +351,17 @@ func (a *app) logSnapshot(s config.Snapshot) {
 		return
 	}
 	a.log.Info("config loaded", "models", len(s.Config.Models), "modes", len(s.Config.Modes))
+}
+
+// All panel entry points wait for the capture that owns the keyboard.
+func (a *app) captureBusy() bool { return a.capturer != nil && a.capturer.Busy() }
+func (a *app) showPanel() {
+	if !a.captureBusy() {
+		a.panel.Show()
+	}
+}
+func (a *app) togglePanel() {
+	if !a.captureBusy() && !a.readingSelection {
+		a.panel.Toggle()
+	}
 }

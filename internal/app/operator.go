@@ -95,7 +95,7 @@ func (a *app) runAction(action string) {
 	case strings.HasPrefix(action, operator.ActionOpenPermission):
 		id := strings.TrimPrefix(action, operator.ActionOpenPermission)
 		for _, p := range permissions {
-			if p.id == id && !p.request() {
+			if p.id == id && !p.request() && id != "screen-recording" {
 				_ = mygo.Shell.OpenExternal("x-apple.systempreferences:com.apple.preference.security?" + p.page)
 			}
 		}
