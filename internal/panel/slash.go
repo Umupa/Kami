@@ -82,13 +82,13 @@ func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 func (p *Panel) commandItems(query string, pal *design.Palette) []item {
 	all := []item{{key: "/operator", title: "Operator", desc: "用一句话查看或修改 Kami 的设置", color: pal.Operator,
 		take: func(p *Panel, set func(string)) { set(operator.Command + " "); p.caretToEnd = true }},
-		{key: themeCommand, title: "主题", desc: "切换配色主题",
+		{key: themeCommand, title: "主题",
 			take: func(p *Panel, set func(string)) { set(themeCommand + " "); p.caretToEnd = true }}}
 	for i, m := range p.modes {
 		all = append(all, item{key: "/" + m.ID, title: m.Name, desc: clip(m.Desc),
 			take: func(p *Panel, set func(string)) { p.setMode(i); set("") }})
 	}
-	all = append(all, item{key: "/note", title: "笔记", desc: "随手记点什么，自动保存",
+	all = append(all, item{key: "/note", title: "笔记",
 		take: func(p *Panel, set func(string)) { set(""); p.setMode(len(p.modes)) }})
 	return filter(all, "/"+query)
 }
@@ -155,7 +155,6 @@ func (p *Panel) themeItems(query string) []item {
 func takeTheme(name string) func(p *Panel, set func(string)) {
 	return func(p *Panel, set func(string)) {
 		p.setConfig("theme", name, func(c *config.Config) { c.Theme = name })
-		p.notice = "主题已切换为 " + name + "，可以随时用 /theme 再换。"
 		set("")
 	}
 }
@@ -308,20 +307,6 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 						p.sourceIn.Focus()
 					}
 				}
-			}
-		})
-		hint := "tab ⏎ 确定"
-		switch kind {
-		case menuTopics:
-			if p.source == operator.Command && p.menuChosenFor != p.source {
-				hint = "tab 选择 · ⏎ 帮助"
-			}
-		case menuThemes:
-			hint = "⏎ 用这个主题"
-		}
-		ui.Row(c).Gap(14).Padding(6, 10, 2, 10).Children(func() {
-			for _, h := range []string{"↑↓ 选择", hint, "esc 关闭"} {
-				ui.Text(c, h).FontSize(p.sz.Caption).TextColor(pal.Faint)
 			}
 		})
 	})

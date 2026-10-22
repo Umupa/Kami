@@ -149,3 +149,17 @@ func TestURLAt(t *testing.T) {
 		}
 	}
 }
+
+func TestSummary(t *testing.T) {
+	for text, want := range map[string]string{
+		"# 周报\n\n  下周一提交  \n其他": "下周一提交",
+		"只有标题":        "",
+		"\n\n标题\n第二行": "第二行",
+		"#\n标题\n正文":   "正文",
+		"":            "",
+	} {
+		if got := Summary(text); got != want {
+			t.Errorf("Summary(%q) = %q, want %q", text, got, want)
+		}
+	}
+}

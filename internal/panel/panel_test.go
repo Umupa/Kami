@@ -292,13 +292,13 @@ func TestStaleAfterEditingSource(t *testing.T) {
 	h.tt.Type("first")
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
-	if h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
+	if h.tt.HasText("原文已改") {
 		t.Error("fresh result marked stale")
 	}
 	h.tt.Click("原文")
 	h.tt.Type(" more")
 	h.tt.Frame()
-	if !h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
+	if !h.tt.HasText("原文已改") {
 		t.Error("result not marked stale after the source changed")
 	}
 	if h.p.sess.Busy() {
@@ -344,7 +344,7 @@ func TestEachModeKeepsItsResult(t *testing.T) {
 	if !h.tt.HasText("润色的结果") || h.tt.HasText("其他模式的结果") {
 		t.Errorf("back in improve: %q", h.tt.Texts())
 	}
-	if h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
+	if h.tt.HasText("原文已改") {
 		t.Error("improve's own result marked stale")
 	}
 
@@ -353,7 +353,7 @@ func TestEachModeKeepsItsResult(t *testing.T) {
 	h.tt.Type(" more")
 	h.tt.Key(0, ui.KeyTab)
 	h.tt.Frame()
-	if !h.tt.HasText("原文或模式已改 ⏎ 重新执行") {
+	if !h.tt.HasText("原文已改") {
 		t.Error("a result for the earlier source not marked stale")
 	}
 }

@@ -37,10 +37,17 @@ type notes struct {
 	caretPending int
 	err          string
 
-	// The list of notes (Cmd-O): what is searched, the chosen row.
+	// The list of notes (Cmd-P), a popover over the open note: what is
+	// searched, the chosen row, and reveal to scroll it into view once,
+	// after it changed, so that the wheel can move the list.
 	listOpen bool
 	query    string
 	listIdx  int
+	reveal   bool
+	// editorH is the editor's height as last laid out with the list
+	// closed: a note previewed from the list takes it, so that the panel
+	// stays still. 0 before the editor was laid out.
+	editorH float32
 	// order is the order Cmd-[ and Cmd-] step through, taken at the first
 	// step, so that stepping does not reorder it; an edit drops it.
 	order []string
@@ -68,6 +75,7 @@ func (p *Panel) setMode(i int) {
 	}
 	switch {
 	case was && !p.noteMode():
+		p.notes.listOpen = false
 		p.leaveNote()
 		p.sourceIn.Focus()
 	case !was && p.noteMode():
@@ -333,7 +341,7 @@ func (p *Panel) stepNote(step int) {
 // openList shows the list of notes, searching from scratch.
 func (p *Panel) openList() {
 	n := &p.notes
-	n.listOpen, n.query, n.listIdx = true, "", 0
+	n.listOpen, n.query, n.listIdx, n.reveal = true, "", 0, true
 	n.order = nil
 	n.focusSearch = true
 	p.refreshNotes()
@@ -348,9 +356,14 @@ func (p *Panel) toggleList() {
 	}
 }
 
+// closeList goes back to the open note, as it was.
 func (p *Panel) closeList() {
-	p.notes.listOpen = false
-	p.notes.focusNote = true
+	n := &p.notes
+	n.listOpen = false
+	n.focusNote = true
+	if n.cur != "" {
+		n.caretPending = n.carets[n.cur]
+	}
 }
 
 // listRows are the notes the search finds, the open one first, and whether
@@ -379,6 +392,9 @@ func (p *Panel) listRows() ([]note.Match, bool) {
 // listKey handles a key in the list's search field.
 func (p *Panel) listKey(k ui.TextKey) bool {
 	n := &p.notes
+	if k.Text() != n.query {
+		n.listIdx, n.reveal = 0, true
+	}
 	n.query = k.Text()
 	rows, create := p.listRows()
 	count := len(rows)
@@ -388,12 +404,15 @@ func (p *Panel) listKey(k ui.TextKey) bool {
 	switch {
 	case k.Key == ui.KeyEscape && k.Mods == 0:
 		p.closeList()
+	case k.Key == ui.KeyTab && (k.Mods == 0 || k.Mods == ui.Shift):
+		n.listOpen = false
+		p.cycleMode(map[bool]int{true: -1, false: 1}[k.Mods == ui.Shift])
 	case count == 0:
 		return false
 	case k.Key == ui.KeyDown && k.Mods == 0:
-		n.listIdx = (n.listIdx + 1) % count
+		n.listIdx, n.reveal = (n.listIdx+1)%count, true
 	case k.Key == ui.KeyUp && k.Mods == 0:
-		n.listIdx = (n.listIdx - 1 + count) % count
+		n.listIdx, n.reveal = (n.listIdx-1+count)%count, true
 	case k.Key == ui.KeyEnter && k.Mods == 0:
 		p.takeRow(rows, min(n.listIdx, count-1))
 	case k.Key == ui.KeyBackspace && k.Mods == ui.Cmd:
@@ -420,39 +439,40 @@ func (p *Panel) takeRow(rows []note.Match, i int) {
 	p.startNote(query)
 }
 
-// noteView is the open note, or the list in its place.
+// noteView is the open note, which stays as it is under the list.
 func (p *Panel) noteView(c *ui.Context, pal *design.Palette) {
 	n := &p.notes
-	if n.listOpen {
-		p.listView(c, pal)
+	if m, ok := p.chosenNote(); ok && m.Name != n.cur {
+		// The note chosen in the list shows in the editor's place, at the
+		// editor's height, until Enter opens it or Esc goes back.
+		text := m.Text
+		pre := p.noteText(c, pal, ui.TextAreaBase(c.Key("note-preview-"+m.Name), &text).ReadOnly(true).Label("笔记预览"), text)
+		if n.editorH > 0 && p.fixedHeight == 0 {
+			pre.Height(n.editorH)
+		} else {
+			p.noteSize(pre)
+		}
 		return
 	}
-	line := p.sz.Source * design.LineHeightSource
-	maxLines := 12
-	if p.place.maxHeight > 0 {
-		maxLines = max(6, int((float32(p.place.maxHeight)-design.ControlBarHeight-2*design.SpaceSourceY)/line))
-	}
-	in := ui.TextAreaBase(c.Key("note-"+n.cur), &n.text).Bind(&n.in).Shrink(0).
-		Placeholder("随手记点什么…  ⌘N 新建  ⌘P 全部笔记").Label("笔记").
-		FontSize(p.sz.Source).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
-		PaddingX(design.SpaceX).PaddingY(design.SpaceSourceY).
-		TextRanges(noteRanges(n.text, pal)...).
-		OnTextKey(func(k ui.TextKey) bool {
-			n.text = k.Text()
-			switch {
-			case k.Key == ui.KeyTab && k.Mods == 0:
-				p.cycleMode(1)
-			case k.Key == ui.KeyTab && k.Mods == ui.Shift:
-				p.cycleMode(-1)
-			default:
-				return false
-			}
-			return true
-		})
-	if p.fixedHeight > 0 {
-		in.Grow(1).Shrink(1).MinHeight(0)
-	} else {
-		in.Lines(min(8, maxLines), maxLines)
+	in := p.noteText(c, pal, ui.TextAreaBase(c.Key("note-"+n.cur), &n.text).Bind(&n.in).
+		Placeholder("随手记点什么…  ⌘N 新建  ⌘P 全部笔记").Label("笔记"), n.text)
+	in.OnTextKey(func(k ui.TextKey) bool {
+		n.text = k.Text()
+		switch {
+		case k.Key == ui.KeyTab && k.Mods == 0:
+			p.cycleMode(1)
+		case k.Key == ui.KeyTab && k.Mods == ui.Shift:
+			p.cycleMode(-1)
+		default:
+			return false
+		}
+		return true
+	})
+	p.noteSize(in)
+	// Bounds are the last frame's, empty in the frame after a preview, as
+	// the editor is made anew: only a settled editor sets the height.
+	if h := in.Bounds().H; h > 0 && !n.listOpen {
+		n.editorH = h
 	}
 	if n.focusNote {
 		in.Focus()
@@ -474,6 +494,56 @@ func (p *Panel) noteView(c *ui.Context, pal *design.Palette) {
 		}
 	}
 	p.noteEdited()
+}
+
+// noteSize sizes a note's text area: it fills a panel the user resized, and
+// follows the text otherwise, from 8 lines to what the screen has room for.
+func (p *Panel) noteSize(in ui.Element) {
+	if p.fixedHeight > 0 {
+		in.Grow(1).Shrink(1).MinHeight(0)
+		return
+	}
+	line := p.sz.Source * design.LineHeightSource
+	maxLines := 12
+	if p.place.maxHeight > 0 {
+		maxLines = max(6, int((float32(p.place.maxHeight)-design.ControlBarHeight-2*design.SpaceSourceY)/line))
+	}
+	in.Lines(min(8, maxLines), maxLines)
+}
+
+// noteText styles a note's text area, the editor or a preview.
+func (p *Panel) noteText(c *ui.Context, pal *design.Palette, in ui.Element, text string) ui.Element {
+	return in.Shrink(0).FontSize(p.sz.Source).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
+		PaddingX(design.SpaceX).PaddingY(design.SpaceSourceY).
+		TextRanges(noteRanges(text, pal)...)
+}
+
+// chosenNote is the note of the list's chosen row, while the list is open.
+func (p *Panel) chosenNote() (note.Match, bool) {
+	if !p.notes.listOpen {
+		return note.Match{}, false
+	}
+	rows, create := p.listRows()
+	if i := listSel(p.notes.listIdx, len(rows), create); i >= 0 && i < len(rows) {
+		return rows[i], true
+	}
+	return note.Match{}, false
+}
+
+// listSel is the chosen row of n notes and, when create, the row that makes
+// one after them, which is chosen when no note is found; -1 for no rows.
+func listSel(idx, n int, create bool) int {
+	count := n
+	if create {
+		count++
+	}
+	switch {
+	case count == 0:
+		return -1
+	case create && n == 0:
+		return count - 1
+	}
+	return min(idx, count-1)
 }
 
 // noteRanges colors a note's Markdown, which stays as typed.
@@ -501,27 +571,39 @@ func noteRanges(text string, pal *design.Palette) []ui.TextRange {
 	return ranges
 }
 
-// listView is the list of notes with its search, as the slash menu shows
-// its commands.
-func (p *Panel) listView(c *ui.Context, pal *design.Palette) {
+// listWidth is the width of the list of notes.
+const listWidth = 400
+
+// listView is the list of notes over the button that opens it, as Raycast
+// Notes shows its own: the search on top, the open note first, then the one
+// before, and a row that makes a note of what was searched.
+func (p *Panel) listView(c *ui.Context, pal *design.Palette, button ui.Element) {
+	n := &p.notes
+	pop := ui.PopoverBase(c, button, &n.listOpen, func(panel ui.Element) {
+		// Above the bar, clear of its divider, in what the panel has left
+		// over it with a margin at the top.
+		const gap = 16
+		room := max(120, p.panelH-design.ControlBarHeight-2*gap)
+		panel.AttachTo(button, ui.AnchorTopRight, ui.AnchorBottomRight).Bottom(gap).
+			Width(listWidth).MaxHeight(room).Background(pal.Surface).Border(1, pal.Border).Radius(design.RadiusPanel).Clip()
+		panel.Children(func() { p.listContent(c, pal) })
+	})
+	if pop.Dismissed() {
+		// A press outside goes on to what is under it, which takes the
+		// keyboard if it wants it.
+		n.reveal = false
+	}
+}
+
+func (p *Panel) listContent(c *ui.Context, pal *design.Palette) {
 	n := &p.notes
 	rows, create := p.listRows()
-	count := len(rows)
-	if create {
-		count++
-	}
-	sel := -1
-	if count > 0 {
-		sel = min(n.listIdx, count-1)
-		if create && len(rows) == 0 {
-			sel = count - 1
-		}
-	}
-	ui.Row(c).Shrink(0).PaddingX(design.SpaceX).PaddingY(design.SpaceSourceY).Gap(10).Children(func() {
-		ui.Text(c, "⌕").FontSize(p.sz.Source).TextColor(pal.Muted)
+	sel := listSel(n.listIdx, len(rows), create)
+	ui.Row(c).Shrink(0).PaddingX(12).PaddingY(10).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, searchIcon).Size(14, 14).TextColor(pal.Faint)
 		search := ui.TextInputBase(c.Key("note-search"), &n.query).Bind(&n.searchIn).Grow(1).
-			Placeholder("搜索笔记，或输入标题新建").Label("搜索笔记").
-			FontSize(p.sz.Source).TextColor(pal.Bright).
+			Placeholder("搜索或新建").Label("搜索笔记").
+			FontSize(p.sz.Body).TextColor(pal.Bright).
 			OnTextKey(p.listKey)
 		if n.focusSearch {
 			search.Focus()
@@ -529,55 +611,107 @@ func (p *Panel) listView(c *ui.Context, pal *design.Palette) {
 		}
 	})
 	ui.Divider(c).Background(pal.Border)
-	ui.Column(c.Key("note-list")).Shrink(0).Padding(6, 10).Gap(1).Children(func() {
-		list := ui.Scroll(c.Key("rows")).MaxHeight(320).Gap(1)
-		list.Children(func() {
-			for i, m := range rows {
-				p.listRow(c, pal, i, m, i == sel)
+	now := time.Now()
+	ui.Scroll(c.Key("rows")).Grow(1).Shrink(1).MinHeight(0).Padding(4, 6, 6, 6).Gap(1).Children(func() {
+		group := ""
+		for i, m := range rows {
+			// The rows go by when they were edited, under the day they
+			// fall on, which their times then leave out.
+			if g := dayGroup(m.Modified, now); g != group {
+				group = g
+				ui.Text(c, g).FontSize(p.sz.Caption).TextColor(pal.Faint).Padding(8, 10, 3, 10)
 			}
-			if create {
-				row := ui.Row(c.Key("create")).Gap(10).Padding(6, 10).Radius(design.RadiusChip)
-				if sel == count-1 {
-					row.Background(pal.Raised)
-					row.ScrollIntoView()
-				}
-				row.Children(func() {
-					ui.Text(c, "+").FontSize(p.sz.Label).FontWeight(700).TextColor(pal.Accent)
-					ui.Text(c, "新建「"+strings.TrimSpace(n.query)+"」").FontSize(p.sz.Label).TextColor(pal.Text).Grow(1).MaxLines(1)
-				})
-				if row.Clicked() {
-					p.takeRow(rows, len(rows))
-				}
+			p.listRow(c, pal, i, m, i == sel, now)
+		}
+		if create {
+			row := ui.Row(c.Key("create")).Gap(8).Padding(8, 10).Radius(design.RadiusBlock).AlignItems(ui.Center)
+			p.rowState(row, pal, sel == len(rows))
+			row.Children(func() {
+				ui.Icon(c, plusIcon).Size(14, 14).TextColor(pal.Accent)
+				ui.Text(c, strings.TrimSpace(n.query)).FontSize(p.sz.Label).FontWeight(600).TextColor(pal.Bright).Grow(1).MaxLines(1)
+			})
+			if row.Clicked() {
+				p.takeRow(rows, len(rows))
 			}
-			if count == 0 {
-				ui.Text(c, "还没有笔记").FontSize(p.sz.Label).TextColor(pal.Faint).Padding(6, 10)
-			}
-		})
-		ui.Row(c).Gap(14).Padding(6, 10, 2, 10).Children(func() {
-			for _, h := range []string{"↑↓ 选择", "⏎ 打开", "⌘⌫ 删除", "esc 关闭"} {
-				ui.Text(c, h).FontSize(p.sz.Caption).TextColor(pal.Faint)
-			}
-		})
+		}
+	})
+	n.reveal = false
+	ui.Divider(c).Background(pal.Border)
+	ui.Row(c).Shrink(0).PaddingX(12).PaddingY(7).Children(func() {
+		ui.Spacer(c)
+		p.kbd(c, pal, "⏎", "打开")
+		if sel >= 0 && sel < len(rows) {
+			p.kbd(c, pal, "⌘⌫", "删除")
+		}
 	})
 }
 
-func (p *Panel) listRow(c *ui.Context, pal *design.Palette, i int, m note.Match, selected bool) {
-	row := ui.Column(c.Key(m.Name)).Gap(2).Padding(6, 10).Radius(design.RadiusChip)
-	if selected {
-		row.Background(pal.Raised)
-		row.ScrollIntoView()
+// rowState colors a row of the list as chosen, with a bar at its start,
+// or as hovered, and brings a newly chosen one into view.
+func (p *Panel) rowState(row ui.Element, pal *design.Palette, chosen bool) {
+	switch {
+	case chosen:
+		row.Background(pal.Accent.Alpha(0.14)).BorderStartWidth(2).BorderColor(pal.Accent)
+		if p.notes.reveal {
+			row.ScrollIntoView()
+		}
+	case row.Hovered():
+		row.Background(pal.Raised.Alpha(0.6)).BorderStartWidth(2).BorderColor(pal.Accent.Alpha(0))
+	default:
+		row.BorderStartWidth(2).BorderColor(pal.Accent.Alpha(0))
 	}
+}
+
+// dayGroup is the heading of the notes edited on t's day.
+func dayGroup(t, now time.Time) string {
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+	switch {
+	case !t.Before(today):
+		return "今天"
+	case !t.Before(today.AddDate(0, 0, -1)):
+		return "昨天"
+	case !t.Before(today.AddDate(0, 0, -6)):
+		return "最近 7 天"
+	}
+	return "更早"
+}
+
+// rowTime is when a note was edited, as its row under dayGroup shows it.
+func rowTime(t, now time.Time) string {
+	switch dayGroup(t, now) {
+	case "今天":
+		return ago(t, now)
+	case "昨天":
+		return t.Format("15:04")
+	}
+	return ago(t, now)
+}
+
+// listRow is a note of the list: its title and when it was edited, and a
+// line of it below; the open note has a dot.
+func (p *Panel) listRow(c *ui.Context, pal *design.Palette, i int, m note.Match, selected bool, now time.Time) {
+	row := ui.Column(c.Key(m.Name)).Gap(3).Padding(8, 10).Radius(design.RadiusBlock)
+	p.rowState(row, pal, selected)
 	row.Children(func() {
-		ui.Row(c).Gap(10).Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			title := m.Note.Title()
 			if title == "" {
 				title = "空白笔记"
 			}
-			marked(c, title, m.Title, pal).FontSize(p.sz.Label).TextColor(pal.Bright).Grow(1).MaxLines(1)
-			ui.Text(c, ago(m.Modified, time.Now())).FontSize(p.sz.Caption).TextColor(pal.Faint)
+			// A long title gives way to the dot and the time.
+			marked(c, title, m.Title, pal).FontSize(p.sz.Label).FontWeight(600).TextColor(pal.Bright).
+				Grow(1).Shrink(1).MinWidth(0).MaxLines(1)
+			if m.Name == p.notes.cur {
+				ui.Box(c).Size(6, 6).Shrink(0).Radius(3).Background(pal.Accent).Label("当前笔记")
+			}
+			ui.Text(c, rowTime(m.Modified, now)).FontSize(p.sz.Caption).TextColor(pal.Faint).Shrink(0)
 		})
-		if m.Line != "" {
-			marked(c, m.Line, m.Spans, pal).FontSize(p.sz.Caption).TextColor(pal.Muted).MaxLines(1)
+		switch line := note.Summary(m.Text); {
+		case m.Line != "":
+			marked(c, m.Line, m.Spans, pal).FontSize(p.sz.Caption).TextColor(pal.Muted).MinWidth(0).MaxLines(1)
+		case line != "":
+			ui.Text(c, line).FontSize(p.sz.Caption).TextColor(pal.Muted).MinWidth(0).MaxLines(1)
 		}
 	})
 	if row.Clicked() {
@@ -621,6 +755,8 @@ func ago(t, now time.Time) string {
 	return t.Format("2006年1月2日")
 }
 
+var searchIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3 3"/></svg>`))
+
 var plusIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>`))
 
 var listIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg>`))
@@ -638,5 +774,6 @@ func (p *Panel) noteBar(c *ui.Context, pal *design.Palette) {
 		col = pal.Accent
 	}
 	p.iconButton(c, pal, "note-new", plusIcon, "新建笔记 ⌘N", pal.Muted, p.newNote).MarginEnd(2)
-	p.iconButton(c, pal, "note-list", listIcon, "全部笔记 ⌘P", col, p.toggleList).MarginEnd(2)
+	list := p.iconButton(c, pal, "note-list", listIcon, "全部笔记 ⌘P", col, p.toggleList).MarginEnd(2)
+	p.listView(c, pal, list)
 }

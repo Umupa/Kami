@@ -283,7 +283,7 @@ func (p *Panel) Show() {
 	p.win.Show()
 	switch {
 	case p.noteMode():
-		p.notes.focusNote = true
+		p.notes.focusNote, p.notes.listOpen = true, false
 	case p.operatorSession():
 		p.followIn.Focus()
 	default:

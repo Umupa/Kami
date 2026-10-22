@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -101,6 +102,7 @@ func TestNewNoteAndList(t *testing.T) {
 	if !h.p.notes.listOpen || !h.tt.Focused("搜索笔记") {
 		t.Fatal("Cmd-P did not open the list with the search focused")
 	}
+	h.snapshot("notes-browse")
 	h.tt.Type("提交")
 	h.drain()
 	rows, create := h.p.listRows()
@@ -195,5 +197,126 @@ func TestCmdClickOpensLink(t *testing.T) {
 	h.drain()
 	if opened != "https://example.com/x" {
 		t.Errorf("opened %q", opened)
+	}
+}
+
+func TestListLeavesTheNoteAlone(t *testing.T) {
+	h := newHarness(t, script{})
+	h.enterNotes()
+	h.tt.Type("第一张")
+	h.tt.Key(ui.Cmd, ui.KeyN)
+	h.tt.Type("第二张\n正文")
+	h.drain()
+	caret := h.p.notes.carets[h.p.notes.cur]
+	height := h.p.panelH
+
+	h.tt.Key(ui.Cmd, ui.KeyP)
+	h.drain()
+	if !h.tt.HasText("当前笔记") || !h.tt.HasText("正文") {
+		t.Errorf("the open note is not marked, or no summary: %q", h.tt.Texts())
+	}
+	h.tt.Key(0, ui.KeyDown)
+	h.tt.Frame()
+	h.tt.Frame()
+	if !strings.HasPrefix(h.p.notes.text, "第二张") || h.p.panelH != height {
+		t.Errorf("choosing a row changed the note to %q or the panel from %v to %v", h.p.notes.text, height, h.p.panelH)
+	}
+	if m, _ := h.p.chosenNote(); m.Text != "第一张" || !h.tt.HasText("笔记预览") {
+		t.Errorf("chose %q; the preview shows %v", m.Text, h.tt.HasText("笔记预览"))
+	}
+	h.snapshot("notes-preview")
+	h.tt.Key(0, ui.KeyEscape)
+	h.drain()
+	if h.p.notes.listOpen || !h.tt.Focused("笔记") || h.p.notes.carets[h.p.notes.cur] != caret {
+		t.Errorf("after Esc: open %v, note focused %v, caret %d want %d",
+			h.p.notes.listOpen, h.tt.Focused("笔记"), h.p.notes.carets[h.p.notes.cur], caret)
+	}
+
+	h.tt.Key(ui.Cmd, ui.KeyP)
+	h.drain()
+	h.tt.Key(0, ui.KeyTab)
+	h.drain()
+	if h.p.notes.listOpen || h.p.noteMode() {
+		t.Errorf("Tab in the list: open %v, still in notes %v", h.p.notes.listOpen, h.p.noteMode())
+	}
+}
+
+func TestPreviewRightAfterOpeningANote(t *testing.T) {
+	h := newHarness(t, script{})
+	h.enterNotes()
+	h.tt.Type("第一张")
+	h.tt.Key(ui.Cmd, ui.KeyN)
+	h.tt.Type("第二张")
+	h.drain()
+	height := h.p.panelH
+	// Opening a note from the list makes its editor anew; the list opened
+	// again at once must not take that editor's height before it is laid
+	// out.
+	check := func(when string) {
+		t.Helper()
+		h.tt.Frame()
+		if h.p.panelH != height {
+			t.Fatalf("%s: panel %v high, want %v", when, h.p.panelH, height)
+		}
+	}
+	for range 3 {
+		h.tt.Key(ui.Cmd, ui.KeyP)
+		h.tt.Key(0, ui.KeyDown)
+		h.tt.Key(0, ui.KeyEnter)
+		h.tt.Key(ui.Cmd, ui.KeyP)
+		h.tt.Key(0, ui.KeyDown)
+		check("previewing right after opening a note")
+		// Back on the open note, its editor is made anew, then away again.
+		h.tt.Key(0, ui.KeyUp)
+		h.tt.Key(0, ui.KeyDown)
+		check("previewing right after the open note was chosen")
+		// Before the editor was ever measured, a preview still has its
+		// lines rather than none.
+		h.p.notes.editorH = 0
+		check("previewing before the editor was measured")
+		h.tt.Key(0, ui.KeyEscape)
+		h.tt.Frame()
+	}
+}
+
+func TestListInAShortPanel(t *testing.T) {
+	h := newHarness(t, script{})
+	h.enterNotes()
+	h.tt.Type("负载均衡流水线需求\n负载均衡有 3 个独立 worktree")
+	h.tt.Key(ui.Cmd, ui.KeyN)
+	h.tt.Type("PG接入需求\n四个仓库现在统一使用本地分支")
+	h.tt.Key(ui.Cmd, ui.KeyN)
+	h.tt.Type("docker tag registry.gz.cvte.cn/oma/managed-agent-sandbox:8ec80c34d892d68a64e908554c6ab2be38077d16 myou-registry.cvte.com/oma/managed-agent-sandbox:8ec80c34d892d68a64e908554c6ab2be38077d16")
+	h.drain()
+	h.p.fixedHeight = 257
+	h.tt.Key(ui.Cmd, ui.KeyP)
+	h.drain()
+	h.tt.Frame()
+	dot, ok := h.tt.Find("当前笔记")
+	if !ok {
+		t.Fatal("no dot on the open note")
+	}
+	when, _ := h.tt.Find("刚刚") // of the first row
+	if dot.X+dot.W > when.X || dot.Y > when.Y+when.H || when.Y < dot.Y-when.H {
+		t.Errorf("the dot is at %v, the time at %v: a long title pushed them apart", dot, when)
+	}
+	h.snapshot("notes-list-short")
+}
+
+func TestDayGroup(t *testing.T) {
+	now := time.Date(2026, 10, 22, 9, 30, 0, 0, time.Local)
+	for _, c := range []struct {
+		t          time.Time
+		group, row string
+	}{
+		{now.Add(-time.Minute * 5), "今天", "5 分钟前"},
+		{time.Date(2026, 10, 22, 0, 10, 0, 0, time.Local), "今天", "00:10"},
+		{time.Date(2026, 10, 21, 23, 50, 0, 0, time.Local), "昨天", "23:50"},
+		{time.Date(2026, 10, 16, 8, 0, 0, 0, time.Local), "最近 7 天", "10月16日"},
+		{time.Date(2026, 10, 15, 8, 0, 0, 0, time.Local), "更早", "10月15日"},
+	} {
+		if g, r := dayGroup(c.t, now), rowTime(c.t, now); g != c.group || r != c.row {
+			t.Errorf("%v: %s, %s; want %s, %s", c.t, g, r, c.group, c.row)
+		}
 	}
 }

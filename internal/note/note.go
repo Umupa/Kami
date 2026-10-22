@@ -176,6 +176,23 @@ func Title(text string) string {
 	return ""
 }
 
+// Summary is the first line with text after the title, trimmed: what the
+// list shows under a title to tell notes apart.
+func Summary(text string) string {
+	titled := false
+	for line := range strings.Lines(text) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if titled {
+			return line
+		}
+		titled = Title(line) != ""
+	}
+	return ""
+}
+
 // Match is a note that has what was searched for.
 type Match struct {
 	Note

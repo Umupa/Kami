@@ -498,7 +498,7 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int, visible bo
 			ui.Text(c, strings.Join(notes, " · ")).FontSize(p.sz.Caption).TextColor(pal.Faint)
 		}
 		if last && p.stale() {
-			ui.Text(c, "原文或模式已改 ⏎ 重新执行").FontSize(p.sz.Caption).TextColor(pal.Sparkle).MarginStart(8)
+			ui.Text(c, "原文已改").FontSize(p.sz.Caption).TextColor(pal.Sparkle).MarginStart(8)
 		}
 		ui.Spacer(c)
 		if t.Status == session.Streaming || t.Reply == "" {
@@ -604,7 +604,7 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 		}
 		ui.Text(c, "❯").FontSize(p.sz.Body).FontWeight(700).TextColor(prompt)
 		in := ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
-			Lines(1, 4).Placeholder(p.followPlaceholder()).Label("追问").
+			Lines(1, 4).Placeholder("追问…").Label("追问").
 			FontSize(p.sz.Body).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
 			OnTextKey(func(k ui.TextKey) bool {
 				switch {
@@ -623,15 +623,7 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 		start, end := in.TextSelection()
 		p.followSelected = start != end
 		p.kbd(c, pal, "⌘J", "切换")
-		p.kbd(c, pal, "⏎", "发送")
 	})
-}
-
-func (p *Panel) followPlaceholder() string {
-	if p.sess != nil && p.sess.Operator {
-		return "继续让 Operator 查看或修改设置…"
-	}
-	return "追问…"
 }
 
 // copyTurn copies a turn's reply as Markdown; -1 is the latest turn.
