@@ -1,6 +1,6 @@
-# Gloss
+# Kami
 
-项目与应用统一命名为 **Gloss**，仓库：[Umupa/Gloss](https://github.com/Umupa/Gloss)。
+完整产品名为 **Kami · 墨**，项目与应用使用 **Kami**。Kami 意为纸，与「墨」共同表达纸与文字的意象。仓库：[Umupa/Kami](https://github.com/Umupa/Kami)。
 
 我自己的桌面 AI 工具箱：一个常驻菜单栏的 macOS 原生应用。⌥空格打开面板，双击 ⌥ 带着选中的文字打开，⌥S 截图识别文字；用自己配置的大模型完成翻译、润色（杂乱时顺带整理）、提示词梳理和快速问答，结果以 Markdown 流式呈现，可以继续追问。
 
@@ -10,7 +10,7 @@
 
 一期功能已实现，等待统一实测：面板与多轮对话、四个内置模式、三种模型格式、带入选区、截图识别、Operator（在面板里输入 `/operator` 查看和修改设置）、配置接口（`config.json` + `check`）。
 
-构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/Gloss.app`。没有固定签名时构建直接失败，避免重新构建后陷入系统权限反复申请；仅需临时产物时可显式运行 `scripts/build.sh --ad-hoc`，该产物的权限不保证在重建后保留。
+构建：先运行一次 `scripts/dev-cert.sh` 创建本机签名身份，之后 `scripts/build.sh`，产物在 `build/darwin-arm64/Kami.app`。没有固定签名时构建直接失败，避免重新构建后陷入系统权限反复申请；仅需临时产物时可显式运行 `scripts/build.sh --ad-hoc`，该产物的权限不保证在重建后保留。
 
 ## 文档
 

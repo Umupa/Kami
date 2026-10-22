@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/design"
-	"github.com/Umupa/Gloss/internal/note"
+	"github.com/Umupa/Kami/internal/design"
+	"github.com/Umupa/Kami/internal/note"
 )
 
 // Notes mode is the last tab of the mode bar: scratch notes, saved as they

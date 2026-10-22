@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Kami/internal/llm"
 )
 
 // SendPart streams the reply to one part of a source.

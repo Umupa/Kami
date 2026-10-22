@@ -11,7 +11,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 // Result is what a capture found.
@@ -141,7 +141,7 @@ func (c *Capturer) Start() {
 func (c *Capturer) show() error {
 	if c.win == nil {
 		c.win = mygo.NewWindow(mygo.WindowOptions{
-			Title: "Gloss 截图", Panel: true, Hidden: true, Frameless: true,
+			Title: "Kami 截图", Panel: true, Hidden: true, Frameless: true,
 			AlwaysOnTop: true, DisableResize: true, DisableMinimize: true,
 			DisableMaximize: true, DisableFullScreen: true, DisableShadow: true,
 			Content: ui.View(c.view),

@@ -1,6 +1,6 @@
 {
-  "name": "Gloss",
-  "identifier": "dev.umupa.gloss",
+  "name": "Kami",
+  "identifier": "dev.umupa.kami",
   "version": "0.1.0",
   "out": "build",
   "macos": {

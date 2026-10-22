@@ -10,10 +10,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/mode"
 
-	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Kami/internal/llm"
 )
 
 // Exit codes distinguish invalid configuration from a failed service check.
@@ -64,7 +64,7 @@ func Run(env *Env, args []string) int {
 	return cmd(env, args[1:])
 }
 
-const usage = `用法：Gloss <命令> [参数]
+const usage = `用法：Kami <命令> [参数]
 
 设置都在 config.json 里，直接编辑即可，保存后正在运行的应用立即生效。
 字段说明见同目录的 config.schema.json。

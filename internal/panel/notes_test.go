@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/design"
+	"github.com/Umupa/Kami/internal/design"
 )
 
 // noteFiles reads the harness's notes directory, by file name.

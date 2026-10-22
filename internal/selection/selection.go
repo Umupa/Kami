@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 // System is what reading a selection takes from macOS.

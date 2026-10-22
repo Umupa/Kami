@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 const fakePlainTextType = "public.utf8-plain-text"

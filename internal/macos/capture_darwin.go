@@ -299,7 +299,7 @@ func warmUpImage() *Image {
 		attrs := send(class("NSMutableDictionary"), "dictionary")
 		send(attrs, "setObject:forKey:", send(class("NSFont"), "systemFontOfSize:", float64(28)), nsString("NSFont"))
 		send(attrs, "setObject:forKey:", send(class("NSColor"), "blackColor"), nsString("NSColor"))
-		send(nsString("截图翻译 Gloss"), "drawAtPoint:withAttributes:", struct{ X, Y float64 }{16, 20}, attrs)
+		send(nsString("截图翻译 Kami"), "drawAtPoint:withAttributes:", struct{ X, Y float64 }{16, 20}, attrs)
 		ref := uintptr(send(rep, "CGImage"))
 		if ref != 0 {
 			img = &Image{ref: cgImageRetain(ref), W: 480, H: 64}

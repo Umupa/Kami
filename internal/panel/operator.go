@@ -8,11 +8,11 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/design"
-	"github.com/Umupa/Gloss/internal/mode"
-	"github.com/Umupa/Gloss/internal/operator"
-	"github.com/Umupa/Gloss/internal/session"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
+	"github.com/Umupa/Kami/internal/mode"
+	"github.com/Umupa/Kami/internal/operator"
+	"github.com/Umupa/Kami/internal/session"
 )
 
 // Operator is what operator mode needs from the app.

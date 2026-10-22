@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/llm"
 )
 
 // checkTimeout bounds one model's check.
@@ -36,7 +36,7 @@ type checkFail struct {
 // runCheck validates config.json, then sends each model, or the one named, a
 // small request: the user's configuration works when every model answers.
 func runCheck(env *Env, args []string) int {
-	fs := flag.NewFlagSet("Gloss check", flag.ContinueOnError)
+	fs := flag.NewFlagSet("Kami check", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	verbose := fs.Bool("verbose", false, "")
 	jsonOut := fs.Bool("json", false, "")
@@ -44,7 +44,7 @@ func runCheck(env *Env, args []string) int {
 	rest := args
 	for {
 		if err := fs.Parse(rest); err != nil {
-			fmt.Fprintln(env.Stderr, "用法：Gloss check [模型名] [--verbose] [--json]")
+			fmt.Fprintln(env.Stderr, "用法：Kami check [模型名] [--verbose] [--json]")
 			return ExitUsage
 		}
 		if rest = fs.Args(); len(rest) == 0 {

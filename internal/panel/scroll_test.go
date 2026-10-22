@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/session"
+	"github.com/Umupa/Kami/internal/session"
 )
 
 func TestConversationHoverKeepsPosition(t *testing.T) {

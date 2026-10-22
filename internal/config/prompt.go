@@ -27,7 +27,7 @@ func AgentPrompt(in PromptInput) string {
 	var b strings.Builder
 	w := func(format string, args ...any) { fmt.Fprintf(&b, format, args...) }
 
-	w("请帮我配置 Gloss 使用的大模型服务。Gloss 是一个 macOS 菜单栏应用，你需要能在这台 Mac 上运行命令。\n\n")
+	w("请帮我配置 Kami 使用的大模型服务。Kami 是一个 macOS 菜单栏应用，你需要能在这台 Mac 上运行命令。\n\n")
 	w("## 怎么配置\n\n")
 	w("- 设置都在 %s，每个字段的含义、取值和示例在 %s：先读 schema，再直接编辑 config.json。保存后正在运行的应用立即生效；文件不合法时，应用继续用上一份合法配置。\n", cfgPath, schemaPath)
 	w("- API Key 写在对应模型的 apiKey 字段里。需要时向我要 Key；不要在回复里复述 Key，也不要把它写到 config.json 以外的地方。已经配置过的 Key 不用再要。\n")

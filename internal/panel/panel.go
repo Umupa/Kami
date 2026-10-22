@@ -15,13 +15,13 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/design"
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/mode"
-	"github.com/Umupa/Gloss/internal/operator"
-	"github.com/Umupa/Gloss/internal/segment"
-	"github.com/Umupa/Gloss/internal/session"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/mode"
+	"github.com/Umupa/Kami/internal/operator"
+	"github.com/Umupa/Kami/internal/segment"
+	"github.com/Umupa/Kami/internal/session"
 )
 
 // Deps are what the panel works with.
@@ -152,7 +152,7 @@ const initialHeight = 110
 func New(d Deps) *Panel {
 	p := newPanel(d)
 	p.win = mygo.NewWindow(mygo.WindowOptions{
-		Title:             "Gloss",
+		Title:             "Kami",
 		Panel:             true,
 		Hidden:            true,
 		Frameless:         true,

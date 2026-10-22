@@ -8,10 +8,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/operator"
-	"github.com/Umupa/Gloss/internal/session"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/operator"
+	"github.com/Umupa/Kami/internal/session"
 )
 
 // operatorHarness records what operator mode asks of the app.
@@ -77,7 +77,7 @@ func TestOperatorAloneShowsGuide(t *testing.T) {
 }
 
 func TestOperatorAppliesPlanAndUndoes(t *testing.T) {
-	reply := "好的，截图识别改成 ⌥S。\n```gloss-operator\n{\"ops\":[{\"path\":\"shortcuts.capture\",\"value\":\"option+s\"}],\"actions\":[\"copy-agent-prompt\"]}\n```\n"
+	reply := "好的，截图识别改成 ⌥S。\n```kami-operator\n{\"ops\":[{\"path\":\"shortcuts.capture\",\"value\":\"option+s\"}],\"actions\":[\"copy-agent-prompt\"]}\n```\n"
 	oh := newOperatorHarness(t, reply)
 	oh.tt.Frame()
 	oh.tt.Click("原文")
@@ -86,7 +86,7 @@ func TestOperatorAppliesPlanAndUndoes(t *testing.T) {
 	oh.drain()
 
 	turn := oh.p.sess.Last()
-	if !strings.Contains(oh.system, "operator of Gloss") {
+	if !strings.Contains(oh.system, "operator of Kami") {
 		t.Error("the request did not carry the operator prompt")
 	}
 	if oh.p.sess.Turns[0].Ask != "截图识别改成 ⌥S" {
@@ -95,7 +95,7 @@ func TestOperatorAppliesPlanAndUndoes(t *testing.T) {
 	if len(oh.applied) != 1 || oh.applied[0][0].Path != "shortcuts.capture" || len(oh.actions) != 1 {
 		t.Fatalf("applied %v, actions %v", oh.applied, oh.actions)
 	}
-	if strings.Contains(turn.Reply, "gloss-operator") || !strings.Contains(turn.Reply, "已修改") || !turn.Undoable {
+	if strings.Contains(turn.Reply, "kami-operator") || !strings.Contains(turn.Reply, "已修改") || !turn.Undoable {
 		t.Errorf("reply %q, undoable %v", turn.Reply, turn.Undoable)
 	}
 	oh.tt.Advance(time.Second)
@@ -122,7 +122,7 @@ func TestOperatorFollowUpsStayInOperator(t *testing.T) {
 	oh.tt.Type("那模型呢")
 	oh.tt.Key(0, ui.KeyEnter)
 	oh.drain()
-	if !strings.Contains(oh.system, "operator of Gloss") || oh.p.sess.Last().Status != session.Done {
+	if !strings.Contains(oh.system, "operator of Kami") || oh.p.sess.Last().Status != session.Done {
 		t.Error("a follow-up left operator mode")
 	}
 	if len(oh.applied) != 0 {
@@ -131,7 +131,7 @@ func TestOperatorFollowUpsStayInOperator(t *testing.T) {
 }
 
 func TestOperatorBlockHiddenWhileStreaming(t *testing.T) {
-	for _, in := range []string{"改好了。\n``", "改好了。\n```gloss-op", "改好了。\n```gloss-operator\n{\"ops\":"} {
+	for _, in := range []string{"改好了。\n``", "改好了。\n```kami-op", "改好了。\n```kami-operator\n{\"ops\":"} {
 		if got := operator.Visible(in); got != "改好了。" {
 			t.Errorf("Visible(%q) = %q", in, got)
 		}

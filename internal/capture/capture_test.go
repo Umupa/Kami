@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 // picker returns a Capturer showing a frozen "screen" rendered offscreen, at

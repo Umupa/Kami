@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 // Timeouts of a request. A reply may take long to finish, but never goes

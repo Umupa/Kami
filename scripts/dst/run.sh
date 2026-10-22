@@ -27,7 +27,7 @@ Rules for this task:
 - Do not launch the app, send synthetic input, capture the screen or write the system clipboard.
 - Do not read or write outside this repository except the Go module cache and build cache.
 - Before finishing, run gofmt -l ., go vet ./..., go test ./... and fix what fails.
-  Your sandbox cannot write the default Go build cache: export GOCACHE="$TMPDIR/gloss-go-build-cache" first.
+  Your sandbox cannot write the default Go build cache: export GOCACHE="$TMPDIR/kami-go-build-cache" first.
 - End with: files changed, what you verified (with command results), open questions.
 
 Task:

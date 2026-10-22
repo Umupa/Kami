@@ -4,8 +4,8 @@
 package session
 
 import (
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/mode"
 )
 
 // Status is the state of a turn.

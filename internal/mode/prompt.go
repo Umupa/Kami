@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 // The built-in prompts say what a mode does. How the input is to be read,

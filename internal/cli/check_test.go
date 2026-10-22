@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/llm"
 )
 
 // checkTestAlphaConfig returns a config.json with one alpha model. apiKey is

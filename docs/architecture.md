@@ -5,7 +5,7 @@
 ## 一、模块
 
 ```
-Gloss/
+Kami/
 ├── main.go                 入口：有子命令（key、check）时走命令行，否则启动应用
 ├── internal/
 │   ├── app/                应用编排：生命周期、菜单栏、全局快捷键、各入口的调度
@@ -159,7 +159,7 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
 配置的主要使用者是 agent：它读 schema、改文件、写 Key、跑检查，直到通过。
 
 ```
-~/Library/Application Support/Gloss/
+~/Library/Application Support/Kami/
 ├── config.json          全部设置，带 "$schema" 指向旁边的 schema
 └── config.schema.json   每次启动由应用写出，与当前版本一致
 ```
@@ -201,7 +201,7 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
                                               ─► 写入 config.json，记下改前的文件供撤销 ─► 回复末尾附上改前 → 改后
 ```
 
-- 改动块是回复末尾的一个 ` ```gloss-operator ` 代码块：`{"ops": [{"path", "value"}], "actions": [...]}`。路径同 Problem 的路径；`null` 删除。动作：`copy-agent-prompt`、`open-permission:<accessibility|input-monitoring|screen-recording>`。
+- 改动块是回复末尾的一个 ` ```kami-operator ` 代码块：`{"ops": [{"path", "value"}], "actions": [...]}`。路径同 Problem 的路径；`null` 删除。动作：`copy-agent-prompt`、`open-permission:<accessibility|input-monitoring|screen-recording>`。
 - 撤销只保留上一次修改前的文件；再改一次就以新的为准。
 - 视觉：命令着色与光扫（900ms）、模式条的「Operator ×」、发送时的星星（3.2s）都用 MyGo 的文本区间、元素和画笔完成，不引入新的窗口或组件；「减弱动态效果」时关闭。
 
@@ -210,7 +210,7 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
 需求见 F12。笔记不走模型管线，和会话互不相关。
 
 - `note` 包只管文件：列出目录、读、原子写（临时文件 + rename）、移到废纸篓（经 `internal/macos` 调 `NSFileManager trashItemAtURL:`）、取标题、按标题与正文搜索。它不依赖 UI，用临时目录测试。
-- 目录来自配置的 `notesDir`，默认 `~/Library/Application Support/Gloss/notes/`；配置热加载改了目录时，下次切到笔记就用新目录。
+- 目录来自配置的 `notesDir`，默认 `~/Library/Application Support/Kami/notes/`；配置热加载改了目录时，下次切到笔记就用新目录。
 - 不维护索引文件：列表每次打开时读目录，按文件修改时间排序，「上次编辑的那张」就是修改时间最新的那张。光标与滚动位置只在内存里。
 - 笔记模式是 `modeIdx == len(modes)`：模式条在各模式之后多一个「笔记」，Tab 循环包括它。编辑区是独立的文本框，按笔记文件名取 key，每张笔记有自己的撤销历史；着色来自 `note.Highlight`，只设颜色与字重，不改文字。自动保存的 500ms 延迟用一次性的计时器，不常驻；切出笔记、换笔记、隐藏面板和退出时立即保存。
 - 列表读目录在后台 goroutine 上进行，结果回到主线程；写入很小，在主线程上直接做。移到废纸篓经 `macos.Trash`（`NSFileManager trashItemAtURL:`，3 秒超时）。

@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/mode"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/mode"
 )
 
 func TestNew(t *testing.T) {

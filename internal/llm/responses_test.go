@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 func TestResponsesRequest(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Kami/internal/llm"
 )
 
 func TestEstimateTokens(t *testing.T) {

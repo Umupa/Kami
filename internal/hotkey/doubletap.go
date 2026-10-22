@@ -3,7 +3,7 @@ package hotkey
 import (
 	"time"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 // DoubleTapWindow is how quickly a double tap is made, from the first press

@@ -1,4 +1,4 @@
-module github.com/Umupa/Gloss
+module github.com/Umupa/Kami
 
 go 1.27.2
 

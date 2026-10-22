@@ -10,7 +10,7 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 func lifecycle(t *testing.T) (*Capturer, chan func(), chan Result) {

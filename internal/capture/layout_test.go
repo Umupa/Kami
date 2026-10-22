@@ -3,7 +3,7 @@ package capture
 import (
 	"testing"
 
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 func TestRecognizedParagraphsMatchCida(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Umupa/Gloss/internal/llm"
+	"github.com/Umupa/Kami/internal/llm"
 )
 
 // messageOverhead is the per-message cost of roles and framing that chat

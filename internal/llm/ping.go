@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 // Ping sends a model a one-word translation, the smallest request that shows

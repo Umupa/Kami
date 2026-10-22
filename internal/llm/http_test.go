@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 type capturedRequest struct {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 // Binding is a shortcut and what it does.

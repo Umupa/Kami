@@ -15,15 +15,15 @@ import (
 	// MyGo's own strings in Simplified Chinese.
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 
-	"github.com/Umupa/Gloss/internal/capture"
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/design"
-	"github.com/Umupa/Gloss/internal/hotkey"
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/macos"
-	"github.com/Umupa/Gloss/internal/mode"
-	"github.com/Umupa/Gloss/internal/panel"
-	"github.com/Umupa/Gloss/internal/selection"
+	"github.com/Umupa/Kami/internal/capture"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
+	"github.com/Umupa/Kami/internal/hotkey"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/macos"
+	"github.com/Umupa/Kami/internal/mode"
+	"github.com/Umupa/Kami/internal/panel"
+	"github.com/Umupa/Kami/internal/selection"
 )
 
 // app is the running application. Menu and tray methods are safe from any
@@ -133,12 +133,12 @@ func (a *app) ready(ctx context.Context) {
 		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
 		{Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
 		mygo.Separator(),
-		{Label: "退出 Gloss", Role: mygo.RoleQuit},
+		{Label: "退出 Kami", Role: mygo.RoleQuit},
 	})
 	tray, err := mygo.NewTray(mygo.TrayOptions{
 		Icon:           trayIcon(false),
 		IconIsTemplate: true,
-		ToolTip:        "Gloss",
+		ToolTip:        "Kami",
 		Menu:           a.menu,
 	})
 	if err != nil {
@@ -243,7 +243,7 @@ func (a *app) importSelection() {
 		// Without Accessibility there is no selection to read; macOS shows
 		// the way to grant it.
 		macos.RequestAXTrust()
-		a.panel.Notify("带入选中的文字需要「辅助功能」权限：在系统设置里允许 Gloss。")
+		a.panel.Notify("带入选中的文字需要「辅助功能」权限：在系统设置里允许 Kami。")
 		return
 	}
 	if a.clipboard == nil {
@@ -328,7 +328,7 @@ func (a *app) showSnapshot(s config.Snapshot) {
 	if s.Err == nil {
 		item.SetVisible(false)
 		sep.SetVisible(false)
-		a.tray.SetToolTip("Gloss")
+		a.tray.SetToolTip("Kami")
 		return
 	}
 	label := "配置有误，沿用上一份配置"
@@ -342,7 +342,7 @@ func (a *app) showSnapshot(s config.Snapshot) {
 	item.SetLabel(label)
 	item.SetVisible(true)
 	sep.SetVisible(true)
-	a.tray.SetToolTip("Gloss\n" + s.Err.Error())
+	a.tray.SetToolTip("Kami\n" + s.Err.Error())
 }
 
 func (a *app) logSnapshot(s config.Snapshot) {

@@ -6,7 +6,7 @@ package llm
 import (
 	"context"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 // Role is who wrote a message.

@@ -3,7 +3,7 @@ package selection
 import (
 	"time"
 
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 // macSystem is System on the running Mac.

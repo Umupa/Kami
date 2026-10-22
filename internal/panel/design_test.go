@@ -6,10 +6,10 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
-const designReply = "## 会议纪要\n\n今天讨论了**三件事**，配置文件在 `~/Library/Application Support/Gloss/config.json`，详见[文档](https://example.com)。\n\n" +
+const designReply = "## 会议纪要\n\n今天讨论了**三件事**，配置文件在 `~/Library/Application Support/Kami/config.json`，详见[文档](https://example.com)。\n\n" +
 	"| 事项 | 负责人 | 截止 |\n|---|---|---|\n| 面板改版 | 我 | 周五 |\n| Operator | Claude | 已完成 |\n\n" +
 	"1. 先读配置\n2. 再改快捷键\n   - 截图改成 `option+s`\n\n" +
 	"```go\nfunc main() {\n\t// 打个招呼\n\tfmt.Println(\"hello\", 42)\n}\n```\n\n" +

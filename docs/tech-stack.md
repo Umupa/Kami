@@ -108,11 +108,11 @@ MyGo 内部有自己的 Objective-C 封装，但在 `internal/` 里，不能引�
 
 | 数据 | 存放 | 格式 |
 | --- | --- | --- |
-| 模型配置（不含 Key）、模式、快捷键、我的语言、外语、开机启动 | `~/Library/Application Support/Gloss/config.json` | JSON，带版本号与 `$schema`，原子写入（临时文件 + rename） |
+| 模型配置（不含 Key）、模式、快捷键、我的语言、外语、开机启动 | `~/Library/Application Support/Kami/config.json` | JSON，带版本号与 `$schema`，原子写入（临时文件 + rename） |
 | 配置说明 | 同目录 `config.schema.json` | JSON Schema，应用启动时写出 |
 | API Key | 同 `config.json`，每个模型的 `apiKey` | 文件权限 0600 |
 | 会话、原文、结果 | **只在内存** | 不落盘 |
-| 日志 | `~/Library/Logs/Gloss/`，`log/slog` 文本格式 | 只记事件与耗时，不记文字 |
+| 日志 | `~/Library/Logs/Kami/`，`log/slog` 文本格式 | 只记事件与耗时，不记文字 |
 
 agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后立即生效；命令行只负责检查（architecture.md §七）。
 
@@ -133,7 +133,7 @@ agent 直接编辑 `config.json`，应用用 MyGo 的文件监听发现变化后
 
 | 阶段 | 做法 |
 | --- | --- |
-| 自用（现在） | 运行一次 `scripts/dev-cert.sh` 创建本机 `Gloss Dev` 代码签名身份，`scripts/build.sh` 通过 `-sign` 使用它。缺少该身份时停止构建；临时产物须显式传 `--ad-hoc`。签名身份稳定后重建可保留授权；由旧临时签名迁入时需移除并重新添加 Gloss 自身的旧授权条目 |
+| 自用（现在） | 运行一次 `scripts/dev-cert.sh` 创建本机 `Kami Dev` 代码签名身份，`scripts/build.sh` 通过 `-sign` 使用它。缺少该身份时停止构建；临时产物须显式传 `--ad-hoc`。签名身份稳定后重建可保留授权；由旧临时签名迁入时需移除并重新添加 Kami 自身的旧授权条目 |
 | CI | GitHub Actions：`go vet`、`go test`、`go tool mygo vet`、构建 |
 
 ## 九、风险与退路

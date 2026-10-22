@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Umupa/Gloss/internal/config"
+	"github.com/Umupa/Kami/internal/config"
 )
 
 func TestThemesMatchConfig(t *testing.T) {

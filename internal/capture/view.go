@@ -6,8 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/design"
-	"github.com/Umupa/Gloss/internal/macos"
+	"github.com/Umupa/Kami/internal/design"
+	"github.com/Umupa/Kami/internal/macos"
 )
 
 type selection struct {
@@ -96,7 +96,7 @@ func (c *Capturer) view(ctx *ui.Context) {
 	})
 	// The label never consumes a press; its entire area belongs to the canvas.
 	fill, text, border, contact, ambient := design.CaptureHint(ctx.Theme().Dark)
-	label := "Gloss  │  " + captureHint
+	label := "Kami  │  " + captureHint
 	tw, th := ctx.MeasureText(0, ui.Span{Text: label, Size: design.CaptureHintSize})
 	hw, hh := tw+32, max(float32(design.CaptureHintHeight), th+16)
 	y := float32(c.display.WorkArea.Y-c.display.Bounds.Y) + float32(math.Floor(float64(c.display.WorkArea.Height)*design.PanelTopRatio))

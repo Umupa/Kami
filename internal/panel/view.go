@@ -14,12 +14,12 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/egoist/mygo/ui/markdown/parser"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/design"
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/operator"
-	"github.com/Umupa/Gloss/internal/plaintext"
-	"github.com/Umupa/Gloss/internal/session"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/operator"
+	"github.com/Umupa/Kami/internal/plaintext"
+	"github.com/Umupa/Kami/internal/session"
 )
 
 func (p *Panel) view(c *ui.Context) {

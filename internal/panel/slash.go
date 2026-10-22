@@ -5,9 +5,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/design"
-	"github.com/Umupa/Gloss/internal/operator"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/design"
+	"github.com/Umupa/Kami/internal/operator"
 )
 
 // A menu shows under the source while a command is typed, as monocode's
@@ -80,7 +80,7 @@ func (p *Panel) menuItems(pal *design.Palette) (menuKind, []item) {
 }
 
 func (p *Panel) commandItems(query string, pal *design.Palette) []item {
-	all := []item{{key: "/operator", title: "Operator", desc: "用一句话查看或修改 Gloss 的设置", color: pal.Operator,
+	all := []item{{key: "/operator", title: "Operator", desc: "用一句话查看或修改 Kami 的设置", color: pal.Operator,
 		take: func(p *Panel, set func(string)) { set(operator.Command + " "); p.caretToEnd = true }},
 		{key: themeCommand, title: "主题", desc: "切换配色主题",
 			take: func(p *Panel, set func(string)) { set(themeCommand + " "); p.caretToEnd = true }}}

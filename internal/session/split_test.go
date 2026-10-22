@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/segment"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/segment"
 )
 
 var errTooLong = &llm.Error{Kind: llm.KindTooLong, Detail: "too long"}

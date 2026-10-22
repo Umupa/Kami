@@ -15,13 +15,13 @@ func TestAgentPromptQuotesExecutable(t *testing.T) {
 	}{
 		{
 			name:       "space",
-			exe:        "/Applications/My Apps/Gloss",
-			wantQuoted: `'/Applications/My Apps/Gloss'`,
+			exe:        "/Applications/My Apps/Kami",
+			wantQuoted: `'/Applications/My Apps/Kami'`,
 		},
 		{
 			name:       "single quote",
-			exe:        "/Applications/O'Brien/Gloss",
-			wantQuoted: `'/Applications/O'\''Brien/Gloss'`,
+			exe:        "/Applications/O'Brien/Kami",
+			wantQuoted: `'/Applications/O'\''Brien/Kami'`,
 		},
 	}
 	for _, tc := range cases {
@@ -76,7 +76,7 @@ func TestAgentPromptModelSummary(t *testing.T) {
 		},
 	}}
 	prompt := AgentPrompt(PromptInput{
-		Exe:      "/bin/Gloss",
+		Exe:      "/bin/Kami",
 		Dir:      t.TempDir(),
 		Snapshot: Snapshot{Config: cfg},
 	})
@@ -99,7 +99,7 @@ func TestAgentPromptModelSummary(t *testing.T) {
 func TestAgentPromptTask(t *testing.T) {
 	t.Run("no models", func(t *testing.T) {
 		prompt := AgentPrompt(PromptInput{
-			Exe:      "/bin/Gloss",
+			Exe:      "/bin/Kami",
 			Dir:      t.TempDir(),
 			Snapshot: Snapshot{Config: &Config{Version: Version}},
 		})
@@ -117,7 +117,7 @@ func TestAgentPromptTask(t *testing.T) {
 			{Path: "modes[0].name", Message: "自定义模式必须写名字"},
 		}}
 		prompt := AgentPrompt(PromptInput{
-			Exe:      "/bin/Gloss",
+			Exe:      "/bin/Kami",
 			Dir:      t.TempDir(),
 			Snapshot: Snapshot{Config: &Config{Version: Version}, Err: err},
 		})
@@ -144,7 +144,7 @@ func TestAgentPromptTask(t *testing.T) {
 			Models:  []Model{{Name: "fast", Format: FormatChatCompletions, Model: "gpt-fast"}},
 		}
 		prompt := AgentPrompt(PromptInput{
-			Exe:      "/bin/Gloss",
+			Exe:      "/bin/Kami",
 			Dir:      t.TempDir(),
 			Snapshot: Snapshot{Config: cfg},
 		})
@@ -189,7 +189,7 @@ func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
 		Shortcuts: Shortcuts{Panel: "secret-shortcut-value"},
 	}
 	prompt := AgentPrompt(PromptInput{
-		Exe:      "/bin/Gloss",
+		Exe:      "/bin/Kami",
 		Dir:      t.TempDir(),
 		Snapshot: Snapshot{Config: cfg},
 	})

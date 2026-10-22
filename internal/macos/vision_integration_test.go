@@ -84,7 +84,7 @@ func TestWarmupRecognizesBothScripts(t *testing.T) {
 	for _, l := range lines {
 		text += l.Text
 	}
-	if !strings.Contains(text, "截图翻译") || !strings.Contains(text, "Gloss") {
+	if !strings.Contains(text, "截图翻译") || !strings.Contains(text, "Kami") {
 		t.Fatalf("warmup text: %q", text)
 	}
 }

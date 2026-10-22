@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Umupa/Gloss/internal/config"
-	"github.com/Umupa/Gloss/internal/llm"
-	"github.com/Umupa/Gloss/internal/mode"
-	"github.com/Umupa/Gloss/internal/session"
+	"github.com/Umupa/Kami/internal/config"
+	"github.com/Umupa/Kami/internal/llm"
+	"github.com/Umupa/Kami/internal/mode"
+	"github.com/Umupa/Kami/internal/session"
 )
 
 func TestCaptureAlwaysTranslatesMaterial(t *testing.T) {
