@@ -20,6 +20,7 @@ func TestConversationHoverKeepsPosition(t *testing.T) {
 		{Ask: "Next question", Reply: strings.Repeat("More content.\n\n", 30), Status: session.Done},
 	}}
 	h.tt.Frame()
+	h.settle()
 	h.p.list.ScrollTo(0, ui.Start)
 	h.tt.Frame()
 	h.tt.Move(0, 0)
@@ -73,6 +74,7 @@ func TestMarkdownScrollPosition(t *testing.T) {
 			}
 			h.tt.Frame()
 			h.tt.Advance(2 * time.Second)
+			h.settle()
 			if turns > 1 {
 				// Cross the boundary into the previous reply under the pointer.
 				h.p.list.ScrollTo(turns-1, ui.Start)

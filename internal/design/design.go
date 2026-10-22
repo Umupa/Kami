@@ -73,6 +73,7 @@ const (
 	PanelWidth       = 800
 	PanelTopRatio    = 0.2 // of the visible height, where the top edge sits
 	PanelMaxRatio    = 0.7 // of the visible height, the tallest the panel grows
+	PanelMaxHeight   = 720 // the tallest it grows on a large display, to read without travel
 	SourceMaxRatio   = 0.3 // of the visible height, the tallest the source grows
 	ControlBarHeight = 44
 )

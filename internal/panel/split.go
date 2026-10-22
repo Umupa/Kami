@@ -1,6 +1,8 @@
 package panel
 
 import (
+	"math"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/Kami/internal/design"
@@ -13,11 +15,38 @@ type splitDrag struct {
 	startY, start float32 // the pointer's y in the window, the source's height
 }
 
-// Limits of the source's height while dragging.
-const (
-	minSource = 36
-	minResult = 120
-)
+// minResult is the room the source's divider leaves for the reply.
+const minResult = 120
+
+// panelBorder is the panel's border, inside the window's height.
+const panelBorder = 1
+
+// clampSource keeps a height the user dragged the source to within the
+// panel: what it holds, less what keeps its own height under the source and
+// room for a reply, so the divider and the bars stay in view as the window
+// is resized shorter, a reply comes or the font grows; dragging back finds
+// the divider. It is the tallest the source may be, down to a caret line.
+func (p *Panel) clampSource(h float32) float32 {
+	if p.underSource > 0 {
+		room := float32(p.place.maxHeight)
+		if p.fixedLayout() {
+			room = float32(p.fixedHeight) - 2*panelBorder
+		}
+		room -= p.underSource
+		if p.sess != nil {
+			room -= minResult
+		}
+		h = min(h, room)
+	}
+	return max(h, p.minSourceHeight())
+}
+
+// minSourceHeight leaves room for a whole caret line inside the padding;
+// a shorter viewport makes the text area alternate between revealing its
+// top and bottom on each edit. Round up to avoid fractional layout loss.
+func (p *Panel) minSourceHeight() float32 {
+	return float32(math.Ceil(float64(p.sz.Source*design.LineHeightSource + 2*design.SpaceSourceY)))
+}
 
 // splitter is the divider under the source: drag it to share the panel's
 // height between the source and the result, double-click to go back to the
@@ -53,8 +82,7 @@ func (p *Panel) splitter(c *ui.Context, pal *design.Palette) {
 			if !p.split.active {
 				return false
 			}
-			limit := float32(p.place.maxHeight) - design.ControlBarHeight - minResult
-			p.sourceHeight = max(minSource, min(p.split.start+y-p.split.startY, limit))
+			p.sourceHeight = p.clampSource(p.split.start + y - p.split.startY)
 			return true
 		case ui.InputPointerUp:
 			p.split.active = false

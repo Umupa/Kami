@@ -89,6 +89,13 @@ func newHarness(t *testing.T, client llm.Client) *harness {
 }
 
 // drain applies what was posted until the latest turn ends.
+// settle lays out a frame at the height the panel went to.
+func (h *harness) settle() {
+	h.tt.Advance(16 * time.Millisecond)
+	h.tt.Frame()
+	h.tt.Frame()
+}
+
 func (h *harness) drain() {
 	h.t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -102,6 +109,7 @@ func (h *harness) drain() {
 		}
 		h.tt.Frame()
 		if !h.p.busy() {
+			h.settle()
 			return
 		}
 		if time.Now().After(deadline) {
@@ -385,12 +393,76 @@ func TestWindowFollowsContentInTheSameFrame(t *testing.T) {
 		t.Errorf("asked for %d, the content drawn is %d: the window lags", got, want)
 	}
 
-	// It shrinks as at once when the content does.
+	// A shorter reply in the same session leaves it as tall.
+	h.settle()
+	tall := h.p.height
 	turn.Reply = "line"
 	h.sizes = nil
 	h.tt.Frame()
-	if len(h.sizes) == 0 || h.sizes[len(h.sizes)-1].Height != int(math.Ceil(float64(h.p.panelH))) {
-		t.Errorf("shrinking: asked %v for content %v", h.sizes, h.p.panelH)
+	if len(h.sizes) != 0 || h.p.height != tall {
+		t.Errorf("a shorter reply asked %v, from %d", h.sizes, tall)
+	}
+
+	// A new session shrinks it at once.
+	h.sizes = nil
+	h.tt.Key(ui.Cmd, ui.KeyN)
+	h.tt.Frame()
+	if len(h.sizes) == 0 || h.sizes[len(h.sizes)-1].Height != h.p.natural || h.p.height >= tall {
+		t.Errorf("after Cmd-N: asked %v for content %v, from %d", h.sizes, h.p.natural, tall)
+	}
+}
+
+func TestHeightGrowsOnlyInSteps(t *testing.T) {
+	release := make(chan struct{})
+	client := clientFunc(func(ctx context.Context, req llm.Request, onText func(string)) error {
+		<-release
+		return nil
+	})
+	h := newHarness(t, client)
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+
+	// Streaming in, a line at a time, the window grows a few lines at a
+	// time.
+	turn := h.p.sess.Last()
+	h.sizes = nil
+	const lines = 12
+	for range lines {
+		turn.Reply += "a line\n\n"
+		for range 4 {
+			h.tt.Advance(16 * time.Millisecond)
+			h.tt.Frame()
+		}
+	}
+	// The window goes to each new height in one step, as each resize
+	// shows a stale frame until one of the new size is drawn: it never
+	// shrinks, and asks no more than once for each line that came.
+	for i := 1; i < len(h.sizes); i++ {
+		if h.sizes[i].Height <= h.sizes[i-1].Height {
+			t.Fatalf("the window went from %d to %d: %v", h.sizes[i-1].Height, h.sizes[i].Height, h.sizes)
+		}
+	}
+	if len(h.sizes) == 0 || len(h.sizes) > lines {
+		t.Errorf("%d resizes for %d lines: %v", len(h.sizes), lines, h.sizes)
+	}
+	close(release)
+	h.drain()
+
+	// Another mode, with no result, keeps the height: the source fills it
+	// and the bar stays at the bottom.
+	tall := h.p.height
+	h.tt.Key(0, ui.KeyTab)
+	h.tt.Frame()
+	h.tt.Frame()
+	if h.p.height != tall {
+		t.Errorf("a mode with no result: %d high, was %d", h.p.height, tall)
+	}
+	bar, _ := h.tt.Find("执行")
+	if float32(tall)-(bar.Y+bar.H) > 20 {
+		t.Errorf("the bar ends at %v in a panel %d high: it should keep to the bottom", bar.Y+bar.H, tall)
 	}
 }
 
@@ -673,4 +745,128 @@ func TestConversationFollowsItsEnd(t *testing.T) {
 		t.Error("a follow-up did not go to the end")
 	}
 	h.snapshot("follow-up-end")
+}
+
+func TestFitHeight(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{"ok"}})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	if h.tt.HasText("适应内容 ⌥⌘0") {
+		t.Error("the fit button shows while the panel fits")
+	}
+	h.p.fixedHeight = 500 // as the user's resize sets it
+	h.tt.Frame()
+	if !h.tt.HasText("适应内容 ⌥⌘0") {
+		t.Fatal("no fit button after a resize")
+	}
+	h.tt.Key(ui.Cmd|ui.Alt, ui.Key0)
+	h.tt.Frame()
+	h.tt.Frame()
+	if h.p.fixedHeight != 0 || h.tt.HasText("适应内容 ⌥⌘0") || h.p.height >= 500 {
+		t.Errorf("after Option-Cmd-0: fixed %d, %d high", h.p.fixedHeight, h.p.height)
+	}
+
+	// Held taller than a shorter reply, it shows again, and fits it.
+	h.p.sess.Last().Reply = strings.Repeat("line\n\n", 12)
+	h.tt.Frame()
+	h.settle()
+	tall := h.p.height
+	h.p.sess.Last().Reply = "ok"
+	h.tt.Frame()
+	h.tt.Frame()
+	if h.p.height != tall || !h.tt.HasText("适应内容 ⌥⌘0") {
+		t.Fatalf("a shorter reply: %d high, was %d; fit button %v", h.p.height, tall, h.tt.HasText("适应内容 ⌥⌘0"))
+	}
+	h.tt.Key(ui.Cmd|ui.Alt, ui.Key0)
+	h.tt.Frame()
+	h.tt.Frame()
+	if h.p.height >= tall || h.tt.HasText("适应内容 ⌥⌘0") {
+		t.Errorf("fitting: %d high, was %d", h.p.height, tall)
+	}
+}
+
+func TestPanelHeightCap(t *testing.T) {
+	small := placeOn(mygo.Rectangle{Width: 1440, Height: 875})
+	large := placeOn(mygo.Rectangle{Width: 2560, Height: 1415})
+	if small.maxHeight != 612 || large.maxHeight != design.PanelMaxHeight {
+		t.Errorf("max heights %d and %d", small.maxHeight, large.maxHeight)
+	}
+}
+
+func TestLateResizesAreNotTheUsers(t *testing.T) {
+	release := make(chan struct{})
+	client := clientFunc(func(ctx context.Context, req llm.Request, onText func(string)) error {
+		<-release
+		return nil
+	})
+	h := newHarness(t, client)
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	h.sizes = nil
+	turn := h.p.sess.Last()
+	for range 6 {
+		turn.Reply += "a line\n\n"
+		h.tt.Advance(16 * time.Millisecond)
+		h.tt.Frame()
+	}
+	if len(h.sizes) < 3 {
+		t.Fatalf("the panel did not grow: %v", h.sizes)
+	}
+	// AppKit reports the resizes after the panel asked for later ones.
+	for _, r := range h.sizes {
+		h.p.resized(r)
+	}
+	if h.p.fixedHeight != 0 {
+		t.Errorf("a late report of the panel's own resize became the user's height, %d", h.p.fixedHeight)
+	}
+	// The user resizes once the panel has settled.
+	for i := range h.p.requested {
+		h.p.requested[i].at = h.p.requested[i].at.Add(-2 * askedWithin)
+	}
+	h.p.resized(mygo.Rectangle{Width: 800, Height: 333})
+	if h.p.fixedHeight != 333 {
+		t.Errorf("the user's resize to 333 gave %d", h.p.fixedHeight)
+	}
+	close(release)
+	h.drain()
+}
+
+func TestFollowUpStaysInALaggingWindow(t *testing.T) {
+	release := make(chan struct{})
+	client := clientFunc(func(ctx context.Context, req llm.Request, onText func(string)) error {
+		<-release
+		return nil
+	})
+	h := newHarness(t, client)
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	h.settle()
+	// The window stays as it is while the reply grows: AppKit has not
+	// resized it yet.
+	h.tt.SetSize(800, h.p.height)
+	window := h.p.height
+	turn := h.p.sess.Last()
+	for range 10 {
+		turn.Reply += "## 标题\n一行\n\n"
+		h.tt.Advance(16 * time.Millisecond)
+		h.tt.Frame()
+		f, ok := h.tt.Find("追问")
+		if !ok || f.Y+f.H > float32(window) {
+			t.Fatalf("the follow-up line is at %v, out of a window %d high", f, window)
+		}
+	}
+	if h.p.least <= window {
+		t.Errorf("the panel did not mean to grow: %d", h.p.least)
+	}
+	close(release)
+	h.drain()
 }

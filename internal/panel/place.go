@@ -8,7 +8,8 @@ import (
 
 // placement is where the panel shows on a display: centered, its top edge at
 // a fifth of the visible height, growing down to at most 70% of it, unless
-// the user moved or resized it.
+// the user moved or resized it; on a large display no taller than
+// PanelMaxHeight.
 type placement struct {
 	x, top    int
 	width     int
@@ -21,7 +22,7 @@ func placeOn(work mygo.Rectangle) placement {
 		x:         work.X + (work.Width-design.PanelWidth)/2,
 		top:       work.Y + int(float64(work.Height)*design.PanelTopRatio),
 		width:     design.PanelWidth,
-		maxHeight: int(float64(work.Height) * design.PanelMaxRatio),
+		maxHeight: min(int(float64(work.Height)*design.PanelMaxRatio), design.PanelMaxHeight),
 		work:      work,
 	}
 }

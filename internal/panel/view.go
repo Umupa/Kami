@@ -42,6 +42,7 @@ func (p *Panel) view(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.KeyMinus, func() { p.stepFontSize(-1) })
 	c.OnShortcut(ui.Cmd, ui.Key0, func() { p.stepFontSize(0) })
 	c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyP, p.togglePin)
+	c.OnShortcut(ui.Cmd|ui.Alt, ui.Key0, p.fitHeight)
 	background := pal.Background
 	if blur && c.Vibrancy() {
 		// The desktop shows blurred through the panel's tint.
@@ -73,25 +74,59 @@ func (p *Panel) view(c *ui.Context) {
 	// inner one is the content at its own height, which its Draw reads in
 	// the very frame it is laid out, and the window follows at once.
 	panel := ui.Column(c).FillWidth().MinHeight(min(windowH, maxHeight)).Shrink(0).
-		Background(background).Radius(design.RadiusPanel).Border(1, pal.Edge).Clip()
+		Background(background).Radius(design.RadiusPanel).Border(panelBorder, pal.Edge).Clip()
 	if p.fixedLayout() {
 		panel.Height(float32(p.fixedHeight))
 	}
 	panel.Children(func() {
 		content := ui.Column(c.Key("content")).MaxHeight(maxHeight).Shrink(0)
-		if p.fixedLayout() {
+		p.fillerH, p.resultH = 0, 0
+		p.resultRowsH, p.resultRows = 0, 0
+		switch shown := p.target(); {
+		case p.fixedLayout():
 			content.Grow(1).Shrink(1).MinHeight(0)
+		case shown > 0:
+			// The content is at least as tall as the panel holds and the
+			// window is, the filler taking what it has to spare, so that
+			// the bar or the follow-up line keeps to the bottom. With a
+			// result, it keeps within the window too, not yet resized,
+			// which AppKit does later when busy: the result gives way, its
+			// scroll range telling how much, and the follow-up line stays
+			// in view.
+			if p.sess != nil && !p.noteMode() {
+				content.Height(min(shown, windowH, maxHeight))
+			} else {
+				content.MinHeight(min(max(shown, windowH), maxHeight))
+			}
 		}
-		content.Draw(func(_ *ui.Painter, r ui.Rect) { p.fit(r.H) })
+		// After the children, so that the filler's height is this frame's.
+		content.DrawOver(func(_ *ui.Painter, r ui.Rect) {
+			if p.measureUnderSource(r.H) && p.sourceHeight > 0 {
+				c.Invalidate() // the source keeps to the new room next frame
+			}
+			p.fit(r.H)
+			if p.traceLayoutEnabled && p.sess != nil {
+				p.traceLayout("paint", "frame_ns", c.Now().UnixNano(), "window_h", windowH,
+					"content_h", r.H, "target", p.target(),
+					"fixed", p.fixedHeight, "natural", p.natural, "source_h", p.sourceH,
+					"result_h", p.resultH, "filler_h", p.fillerH, "under_source", p.underSource,
+					"scroll_y", p.list.scroll.Y, "scroll_max", p.list.scroll.MaxY,
+					"follow", p.list.FollowEnd)
+			}
+		})
 		content.Children(func() {
 			if p.noteMode() {
 				p.noteView(c, pal)
+				p.filler(c)
 				ui.Divider(c).Background(pal.Border)
 				p.modeBar(c, pal)
 				return
 			}
 			p.sourceView(c, pal)
 			p.menuView(c, pal)
+			if p.sess == nil {
+				p.filler(c)
+			}
 			p.splitter(c, pal)
 			// Once an operator request is under way, the source says the
 			// mode and the follow-up line goes on; the bar would only
@@ -110,6 +145,7 @@ func (p *Panel) view(c *ui.Context) {
 					ui.Divider(c).Background(pal.Border)
 				}
 				p.resultView(c, pal)
+				p.filler(c)
 				ui.Divider(c).Background(pal.Border)
 				p.followView(c, pal)
 			}
@@ -117,27 +153,108 @@ func (p *Panel) view(c *ui.Context) {
 	})
 }
 
-// fit makes the window as tall as the panel's content, measured as it is
-// drawn: the window catches up within the frame after, which the outer box
-// covers. A height the user set by resizing stays.
+// fit makes the window as tall as the content was laid out, and measures
+// the content's own height, excluding the filler and spare space inside
+// the result viewport. The panel only grows within a session (least): a
+// retry, a mode with a shorter result or notes do not shrink it, until a
+// new session or fitHeight. A height the user set by resizing stays.
 func (p *Panel) fit(contentH float32) {
 	p.panelH = contentH
-	if p.fixedLayout() {
+	if p.fixedLayout() && (p.sess != nil || p.noteMode()) {
 		return
 	}
-	h := int(math.Ceil(float64(contentH)))
-	if h <= 0 || h == p.height {
+	natural := contentH - p.fillerH
+	if p.sess != nil && !p.noteMode() {
+		if n := len(p.sess.Turns); n > 0 && p.resultRows == n {
+			// List's viewport can still have the height of an older reply
+			// or an estimate for a new row. Only the painted rows are content.
+			natural += p.resultRowsH + 2*design.SpaceResultY + float32(n-1)*design.SpaceTurns - p.resultH
+		} else {
+			natural += p.list.scroll.MaxY
+		}
+	}
+	p.natural = int(math.Ceil(float64(natural)))
+	if p.natural <= 0 || p.fixedLayout() {
+		return
+	}
+	if p.noteMode() {
+		// A note is as tall as its text: what the modes held does not
+		// leave space under it.
+		p.noteH = min(p.natural, p.place.maxHeight)
+	} else {
+		p.least = max(p.least, min(p.natural, p.place.maxHeight))
+	}
+	// The window goes to the panel's height in one step, not to the content
+	// laid out, which keeps within the window as it was. It does not glide:
+	// each resize shows the last frame stretched or shifted until one of the
+	// new size is drawn, and a resize every frame reads as flicker.
+	h := int(p.target())
+	if h == p.height {
 		return
 	}
 	p.height = h
-	p.resize(p.place.bounds(h))
+	b := p.place.bounds(h)
+	p.ask(b.Height)
+	p.traceLayout("resize-request", "bounds", b)
+	p.resize(b)
+}
+
+// measureUnderSource takes what the content drew under the source but the
+// filler and the reply, which give way, and reports whether it changed.
+func (p *Panel) measureUnderSource(contentH float32) bool {
+	if p.noteMode() {
+		return false
+	}
+	under := contentH - p.sourceH - p.fillerH - p.resultH
+	if math.Abs(float64(under-p.underSource)) < 0.5 {
+		return false
+	}
+	p.underSource = under
+	return true
+}
+
+// target is the height the panel goes to: a note's own, or what the modes
+// held.
+func (p *Panel) target() float32 {
+	if p.noteMode() {
+		return float32(p.noteH)
+	}
+	return float32(p.least)
+}
+
+// filler takes the height the panel holds beyond its content, under what
+// would otherwise grow into it, and keeps the bar or the follow-up line at
+// the bottom.
+func (p *Panel) filler(c *ui.Context) {
+	// A result or note fills a fixed panel itself; a source still needs
+	// the filler to keep the control bar at the bottom.
+	if p.fixedLayout() && (p.sess != nil || p.noteMode()) {
+		return
+	}
+	ui.Box(c.Key("filler")).Grow(1).Draw(func(_ *ui.Painter, r ui.Rect) { p.fillerH = r.H })
+}
+
+// fitHeight makes the panel as tall as its content now (Option-Cmd-0): it
+// drops the height the user resized it to and what it held beyond its
+// content.
+func (p *Panel) fitHeight() {
+	p.fixedHeight = 0
+	p.least = p.natural
+}
+
+// fits reports whether the panel is as tall as its content, give or take a
+// line.
+func (p *Panel) fits() bool {
+	if p.fixedHeight > 0 {
+		return false
+	}
+	return p.noteMode() || p.least-p.natural < int(p.sz.Body*design.LineHeightBody)
 }
 
 // fixedLayout reports whether the panel keeps the height the user resized
-// it to, rather than following its content: with a result or a note, which
-// fill it.
+// it to, rather than following its content, including an empty panel.
 func (p *Panel) fixedLayout() bool {
-	return p.fixedHeight > 0 && (p.sess != nil || p.noteMode())
+	return p.fixedHeight > 0
 }
 
 func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
@@ -169,11 +286,12 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 			return false
 		})
 	if p.sourceHeight > 0 {
-		in.Height(p.sourceHeight)
+		in.Height(p.clampSource(p.sourceHeight))
 	} else {
 		in.Lines(1, p.sourceLines())
 	}
 	p.sourceBox = in.Bounds()
+	in.Draw(func(_ *ui.Painter, r ui.Rect) { p.sourceH = r.H })
 	if p.caretToEnd {
 		n := utf8.RuneCountInString(p.source)
 		in.SetTextSelection(n, n)
@@ -234,7 +352,10 @@ func (p *Panel) sourceLines() int {
 	if p.sess != nil {
 		return 3
 	}
-	visible := float32(p.place.maxHeight) / design.PanelMaxRatio
+	visible := float32(p.place.work.Height)
+	if visible <= 0 {
+		visible = float32(p.place.maxHeight) / design.PanelMaxRatio
+	}
 	line := float32(p.sz.Source * design.LineHeightSource)
 	return max(3, int(visible*design.SourceMaxRatio/line))
 }
@@ -295,6 +416,7 @@ func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
 			return
 		}
 		p.pinButton(c, pal)
+		p.fitButton(c, pal)
 		p.themeButton(c, pal)
 		p.kbd(c, pal, "tab", "模式")
 		p.runButton(c, pal)
@@ -356,6 +478,17 @@ func (p *Panel) pinButton(c *ui.Context, pal *design.Palette) {
 	}
 }
 
+var fitIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 1.5h10M3 14.5h10M8 4v8M5.5 6.5L8 4l2.5 2.5M5.5 9.5L8 12l2.5-2.5"/></svg>`))
+
+// fitButton shows while the panel is taller or shorter than its content,
+// and makes it fit, as a canvas fits its contents to the view.
+func (p *Panel) fitButton(c *ui.Context, pal *design.Palette) {
+	if p.fits() {
+		return
+	}
+	p.iconButton(c, pal, "fit-height", fitIcon, "适应内容 ⌥⌘0", pal.Faint, p.fitHeight).MarginEnd(6)
+}
+
 // themeButton opens the theme picker.
 func (p *Panel) themeButton(c *ui.Context, pal *design.Palette) {
 	name := "auto"
@@ -396,14 +529,31 @@ func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
 }
 
 func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
-	ui.Box(c.Key("result")).Grow(1).Shrink(1).MinHeight(0).Children(func() {
+	// Let the measured list take its own height and shrink when it exceeds
+	// the panel. The filler keeps the rest. Growing this box on a transient
+	// scroll range would consume the filler for one frame, making fit count
+	// empty space as content and toggling the fit-height button.
+	result := ui.Box(c.Key("result")).Shrink(1).MinHeight(0)
+	if p.fixedLayout() {
+		result.Grow(1)
+	}
+	result.Draw(func(_ *ui.Painter, r ui.Rect) { p.resultH = r.H })
+	result.Children(func() {
 		// FollowAnimation also offsets rows that fit in mygo's List. Only
 		// animate once there is an actual scroll range; Reveal handles the
 		// appearance of text while the result still fits.
-		// While the window can grow, List measures its intrinsic height
-		// from the previous frame. Following that temporary end scrolls
-		// upward for one frame before the window catches up.
-		if !p.list.FollowEnd && (p.fixedLayout() || p.panelH >= float32(p.place.maxHeight)-0.5) {
+		// List measures its intrinsic height from the previous frame. A
+		// new line can temporarily overflow that box while the panel or
+		// filler still has room. Keep its top until the current content
+		// needs the height limit: least may retain a previous long reply's
+		// height while a new reply is short. Decide before ScrollToEnd,
+		// since disabling FollowEnd does not cancel a queued request.
+		if !p.fixedLayout() && p.natural < p.place.maxHeight {
+			p.list.FollowEnd = false
+			// Override the list's previous following state and any pending
+			// end request even at Y=0, before the next line is measured.
+			p.list.ScrollTo(0, ui.Start)
+		} else if !p.list.FollowEnd && (p.fixedLayout() || p.panelH >= float32(p.place.maxHeight)-0.5) {
 			p.list.FollowEnd = true
 			p.list.ScrollToEnd()
 		}
@@ -432,12 +582,20 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 	t := &p.sess.Turns[i]
 	turn := ui.Column(c).Gap(10)
+	if p.traceLayoutEnabled {
+		turn.DrawOver(func(_ *ui.Painter, r ui.Rect) {
+			p.traceLayout("turn", "frame_ns", c.Now().UnixNano(), "index", i,
+				"bounds", r, "reply_bytes", len(t.Reply), "status", t.Status)
+		})
+	}
 	if !p.fixedLayout() {
 		// List's intrinsic size uses cached row heights. Rebuild after
 		// measurement so the auto-sized window grows and shrinks without
 		// relying on a scroll animation to schedule the next frame.
 		height := ui.Local(turn, "measured-height", func() float32 { return 0 })
 		turn.Draw(func(_ *ui.Painter, r ui.Rect) {
+			p.resultRowsH += r.H
+			p.resultRows++
 			if *height != r.H {
 				*height = r.H
 				c.Invalidate()

@@ -320,3 +320,31 @@ func TestDayGroup(t *testing.T) {
 		}
 	}
 }
+
+func TestNotesTakeTheirOwnHeight(t *testing.T) {
+	h := newHarness(t, script{pieces: []string{strings.Repeat("一行\n\n", 30)}})
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("x")
+	h.tt.Key(0, ui.KeyEnter)
+	h.drain()
+	tall := h.p.height
+	h.enterNotes()
+	h.settle()
+	if h.p.height >= tall {
+		t.Errorf("notes kept the mode's %d, now %d", tall, h.p.height)
+	}
+	// The bar keeps to the bottom of the window, whatever its height.
+	h.tt.SetSize(800, h.p.height+80)
+	h.tt.Frame()
+	bar, _ := h.tt.Find("全部笔记 ⌘P")
+	if float32(h.p.height+80)-(bar.Y+bar.H) > 24 {
+		t.Errorf("the bar ends at %v in a window %d high", bar.Y+bar.H, h.p.height+80)
+	}
+	// Back in the mode, its height comes back.
+	h.tt.Key(0, ui.KeyTab)
+	h.settle()
+	if h.p.height != tall {
+		t.Errorf("back from notes: %d high, was %d", h.p.height, tall)
+	}
+}

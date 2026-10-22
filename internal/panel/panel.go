@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -49,6 +50,8 @@ type Deps struct {
 type Panel struct {
 	deps Deps
 	win  *mygo.Window
+	// traceLayoutEnabled opts into geometry-only diagnostics for flicker.
+	traceLayoutEnabled bool
 	// post runs a function on the main thread and draws a frame: the
 	// window's Update, or a test's queue.
 	post func(func())
@@ -127,16 +130,26 @@ type Panel struct {
 	caretToEnd bool
 
 	// sourceHeight is the source's height the user dragged the divider to,
-	// 0 for the default; split is the drag in progress.
+	// 0 for the default; split is the drag in progress. underSource is
+	// the height of what keeps its own under the source, as the last frame
+	// drew it, with sourceH and resultH: the divider, the bars, the menu.
 	sourceHeight float32
 	sourceBox    ui.Rect
-	split        splitDrag
-	splitHandle  ui.Handle
+	underSource  float32
+	sourceH      float32
+	resultH      float32
+	// The rows painted this frame measure short replies without counting
+	// spare viewport space. A partially visible list uses its scroll range.
+	resultRowsH float32
+	resultRows  int
+	split       splitDrag
+	splitHandle ui.Handle
 	// fixedHeight is the panel's height the user resized it to, 0 to
-	// follow its content; requested is the height the app last asked the
-	// window for, to tell its own resizes from the user's.
+	// follow its content; requested are the heights the app asked the
+	// window for lately, to tell its own resizes from the user's: AppKit
+	// reports them later, while the panel growing has asked for others since.
 	fixedHeight int
-	requested   int
+	requested   []asked
 
 	copiedTurn int
 	copiedAt   time.Time
@@ -145,6 +158,73 @@ type Panel struct {
 	// follows the content.
 	place  placement
 	height int
+	// least is the height the panel keeps until a new session: it grows
+	// with its content and does not shrink back (fit). natural is the
+	// content's own height, without the filler that holds the rest.
+	least, natural int
+	// noteH is the height of the note's own content, which notes mode
+	// takes instead of least.
+	noteH   int
+	fillerH float32
+}
+
+// resized takes the window's new bounds. The panel fills the window
+// across, so a new width needs nothing but to be kept; a height the app did
+// not ask for is the user's.
+func (p *Panel) resized(b mygo.Rectangle) {
+	if b.Width <= 0 {
+		return
+	}
+	p.place.width = b.Width
+	own := p.asked(b.Height)
+	p.traceLayout("resize-callback", "bounds", b, "own", own)
+	if !own {
+		p.fixedHeight, p.height = b.Height, b.Height
+		p.ask(b.Height)
+		p.place.maxHeight = max(p.place.maxHeight, b.Height)
+	}
+}
+
+// asked is a height the app asked the window for, and when.
+type asked struct {
+	height int
+	at     time.Time
+}
+
+// askedWithin is how long a resize the app asked for may take to be
+// reported.
+const askedWithin = time.Second
+
+// ask records a height the app asks the window for.
+func (p *Panel) ask(h int) {
+	now := time.Now()
+	keep := p.requested[:0]
+	for _, a := range p.requested {
+		if now.Sub(a.at) < askedWithin {
+			keep = append(keep, a)
+		}
+	}
+	p.requested = append(keep, asked{h, now})
+}
+
+// asked reports whether the app may have asked for height h: it is between
+// the heights asked for lately, which a growing reply passes through, or the last
+// one asked for.
+func (p *Panel) asked(h int) bool {
+	if len(p.requested) == 0 {
+		return false
+	}
+	last := p.requested[len(p.requested)-1]
+	if h == last.height {
+		return true
+	}
+	lo, hi := last.height, last.height
+	for _, a := range p.requested {
+		if time.Since(a.at) < askedWithin {
+			lo, hi = min(lo, a.height), max(hi, a.height)
+		}
+	}
+	return h >= lo && h <= hi
 }
 
 // initialHeight is about the height of the empty panel: the source's line
@@ -187,20 +267,13 @@ func New(d Deps) *Panel {
 	// the place and size they leave it at are kept.
 	p.win.OnMove(func() {
 		if b := p.win.Bounds(); p.win.IsVisible() {
+			p.traceLayout("move-callback", "bounds", b)
 			p.place.x, p.place.top = b.X, b.Y
 		}
 	})
 	p.win.OnResize(func() {
-		b := p.win.Bounds()
-		if !p.win.IsVisible() || b.Width <= 0 {
-			return
-		}
-		// The panel fills the window across, so a new width needs nothing
-		// but to be kept; a height the app did not ask for is the user's.
-		p.place.width = b.Width
-		if b.Height != p.requested {
-			p.fixedHeight, p.height, p.requested = b.Height, b.Height, b.Height
-			p.place.maxHeight = max(p.place.maxHeight, b.Height)
+		if p.win.IsVisible() {
+			p.resized(p.win.Bounds())
 		}
 	})
 	p.win.OnBlur(func() {
@@ -223,16 +296,18 @@ func New(d Deps) *Panel {
 	// AppKit then redraws at the new size within the same pass. Only the
 	// height changes: where the window is now, which the user may be
 	// moving it from, and its width stay.
-	p.resize = func(r mygo.Rectangle) {
-		p.requested = r.Height
-		go func() {
-			b := p.win.Bounds()
-			if b.Height == r.Height {
-				return
-			}
-			p.win.SetBounds(mygo.Rectangle{X: b.X, Y: b.Y, Width: b.Width, Height: r.Height})
-		}()
-	}
+	sizer := &heightSetter{apply: func(h int) {
+		b := p.win.Bounds()
+		if b.Height == h {
+			return
+		}
+		p.traceLayout("native-apply", "before", b, "height", h)
+		p.win.SetBounds(mygo.Rectangle{X: b.X, Y: b.Y, Width: b.Width, Height: h})
+		if p.traceLayoutEnabled {
+			p.traceLayout("native-applied", "bounds", p.win.Bounds())
+		}
+	}}
+	p.resize = func(r mygo.Rectangle) { sizer.set(r.Height) }
 	d.Store.Subscribe(func(s config.Snapshot) {
 		p.post(func() { p.applyConfig(s.Config) })
 	})
@@ -244,6 +319,7 @@ func newPanel(d Deps) *Panel {
 	p := &Panel{deps: d, list: newList(), post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich,
 		background: func(fn func()) { go fn() },
 		openURL:    func(url string) { _ = mygo.Shell.OpenExternal(url) }}
+	p.traceLayoutEnabled = os.Getenv("KAMI_TRACE_LAYOUT") == "1"
 	p.after = func(d time.Duration, fn func()) { time.AfterFunc(d, func() { p.post(fn) }) }
 	p.applyConfig(d.Store.Snapshot().Config)
 	p.md = markdown.Options{Reveal: &markdown.Reveal{Unit: markdown.ByWord, CatchUp: design.MotionCatchUp, Fade: design.MotionWordFade}}
@@ -278,7 +354,7 @@ func (p *Panel) Show() {
 		// height of an empty one.
 		p.height = initialHeight
 	}
-	p.requested = p.place.bounds(p.height).Height
+	p.ask(p.place.bounds(p.height).Height)
 	p.win.SetBounds(p.place.bounds(p.height))
 	p.win.Show()
 	switch {
@@ -317,6 +393,7 @@ func (p *Panel) Import(text string) {
 		p.captureSource = ""
 		p.source = text
 		p.clearResults()
+		p.least = 0
 		p.setMode(0)
 		p.run()
 	}
@@ -333,6 +410,7 @@ func (p *Panel) ImportCaptured(text string) {
 // importCaptured is the window-independent part of importing OCR output.
 func (p *Panel) importCaptured(text string) {
 	p.clearResults()
+	p.least = 0
 	p.source, p.follow, p.lastImport = text, "", ""
 	p.captureSource = text
 	p.notice = ""
@@ -464,6 +542,7 @@ func (p *Panel) stop() {
 func (p *Panel) reset() {
 	p.clearResults()
 	p.source, p.follow = "", ""
+	p.least = 0
 	p.captureSource = ""
 	p.sourceIn.Focus()
 }
