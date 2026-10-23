@@ -119,6 +119,7 @@ func TestSchemaDefaults(t *testing.T) {
 		"properties.shortcuts.properties.selection.default": DefaultSelectionShortcut,
 		"properties.shortcuts.properties.capture.default":   DefaultCaptureShortcut,
 		"properties.launchAtLogin.default":                  false,
+		"properties.showInDock.default":                     false,
 		"properties.theme.default":                          DefaultTheme,
 		"properties.font.default":                           Fonts[0],
 		"properties.fontSize.default":                       float64(DefaultFontSize),
@@ -141,18 +142,18 @@ func TestSchemaDefaults(t *testing.T) {
 
 func TestSchemaExamplesDecode(t *testing.T) {
 	schema := loadSchema(t)
-	modelExamples := schemaExamples(t, schema, "models")
+	modelExamples := schemaExamples(t, schema, "model")
 	if len(modelExamples) == 0 {
-		t.Fatal("schema models examples are empty")
+		t.Fatal("schema model examples are empty")
 	}
-	t.Run("models", func(t *testing.T) {
+	t.Run("model", func(t *testing.T) {
 		for i, example := range modelExamples {
 			data := marshalConfig(t, map[string]any{
 				"version": Version,
-				"models":  example,
+				"model":   example,
 			})
 			if _, err := Decode(data); err != nil {
-				t.Errorf("models example %d does not decode: %v\n%s", i, err, data)
+				t.Errorf("model example %d does not decode: %v\n%s", i, err, data)
 			}
 		}
 	})
@@ -161,25 +162,10 @@ func TestSchemaExamplesDecode(t *testing.T) {
 	if len(modeExamples) == 0 {
 		t.Fatal("schema modes examples are empty")
 	}
-	models := []any{
-		map[string]any{
-			"name":     "fast",
-			"endpoint": "https://example.com/v1/chat/completions",
-			"format":   string(FormatChatCompletions),
-			"model":    "example",
-		},
-		map[string]any{
-			"name":     "strong",
-			"endpoint": "https://example.com/v1/messages",
-			"format":   string(FormatAnthropicMessages),
-			"model":    "example",
-		},
-	}
 	t.Run("modes", func(t *testing.T) {
 		for i, example := range modeExamples {
 			data := marshalConfig(t, map[string]any{
 				"version": Version,
-				"models":  models,
 				"modes":   example,
 			})
 			if _, err := Decode(data); err != nil {

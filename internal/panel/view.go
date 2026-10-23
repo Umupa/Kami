@@ -33,10 +33,17 @@ func (p *Panel) view(c *ui.Context) {
 		pal = p.paletteFor(preview, dark)
 	}
 	p.pal, p.sz = pal, design.SizesFor(size)
+	if p.welcoming() {
+		// Grants happen in System Settings; the reply follows them.
+		p.refreshWelcome()
+		c.After(time.Second)
+	}
 	c.SetTheme(design.UITheme(*c.Theme(), pal, p.sz.Body))
 	if key := (mdKey{pal, p.sz.Body}); p.mdFor != key {
 		p.md.Theme, p.mdFor = design.Markdown(pal, p.sz.Body), key
 	}
+	// The prompt in the app's own reply is read whole, not scrolled across.
+	p.md.WrapCode = p.greeting()
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyEqual, func() { p.stepFontSize(1) })
 	c.OnShortcut(ui.Cmd, ui.KeyMinus, func() { p.stepFontSize(-1) })
@@ -73,8 +80,10 @@ func (p *Panel) view(c *ui.Context) {
 	// panel's background, not an empty strip, shows below the content. The
 	// inner one is the content at its own height, which its Draw reads in
 	// the very frame it is laid out, and the window follows at once.
+	// Unclaimed background moves the window; interactive descendants keep
+	// their own pointer handling for editing, selection, controls and splits.
 	panel := ui.Column(c).FillWidth().MinHeight(min(windowH, maxHeight)).Shrink(0).
-		Background(background).Radius(design.RadiusPanel).Border(panelBorder, pal.Edge).Clip()
+		Background(background).Radius(design.RadiusPanel).Border(panelBorder, pal.Edge).Clip().DragWindow()
 	if p.fixedLayout() {
 		panel.Height(float32(p.fixedHeight))
 	}
@@ -146,8 +155,12 @@ func (p *Panel) view(c *ui.Context) {
 				}
 				p.resultView(c, pal)
 				p.filler(c)
-				ui.Divider(c).Background(pal.Border)
-				p.followView(c, pal)
+				// The app's own reply about its model has nothing to
+				// follow up on.
+				if !p.greeting() {
+					ui.Divider(c).Background(pal.Border)
+					p.followView(c, pal)
+				}
 			}
 		})
 	})
@@ -260,7 +273,7 @@ func (p *Panel) fixedLayout() bool {
 func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 	// Only the result shrinks when the panel reaches its height limit.
 	in := ui.TextAreaBase(c.Key("source"), &p.source).Bind(&p.sourceIn).Shrink(0).
-		Placeholder("输入或粘贴文字，/ 查看命令").Label("原文").
+		Placeholder("输入或粘贴，/ 查看命令").Label("原文").
 		FontSize(p.sz.Source).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
 		PaddingX(design.SpaceX).PaddingY(design.SpaceSourceY).
 		TextRanges(p.commandRanges(c, pal)...).
@@ -304,7 +317,7 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 // switchInput moves the keyboard between the source and the follow-up
 // (Cmd-J), into the source after its text.
 func (p *Panel) switchInput(c *ui.Context) {
-	if p.sess != nil && !p.followIn.Focused(c) {
+	if p.sess != nil && !p.greeting() && !p.followIn.Focused(c) {
 		p.followIn.Focus()
 		return
 	}
@@ -339,7 +352,7 @@ func (p *Panel) translateTarget() string {
 // stale reports a result that no longer matches the source or the mode: it
 // stays until the user runs again, never refreshed on its own (F5.7).
 func (p *Panel) stale() bool {
-	if p.sess == nil || p.sess.Busy() || p.sess.Operator || len(p.modes) == 0 || p.noteMode() {
+	if p.sess == nil || p.sess.Busy() || p.sess.Operator || p.greeting() || len(p.modes) == 0 || p.noteMode() {
 		return false
 	}
 	return p.sess.Turns[0].Ask != p.source || p.sess.Mode.ID != p.modes[p.modeIdx].ID
@@ -368,8 +381,7 @@ func (p *Panel) cycleMode(step int) {
 }
 
 func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
-	// The bar is where the panel is held to move it.
-	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).DragWindow().Children(func() {
+	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).Children(func() {
 		if p.operatorActive() && !p.noteMode() {
 			p.operatorPill(c, pal)
 			ui.Spacer(c)
@@ -512,16 +524,24 @@ func (p *Panel) themeButton(c *ui.Context, pal *design.Palette) {
 }
 
 // runButton runs the source; in operator mode it takes the pill's colors,
-// so the bar has one tint.
+// so the bar has one tint. With no model there is nothing to run: Enter
+// copies the configuration prompt the panel shows, and the button gives way.
 func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
+	if p.unconfigured() {
+		return
+	}
 	fill, text := pal.Accent, pal.AccentText
 	if p.operatorActive() && !p.noteMode() {
 		fill, text = pal.OperatorFill, pal.Operator
 	}
+	label := "执行"
+	if step := p.stepLabel(); step != "" {
+		label = step
+	}
 	run := ui.Row(c.Key("run")).Gap(6).PaddingX(10).PaddingY(4).Radius(design.RadiusChip).Background(fill)
 	run.Children(func() {
 		ui.Text(c, "⏎").FontSize(p.sz.Label).TextColor(text)
-		ui.Text(c, "执行").FontSize(p.sz.Label).FontWeight(700).TextColor(text)
+		ui.Text(c, label).FontSize(p.sz.Label).FontWeight(700).TextColor(text)
 	})
 	if run.Clicked() {
 		p.run()
@@ -553,7 +573,9 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 			// Override the list's previous following state and any pending
 			// end request even at Y=0, before the next line is measured.
 			p.list.ScrollTo(0, ui.Start)
-		} else if !p.list.FollowEnd && (p.fixedLayout() || p.panelH >= float32(p.place.maxHeight)-0.5) {
+		} else if !p.list.FollowEnd && !p.greeting() && (p.fixedLayout() || p.panelH >= float32(p.place.maxHeight)-0.5) {
+			// The app's own reply is read from its start; a model's
+			// reply keeps its end in view.
 			p.list.FollowEnd = true
 			p.list.ScrollToEnd()
 		}
@@ -668,21 +690,15 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int, visible bo
 		if last && !t.Local {
 			p.iconButton(c, pal, "retry", retryIcon, "重新生成", pal.Muted, p.retry)
 		}
-		more := p.iconButton(c, pal, "copy-as", moreIcon, "复制为…", pal.Muted, nil)
-		more.Menu(func(m *ui.Menu) {
-			if m.Item("纯文本").Chosen() {
-				p.writeClipboard(plaintext.FromMarkdown(t.Reply))
-			}
-			if m.Item("富文本（飞书、Notion、邮件）").Chosen() {
-				p.writeRich(parser.Parse(t.Reply).HTML(), plaintext.FromMarkdown(t.Reply))
-			}
-			if m.Item("Markdown").Chosen() {
-				p.writeClipboard(t.Reply)
-			}
-		})
+		if !p.greeting() {
+			p.copyAs(c, pal, t)
+		}
 		icon, tip, col := copyIcon, "复制 Markdown", pal.Muted
+		if p.greeting() && p.unconfigured() {
+			tip = "复制配置提示词"
+		}
 		if last {
-			tip = "复制 Markdown ⌘C"
+			tip += " ⌘C"
 		}
 		if p.copiedTurn == i && c.Now().Sub(p.copiedAt) < design.MotionCopiedHold {
 			icon, tip, col = checkIcon, "已复制", pal.Code
@@ -691,12 +707,50 @@ func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int, visible bo
 		p.iconButton(c, pal, "copy", icon, tip, col, func() { p.copyTurn(i) })
 	})
 	if t.Status == session.Failed {
-		title, next := failureText(t.Err)
-		ui.Column(c).Gap(2).PaddingStart(10).BorderStartWidth(2).BorderColor(pal.Danger).Children(func() {
-			ui.Text(c, title).FontSize(p.sz.Label).TextColor(pal.Bright)
-			ui.Text(c, next).FontSize(p.sz.Label).TextColor(pal.Muted)
-		})
+		p.failure(c, pal, i)
 	}
+}
+
+// failure says why a turn failed and what to do next. A rejection that the
+// configuration may be behind is copied as a prompt for a coding agent, by
+// clicking its line or with ⌘C.
+func (p *Panel) failure(c *ui.Context, pal *design.Palette, i int) {
+	t := &p.sess.Turns[i]
+	title, next := failureText(t.Err)
+	fix := fixable(t.Err)
+	if fix && p.copiedTurn == i && c.Now().Sub(p.copiedAt) < design.MotionCopiedHold {
+		next = "已复制"
+		c.After(design.MotionCopiedHold)
+	}
+	ui.Column(c.Key("failure")).Gap(2).PaddingStart(10).BorderStartWidth(2).BorderColor(pal.Danger).Children(func() {
+		ui.Text(c, title).FontSize(p.sz.Label).TextColor(pal.Bright)
+		line := ui.Text(c, next).FontSize(p.sz.Label).TextColor(pal.Muted)
+		if !fix {
+			return
+		}
+		if line.Hovered() {
+			line.TextColor(pal.Text)
+		}
+		if line.Clicked() {
+			p.copyTurn(i)
+		}
+	})
+}
+
+// copyAs is the menu of the other ways to copy a reply.
+func (p *Panel) copyAs(c *ui.Context, pal *design.Palette, t *session.Turn) {
+	more := p.iconButton(c, pal, "copy-as", moreIcon, "复制为…", pal.Muted, nil)
+	more.Menu(func(m *ui.Menu) {
+		if m.Item("纯文本").Chosen() {
+			p.writeClipboard(plaintext.FromMarkdown(t.Reply))
+		}
+		if m.Item("富文本").Chosen() {
+			p.writeRich(parser.Parse(t.Reply).HTML(), plaintext.FromMarkdown(t.Reply))
+		}
+		if m.Item("Markdown").Chosen() {
+			p.writeClipboard(t.Reply)
+		}
+	})
 }
 
 // Icons of the turn footer, drawn in the text color.
@@ -743,19 +797,18 @@ func failureText(err error) (title, next string) {
 		return "和模型服务的安全连接失败。", "检查网络或代理后重试 ⏎"
 	case llm.KindConfig:
 		if le == errNoModel {
-			return "还没有配置模型。", "输入 /operator，按提示把配置交给 Claude Code 等 Coding Agent。"
+			return "还没有连接模型。", "⌘N 查看配置提示词"
 		}
-		return "模型服务拒绝了这个请求。", "输入 /operator 配置模型，复制提示词交给 Coding Agent 检查。"
+		return "模型服务拒绝了这个请求。", "⌘C 复制提示词"
 	case llm.KindTooLong:
 		return "内容超过了模型能处理的长度。", "缩短原文后重试 ⏎"
 	}
 	return "请求没有完成。", "重试 ⏎"
 }
 
-// followView is the follow-up line. Around its input it moves the window,
-// as the mode bar does, which an operator session hides.
+// followView is the follow-up line.
 func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Shrink(0).PaddingX(design.SpaceX).PaddingY(11).Gap(8).AlignItems(ui.Start).DragWindow().Children(func() {
+	ui.Row(c).Shrink(0).PaddingX(design.SpaceX).PaddingY(11).Gap(8).AlignItems(ui.Start).Children(func() {
 		prompt := pal.Faint
 		if p.followIn.Focused(c) {
 			prompt = pal.Accent
@@ -784,7 +837,9 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 	})
 }
 
-// copyTurn copies a turn's reply as Markdown; -1 is the latest turn.
+// copyTurn copies a turn's reply as Markdown; -1 is the latest turn. With
+// no model, the app's own reply copies the prompt that configures one, and
+// so does a rejected request, which the agent reproduces with `Kami check`.
 func (p *Panel) copyTurn(i int) {
 	if p.sess == nil {
 		return
@@ -792,10 +847,18 @@ func (p *Panel) copyTurn(i int) {
 	if i < 0 {
 		i = len(p.sess.Turns) - 1
 	}
-	if reply := p.sess.Turns[i].Reply; reply != "" {
-		p.writeClipboard(reply)
-		p.copiedTurn, p.copiedAt = i, time.Now()
+	t := &p.sess.Turns[i]
+	switch {
+	case p.greeting() && p.unconfigured():
+		p.writeClipboard(p.agentPrompt())
+	case t.Status == session.Failed && t.Reply == "" && fixable(t.Err):
+		p.writeClipboard(p.agentPrompt())
+	case t.Reply != "":
+		p.writeClipboard(t.Reply)
+	default:
+		return
 	}
+	p.copiedTurn, p.copiedAt = i, time.Now()
 }
 
 // mdKey is what the Markdown theme depends on.

@@ -21,7 +21,7 @@ func lifecycle(t *testing.T) (*Capturer, chan func(), chan Result) {
 		post: func(fn func()) { queue <- fn }, done: func(r Result) { results <- r },
 		present: func() error { return nil }, dismiss: func() {},
 		sys: backend{
-			access: func() bool { return true }, request: func() bool { t.Error("unexpected permission request"); return false },
+			access:  func() bool { return true },
 			display: func() mygo.Display { return mygo.Display{ID: 7, Bounds: mygo.Rectangle{Width: 16, Height: 12}} },
 			read:    func(context.Context, *macos.Image, macos.Rect) Result { return Result{Text: "text"} },
 		},
@@ -32,11 +32,9 @@ func lifecycle(t *testing.T) (*Capturer, chan func(), chan Result) {
 
 func TestDeniedCaptureDoesNotAcquireOrPresent(t *testing.T) {
 	c, _, results := lifecycle(t)
-	asked := false
 	c.sys.access = func() bool { return false }
-	c.sys.request = func() bool { asked = true; return false }
 	c.Start()
-	if !asked || c.Busy() || !errors.Is((<-results).Err, macos.ErrNoScreenAccess) {
+	if c.Busy() || !errors.Is((<-results).Err, macos.ErrNoScreenAccess) {
 		t.Fatal("denied capture did not stop at the permission boundary")
 	}
 }

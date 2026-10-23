@@ -11,7 +11,7 @@ import (
 
 // Op sets the value at a path of config.json. Path is dotted keys and
 // [index] steps, as in Problem paths: "shortcuts.capture", "modes",
-// "modes[2].prompt", "defaultModel". A JSON null Value removes the key, or
+// "modes[2].prompt", "theme". A JSON null Value removes the key, or
 // the array element at the last [index].
 type Op struct {
 	Path  string          `json:"path"`
@@ -25,11 +25,10 @@ type Change struct {
 }
 
 // ApplyOps applies ops in order to config.json as written (data, without
-// defaults) and returns the new file contents, formatted as Encode formats
-// them, and what changed. Paths under "models", and "$schema" and "version",
-// are refused: model services are configured by an agent. The result must pass
-// Decode and, when check is set, check; otherwise nothing is returned but the
-// error, an *Error naming the problems.
+// defaults) and returns the new file contents and what changed. Model service
+// fields (including legacy ones), "$schema" and "version" are refused.
+// Settings must pass validation and check; invalid model fields are preserved
+// without blocking the edit. check receives settings with defaults and no model.
 func ApplyOps(data []byte, ops []Op, check func(*Config) error) ([]byte, []Change, error) {
 	doc, err := decodeJSON(data)
 	if err != nil {
@@ -78,23 +77,14 @@ func ApplyOps(data []byte, ops []Op, check func(*Config) error) ([]byte, []Chang
 		root = edited.(map[string]any)
 	}
 
-	edited, err := json.Marshal(root)
+	out, err := json.MarshalIndent(root, "", "  ")
 	if err != nil {
 		return nil, nil, opError("", "不能生成编辑后的配置：%v", err)
 	}
-	if _, err := Decode(edited); err != nil {
-		return nil, nil, err
-	}
-	var c Config
-	if err := json.Unmarshal(edited, &c); err != nil {
-		return nil, nil, opError("", "不能读取编辑后的配置：%v", err)
-	}
-	out, err := Encode(&c)
-	if err != nil {
-		return nil, nil, opError("", "不能格式化配置：%v", err)
-	}
-	// Encode may leave out empty fields, so validate what is actually written.
-	decoded, err := Decode(out)
+	out = append(out, '\n')
+	// Keep the JSON tree rather than round-tripping through Config: model
+	// fields may be invalid or unknown, and request bodies may hold large integers.
+	decoded, err := decodeSettings(out)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,16 +189,17 @@ func scanKey(path string, i int) (string, int, bool) {
 	return path[start:i], i, true
 }
 
-// refusedPath names the roots an edit may not touch. Models carry API keys
-// and are configured by an agent; the schema and version describe the file
-// itself.
+// refusedPath names the roots an edit may not touch. The model carries the
+// API key and is configured by an agent; the schema and version describe the
+// file itself.
 func refusedPath(steps []pathStep) (string, bool) {
 	if len(steps) == 0 || steps[0].isIndex {
 		return "", false
 	}
+	if modelField(steps[0].key) {
+		return "不能修改 " + steps[0].key + "：模型服务由 Coding Agent 配置", true
+	}
 	switch steps[0].key {
-	case "models":
-		return "不能修改 models：模型服务由 agent 配置", true
 	case "$schema", "version":
 		return "不能修改 " + steps[0].key, true
 	}

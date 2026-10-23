@@ -15,7 +15,6 @@ func TestChatCompletionsRequest(t *testing.T) {
 	t.Run("with system", func(t *testing.T) {
 		srv, recCh := captureServer(t)
 		model := config.Model{
-			Name:     "test",
 			Endpoint: srv.URL + "/v1/chat/completions",
 			Format:   config.FormatChatCompletions,
 			Model:    "gpt-test",

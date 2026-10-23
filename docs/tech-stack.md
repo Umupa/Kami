@@ -63,7 +63,7 @@
 | 需求 | MyGo API |
 | --- | --- |
 | 不激活应用的浮动面板 | `WindowOptions{Panel: true, Frameless: true, Hidden: true}`：拿键盘但不激活应用，浮在全屏应用之上，跨桌面空间 |
-| 无 Dock 图标 | `App.SetActivationPolicy(ActivationPolicyAccessory)`，打包时 `infoPlist` 写 `LSUIElement` |
+| Dock 图标开关 | 启动用 `ActivationPolicyAccessory` 与 `LSUIElement=true`；ready 后按 `showInDock` 切换 regular/accessory，`App.OnActivate` 接收 Dock 点击 |
 | 全局快捷键 | `GlobalShortcut.Register`（macOS 上是 Carbon 热键）；自定义双击修饰键不是热键，走 §四 的 CGEventTap |
 | 菜单栏图标与菜单 | `NewTray`、`NewMenu`，模板图标 |
 | 鼠标所在屏幕、可见区域 | `Screen.CursorScreenPoint`、`Screen.DisplayNearestPoint(...).WorkArea` |

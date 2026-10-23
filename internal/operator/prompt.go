@@ -24,15 +24,15 @@ type State struct {
 	// Config is the configuration in effect, defaults filled in.
 	Config      *config.Config
 	Permissions []Permission
-	// AgentPrompt is the prompt that has a coding agent configure model
-	// services.
-	AgentPrompt string
 }
 
 // Permission is a system permission and whether it is granted.
 type Permission struct {
 	ID, Name, Purpose string
 	Granted           bool
+	// Restart is set when it is granted but takes effect only once the app
+	// starts again, as Input Monitoring and Screen Recording do.
+	Restart bool
 }
 
 // System returns the system prompt of an operator turn. API keys never
@@ -42,7 +42,7 @@ func System(s State) string {
 	w := func(format string, args ...any) { fmt.Fprintf(&b, format, args...) }
 	w(`You are the operator of Kami, a macOS menu bar app: a floating panel that sends text to a language model in a mode (a prompt preset) and shows the answer as Markdown. The user talks to you to see and change the app's settings. Answer in the user's language, briefly, in Markdown. Put anything the user may want to copy, such as a path, a shortcut value, a prompt or a piece of config.json, in a fenced code block: code blocks have a copy button. Use tables for lists of settings.
 
-Settings live in config.json, described by the JSON Schema below. You may change anything in it except model services: never edit "models", "version" or "$schema". When the user wants to add, change or remove a model service, an endpoint or an API key, explain that a coding agent configures those, and ask for the action %q, which copies the prompt for it.
+Settings live in config.json, described by the JSON Schema below. Kami uses one model for every mode. You may change anything in config.json except the model: never edit "model", "version" or "$schema". When the user wants to set up or change the model, its endpoint or its API key, explain that a coding agent configures it, and ask for the action %q, which copies the prompt for it.
 
 To change settings, end your reply with one block, after your explanation:
 
@@ -57,23 +57,21 @@ Each op sets the value at a path of config.json as written (dotted keys and [ind
 	w("## The app now\n\nVersion %s. config.json: %s\n\n", s.Version, s.ConfigPath)
 	w("config.json as written, API keys removed:\n\n```json\n%s\n```\n\n", masked(s.File))
 	if c := s.Config; c != nil {
-		w("In effect, with defaults: my language %s; foreign language %s; default model %q; launch at login %v.\n\n", c.MyLanguage, c.ForeignLanguage, c.DefaultModel, c.LaunchAtLogin)
+		w("In effect, with defaults: my language %s; foreign language %s; launch at login %v; show in Dock %v.\n\n", c.MyLanguage, c.ForeignLanguage, c.LaunchAtLogin, c.ShowInDock)
 		w("Shortcuts: panel %s, bring in the selection %s, screenshot %s.\n\n", c.Shortcuts.Panel, c.Shortcuts.Selection, c.Shortcuts.Capture)
-		w("Model services:\n")
-		if len(c.Models) == 0 {
-			w("- none yet\n")
-		}
-		for _, m := range c.Models {
+		if m := c.Model; m != nil {
 			key := "no API key"
 			if m.APIKey != "" {
 				key = "API key set"
 			}
-			w("- %s: %s, %s at %s, %s\n", m.Name, m.Format, m.Model, host(m.Endpoint), key)
+			w("Model: %s, %s at %s, %s.\n", m.Format, m.Model, host(m.Endpoint), key)
+		} else {
+			w("Model: none yet.\n")
 		}
 		if modes, err := mode.Resolve(c); err == nil {
 			w("\nModes in order (the first is the default), with the prompt each uses:\n")
 			for _, m := range modes {
-				w("\n### %s (id %s, input %s, output %s, model %q)\n\n%s\n", m.Name, m.ID, m.Input, m.Output, m.Model, m.Prompt)
+				w("\n### %s (id %s, input %s, output %s)\n\n%s\n", m.Name, m.ID, m.Input, m.Output, m.Prompt)
 			}
 		}
 	}
@@ -81,7 +79,14 @@ Each op sets the value at a path of config.json as written (dotted keys and [ind
 	w("\nPermissions:\n")
 	w("(macOS ties a grant to the app's signature. A switch shown on in System Settings while the app reports it not granted belongs to an earlier build: the user removes Kami from that list with −, then adds it again. Input Monitoring and Screen Recording take effect after a restart: 重新启动 Kami in the menu bar menu.)\n")
 	for _, p := range s.Permissions {
-		w("- %s (%s): %s\n", p.Name, p.Purpose, map[bool]string{true: "granted", false: "not granted"}[p.Granted])
+		state := "not granted"
+		switch {
+		case p.Restart:
+			state = "granted, takes effect after a restart"
+		case p.Granted:
+			state = "granted"
+		}
+		w("- %s (%s): %s\n", p.Name, p.Purpose, state)
 	}
 	w("\n## config.json schema\n\n```json\n%s\n```\n", config.Schema())
 	return b.String()
@@ -93,13 +98,18 @@ func masked(file []byte) string {
 	if err := json.Unmarshal(file, &doc); err != nil {
 		return "(config.json is not valid JSON right now)"
 	}
+	hide := func(m any) {
+		if obj, ok := m.(map[string]any); ok {
+			if _, has := obj["apiKey"]; has {
+				obj["apiKey"] = "(hidden)"
+			}
+		}
+	}
+	hide(doc["model"])
+	// A file still in an older shape is hidden as well.
 	if models, ok := doc["models"].([]any); ok {
 		for _, m := range models {
-			if obj, ok := m.(map[string]any); ok {
-				if _, has := obj["apiKey"]; has {
-					obj["apiKey"] = "(hidden)"
-				}
-			}
+			hide(m)
 		}
 	}
 	out, _ := json.MarshalIndent(doc, "", "  ")
@@ -114,30 +124,54 @@ func host(endpoint string) string {
 }
 
 // Guide is what /operator alone shows, without asking a model: what the mode
-// does, and, before any model is configured, how to configure one.
+// does, and the entry points with the permissions they need. Before any
+// model is configured, the panel answers with the configuration prompt
+// instead.
 func Guide(s State) string {
 	var b strings.Builder
 	b.WriteString("## Operator\n\n用一句话查看或修改 Kami 的设置，改动立即生效，⌘Z 撤销。可以试试：\n\n")
 	for _, ex := range []string{
 		"现在的快捷键是什么",
-		"截图识别改成 ⌥S",
-		"翻译模式用的提示词是什么",
+		"带入选区改成 ⌥A",
 		"加一个把改动写成 commit message 的模式",
-		"问答默认用 strong 模型",
 		"把强调色改成橙色",
-		"基于 gruvbox 做一个更暗的版本",
-		"登录时自动打开",
-		"哪些权限还没给",
 	} {
 		b.WriteString("- `/operator " + ex + "`\n")
 	}
-	if s.Config != nil && len(s.Config.Models) > 0 {
-		b.WriteString("\n模型服务（地址、API Key）交给 Coding Agent 配置：说「/operator 配置模型」，我会把提示词复制给你。\n")
-		return b.String()
+	if s.Config != nil {
+		if entries := Entries(s.Config); len(entries) > 0 {
+			b.WriteString("\n### 入口\n\n| 快捷键 | 作用 | 权限 |\n| --- | --- | --- |\n")
+			for _, e := range entries {
+				fmt.Fprintf(&b, "| %s | %s | %s |\n", e.Shortcut.Glyphs(), e.Does, permissionCell(e.Needs, s.Permissions))
+			}
+		}
 	}
-	b.WriteString("\n还没有配置模型，Operator 需要一个模型来理解你的话。把这段提示词交给 Claude Code 等 Coding Agent，它会帮你配好：\n\n")
-	b.WriteString("```text\n" + s.AgentPrompt + "\n```\n")
+	b.WriteString("\n模型服务（地址、API Key）交给 Coding Agent 配置：说「/operator 配置模型」，我会把提示词复制给你。\n")
 	return b.String()
+}
+
+// permissionCell says how the permissions an entry needs stand.
+func permissionCell(needs []string, granted []Permission) string {
+	if len(needs) == 0 {
+		return "不需要"
+	}
+	parts := make([]string, 0, len(needs))
+	for _, id := range needs {
+		state := ""
+		for _, p := range granted {
+			switch {
+			case p.ID != id:
+			case p.Restart:
+				state = " 重启后生效"
+			case p.Granted:
+				state = " ✓"
+			default:
+				state = " 未授权"
+			}
+		}
+		parts = append(parts, PermissionName(id)+state)
+	}
+	return strings.Join(parts, " · ")
 }
 
 func themeSection(s State) string {

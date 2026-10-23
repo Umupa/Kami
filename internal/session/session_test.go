@@ -11,7 +11,7 @@ import (
 
 func TestNew(t *testing.T) {
 	m := mode.Mode{ID: "translate", Name: "翻译"}
-	s := New(m, "source text", "fast")
+	s := New(m, "source text")
 	if s.Mode != m {
 		t.Errorf("Mode = %+v, want %+v", s.Mode, m)
 	}
@@ -21,9 +21,6 @@ func TestNew(t *testing.T) {
 	turn := s.Last()
 	if turn.Ask != "source text" {
 		t.Errorf("Ask = %q, want source text", turn.Ask)
-	}
-	if turn.Model != "fast" {
-		t.Errorf("Model = %q, want fast", turn.Model)
 	}
 	if turn.Reply != "" {
 		t.Errorf("Reply = %q, want empty", turn.Reply)
@@ -44,7 +41,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestFollowUpAndBusy(t *testing.T) {
-	s := New(mode.Mode{ID: "ask"}, "first", "fast")
+	s := New(mode.Mode{ID: "ask"}, "first")
 	if !s.Busy() {
 		t.Error("Busy() = false for a streaming first turn")
 	}
@@ -53,13 +50,13 @@ func TestFollowUpAndBusy(t *testing.T) {
 		t.Error("Busy() = true after the first turn ended")
 	}
 
-	s.FollowUp("second", "strong")
+	s.FollowUp("second")
 	if len(s.Turns) != 2 {
 		t.Fatalf("len(Turns) = %d, want 2", len(s.Turns))
 	}
 	turn := s.Last()
-	if turn.Ask != "second" || turn.Model != "strong" {
-		t.Errorf("latest turn = %+v, want ask second on strong", turn)
+	if turn.Ask != "second" {
+		t.Errorf("latest turn = %+v, want ask second", turn)
 	}
 	if turn.Reply != "" || turn.Status != Streaming || turn.Err != nil {
 		t.Errorf("latest turn was not started clean: %+v", turn)
@@ -70,32 +67,32 @@ func TestFollowUpAndBusy(t *testing.T) {
 }
 
 func TestMessagesThreeTurns(t *testing.T) {
-	s := New(mode.Mode{ID: "ask"}, "first", "m1")
+	s := New(mode.Mode{ID: "ask"}, "first")
 	s.Last().Reply = "first reply"
 	s.Last().Status = Done
 
-	s.FollowUp("second", "m2")
+	s.FollowUp("second")
 	s.Last().Reply = "second reply"
 	s.Last().Status = Done
 
-	s.FollowUp("third", "m3")
+	s.FollowUp("third")
 	// The latest reply is not part of its own request, even if one is set.
 	s.Last().Reply = "draft reply"
 
 	wantTurns := []struct {
-		ask, model, reply string
-		status            Status
+		ask, reply string
+		status     Status
 	}{
-		{"first", "m1", "first reply", Done},
-		{"second", "m2", "second reply", Done},
-		{"third", "m3", "draft reply", Streaming},
+		{"first", "first reply", Done},
+		{"second", "second reply", Done},
+		{"third", "draft reply", Streaming},
 	}
 	if len(s.Turns) != len(wantTurns) {
 		t.Fatalf("len(Turns) = %d, want %d", len(s.Turns), len(wantTurns))
 	}
 	for i, want := range wantTurns {
 		got := s.Turns[i]
-		if got.Ask != want.ask || got.Model != want.model || got.Reply != want.reply || got.Status != want.status {
+		if got.Ask != want.ask || got.Reply != want.reply || got.Status != want.status {
 			t.Errorf("Turns[%d] = %+v, want %+v", i, got, want)
 		}
 	}
@@ -113,18 +110,18 @@ func TestMessagesThreeTurns(t *testing.T) {
 }
 
 func TestRetry(t *testing.T) {
-	s := New(mode.Mode{ID: "translate"}, "source", "m1")
+	s := New(mode.Mode{ID: "translate"}, "source")
 	s.Last().Reply = "first reply"
 	s.Last().Status = Done
 
-	s.FollowUp("follow up", "m2")
+	s.FollowUp("follow up")
 	s.Last().Reply = "wrong reply"
 	s.Last().Status = Failed
 	s.Last().Err = errors.New("boom")
 
 	s.Retry()
 	turn := s.Last()
-	if turn.Ask != "follow up" || turn.Model != "m2" {
+	if turn.Ask != "follow up" {
 		t.Errorf("Retry changed the request: %+v", turn)
 	}
 	if turn.Reply != "" {
@@ -141,7 +138,7 @@ func TestRetry(t *testing.T) {
 	}
 
 	first := s.Turns[0]
-	if first.Ask != "source" || first.Model != "m1" || first.Reply != "first reply" || first.Status != Done || first.Err != nil {
+	if first.Ask != "source" || first.Reply != "first reply" || first.Status != Done || first.Err != nil {
 		t.Errorf("Retry changed the earlier turn: %+v", first)
 	}
 	want := []llm.Message{

@@ -21,7 +21,7 @@ func TestThemePrompt(t *testing.T) {
 		{"my-night", false, "my-night"}, {"auto", false, design.AutoLight}, {"auto", true, design.AutoDark},
 	} {
 		t.Run(tc.theme+tc.resolved, func(t *testing.T) {
-			s := State{Config: &config.Config{Theme: tc.theme, Models: []config.Model{{APIKey: "secret-test-key"}}}, File: []byte(`{"models":[{"apiKey":"secret-test-key"}]}`), Palettes: palettes, Dark: tc.dark}
+			s := State{Config: &config.Config{Theme: tc.theme, Model: &config.Model{APIKey: "secret-test-key"}}, File: []byte(`{"model":{"apiKey":"secret-test-key"},"models":[{"apiKey":"secret-test-key"}]}`), Palettes: palettes, Dark: tc.dark}
 			prompt := System(s)
 			section := themeSection(s)
 			if strings.Contains(prompt, "secret-test-key") {

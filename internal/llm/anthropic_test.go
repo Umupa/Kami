@@ -15,7 +15,6 @@ func TestAnthropicMessagesRequest(t *testing.T) {
 	t.Run("with system", func(t *testing.T) {
 		srv, recCh := captureServer(t)
 		model := config.Model{
-			Name:     "test",
 			Endpoint: srv.URL + "/v1/messages",
 			Format:   config.FormatAnthropicMessages,
 			Model:    "claude-test",

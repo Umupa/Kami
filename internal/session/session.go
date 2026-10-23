@@ -23,7 +23,6 @@ const (
 type Turn struct {
 	Ask    string
 	Reply  string
-	Model  string
 	Status Status
 	Err    error
 	// Dropped is how many earlier turns were left out of the request to fit
@@ -47,8 +46,8 @@ type Session struct {
 }
 
 // New starts a session in m with source as its first request.
-func New(m mode.Mode, source, model string) *Session {
-	return &Session{Mode: m, Turns: []Turn{{Ask: source, Model: model}}}
+func New(m mode.Mode, source string) *Session {
+	return &Session{Mode: m, Turns: []Turn{{Ask: source}}}
 }
 
 // Last returns the latest turn.
@@ -58,8 +57,8 @@ func (s *Session) Last() *Turn { return &s.Turns[len(s.Turns)-1] }
 func (s *Session) Busy() bool { return s.Last().Status == Streaming }
 
 // FollowUp adds a turn asking ask, after the latest turn has ended.
-func (s *Session) FollowUp(ask, model string) {
-	s.Turns = append(s.Turns, Turn{Ask: ask, Model: model})
+func (s *Session) FollowUp(ask string) {
+	s.Turns = append(s.Turns, Turn{Ask: ask})
 }
 
 // Retry clears the latest turn's reply so that it runs again.

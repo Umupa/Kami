@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseShortcutAccepts(t *testing.T) {
 	tests := []struct {
@@ -74,5 +77,28 @@ func TestParseShortcutRejects(t *testing.T) {
 				t.Errorf("ParseShortcut(%q) = %+v, want the zero Shortcut", tt.input, sc)
 			}
 		})
+	}
+}
+
+func TestShortcutKeys(t *testing.T) {
+	for _, tc := range []struct {
+		in, glyphs string
+		keys       []string
+	}{
+		{"option+space", "⌥Space", []string{"⌥", "Space"}},
+		{"control+shift+f5", "⌃⇧F5", []string{"⌃", "⇧", "F5"}},
+		{"double-option", "双击 ⌥", []string{"⌥"}},
+		{"none", "未设置", nil},
+	} {
+		sc, err := ParseShortcut(tc.in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := sc.Glyphs(); got != tc.glyphs {
+			t.Errorf("%s: glyphs %q, want %q", tc.in, got, tc.glyphs)
+		}
+		if got := sc.Keys(); strings.Join(got, " ") != strings.Join(tc.keys, " ") {
+			t.Errorf("%s: keys %q, want %q", tc.in, got, tc.keys)
+		}
 	}
 }

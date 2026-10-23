@@ -12,14 +12,11 @@ import (
 const opsTestData = `{
   "version": 1,
   "myLanguage": "简体中文",
-  "models": [
-    {
-      "name": "fast",
-      "endpoint": "https://example.com/v1/chat/completions",
-      "format": "chat-completions",
-      "model": "m"
-    }
-  ],
+  "model": {
+    "endpoint": "https://example.com/v1/chat/completions",
+    "format": "chat-completions",
+    "model": "m"
+  },
   "modes": [
     {"id": "translate"},
     {"id": "summarize", "name": "总结", "prompt": "old prompt"}
@@ -192,16 +189,16 @@ func TestApplyOpsErrors(t *testing.T) {
 		contains string
 	}{
 		{
-			name:     "models refused",
-			ops:      []Op{{Path: "models", Value: json.RawMessage(`[]`)}},
-			path:     "models",
-			contains: "agent",
+			name:     "model refused",
+			ops:      []Op{{Path: "model", Value: json.RawMessage(`null`)}},
+			path:     "model",
+			contains: "Coding Agent",
 		},
 		{
 			name:     "model key refused",
-			ops:      []Op{{Path: "models[0].apiKey", Value: json.RawMessage(`"x"`)}},
-			path:     "models[0].apiKey",
-			contains: "models",
+			ops:      []Op{{Path: "model.apiKey", Value: json.RawMessage(`"x"`)}},
+			path:     "model.apiKey",
+			contains: "model",
 		},
 		{
 			name:     "version refused",
@@ -321,7 +318,7 @@ func TestApplyOpsErrors(t *testing.T) {
 			name:     "result fails Decode with an unknown field",
 			ops:      []Op{{Path: "shortcuts.foo", Value: json.RawMessage(`"x"`)}},
 			path:     "shortcuts.foo",
-			contains: "不认识的字段",
+			contains: "未知字段",
 		},
 		{
 			name:     "input is not JSON",
@@ -429,15 +426,12 @@ func TestApplyOpsKeepsAPIKey(t *testing.T) {
 	const key = "sk-ops-keep-distinctive"
 	const data = `{
   "version": 1,
-  "models": [
-    {
-      "name": "fast",
-      "endpoint": "https://example.com/v1/chat/completions",
-      "format": "chat-completions",
-      "model": "m",
-      "apiKey": "sk-ops-keep-distinctive"
-    }
-  ]
+  "model": {
+    "endpoint": "https://example.com/v1/chat/completions",
+    "format": "chat-completions",
+    "model": "m",
+    "apiKey": "sk-ops-keep-distinctive"
+  }
 }`
 
 	out, changes, err := ApplyOps([]byte(data), []Op{{
@@ -454,7 +448,7 @@ func TestApplyOpsKeepsAPIKey(t *testing.T) {
 		t.Errorf("output did not apply the edit:\n%s", out)
 	}
 	// Defaults are not written into the file.
-	for _, field := range []string{`"shortcuts"`, `"foreignLanguage"`, `"defaultModel"`} {
+	for _, field := range []string{`"shortcuts"`, `"foreignLanguage"`, `"auth"`} {
 		if bytes.Contains(out, []byte(field)) {
 			t.Errorf("output contains default field %q:\n%s", field, out)
 		}

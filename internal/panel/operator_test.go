@@ -181,7 +181,7 @@ func TestOperatorCustomThemeContrast(t *testing.T) {
 			if !turn.Undoable {
 				t.Fatalf("ops not applied: %s", turn.Reply)
 			}
-			if got := strings.Contains(turn.Reply, "低于 4.5:1"); got != tc.warn {
+			if got := strings.Contains(turn.Reply, "低于建议的 4.5:1"); got != tc.warn {
 				t.Fatalf("warning %v: %s", got, turn.Reply)
 			}
 			if h.p.cfg.Theme == "custom" {

@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/Umupa/Kami/internal/config"
@@ -70,8 +69,8 @@ const usage = `用法：Kami <命令> [参数]
 字段说明见同目录的 config.schema.json。
 
 命令：
-  help                                 显示本帮助
-  check [模型名] [--verbose] [--json]   校验配置，并向每个模型发一个小请求
+  help                         显示本帮助
+  check [--verbose] [--json]   校验配置，并向模型发一个小请求
 
 配置目录：%s
 `
@@ -96,18 +95,4 @@ func readConfig(env *Env) (*config.Config, error) {
 		return nil, fmt.Errorf("配置文件 %s 有问题：\n%w", path, err)
 	}
 	return cfg, nil
-}
-
-// missingModelMessage names the configured models so that the caller can pick
-// a valid one without opening config.json.
-func missingModelMessage(cfg *config.Config, model string) string {
-	names := make([]string, 0, len(cfg.Models))
-	for _, m := range cfg.Models {
-		names = append(names, m.Name)
-	}
-	if len(names) == 0 {
-		return fmt.Sprintf("配置里没有名为「%s」的模型，配置里还没有任何模型。", model)
-	}
-	slices.Sort(names)
-	return fmt.Sprintf("配置里没有名为「%s」的模型，已配置的模型：%s。", model, strings.Join(names, "、"))
 }

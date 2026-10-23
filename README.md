@@ -15,7 +15,7 @@
 | 命令 | 作用 |
 | --- | --- |
 | `scripts/build.sh` | 构建 `build/darwin-arm64/Kami.app`，用本机签名身份 `Kami Dev` 签名；第一次运行时自动创建该身份（需要输入一次系统密码） |
-| `scripts/dev.sh` | 带热重载的开发运行，同样签名。它是另一个应用 `Kami Dev`，权限与数据目录和正式构建分开 |
+| `scripts/dev.sh` | 带热重载的开发运行，同样签名。它是另一个应用 `Kami Dev`，权限与数据目录和正式构建分开；没有模型时显示首次使用引导，`KAMI_DEMO=1 scripts/dev.sh` 改用演示回复 |
 | `scripts/reset-permissions.sh [--dev]` | 清除 Kami 的辅助功能、输入监控、屏幕录制记录，用于授权错乱时 |
 
 签名固定后，重新构建不会丢失系统权限。`scripts/build.sh --ad-hoc` 只用于临时产物，它的权限在重新构建后失效。

@@ -88,7 +88,7 @@ func TestRetainedHeightStreamKeepsTopInEveryPaint(t *testing.T) {
 			// Sending a follow-up queues ScrollToEnd even when the added
 			// turn still fits. It must not bypass the same top anchor.
 			h.p.sess.Last().Status = session.Done
-			h.p.sess.FollowUp("A short follow-up", "")
+			h.p.sess.FollowUp("A short follow-up")
 			h.p.sess.Last().Reply = "Another short reply."
 			h.p.list.ScrollToEnd()
 			h.tt.Frame()

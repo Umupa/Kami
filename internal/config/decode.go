@@ -14,7 +14,7 @@ import (
 )
 
 // Problem is one thing wrong with config.json. Path is a JSON path such as
-// "models[1].endpoint", empty for the file as a whole.
+// "model.endpoint", empty for the file as a whole.
 type Problem struct {
 	Path    string `json:"path"`
 	Message string `json:"message"`
@@ -71,6 +71,32 @@ func Decode(data []byte) (*Config, error) {
 	return &c, nil
 }
 
+// decodeSettings validates settings independently of model service fields.
+// Legacy model fields remain errors in Decode, but cannot block local settings.
+func decodeSettings(data []byte) (*Config, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, &Error{Problems: []Problem{{Message: syntaxMessage(data, err)}}}
+	}
+	if fields == nil {
+		return nil, &Error{Problems: []Problem{{Message: "配置文件必须是一个 JSON 对象"}}}
+	}
+	for key := range fields {
+		if modelField(key) {
+			delete(fields, key)
+		}
+	}
+	settings, err := json.Marshal(fields)
+	if err != nil {
+		return nil, err
+	}
+	return Decode(settings)
+}
+
+func modelField(key string) bool {
+	return key == "model" || key == "models" || key == "defaultModel"
+}
+
 // syntaxMessage locates a JSON syntax error by line and column, which agents
 // and editors find faster than a byte offset.
 func syntaxMessage(data []byte, err error) string {
@@ -105,6 +131,8 @@ func typeName(t reflect.Type) string {
 // (headers, body) accept any key.
 func unknownFields(v any, t reflect.Type, path string, out *[]Problem) {
 	switch t.Kind() {
+	case reflect.Pointer:
+		unknownFields(v, t.Elem(), path, out)
 	case reflect.Struct:
 		obj, ok := v.(map[string]any)
 		if !ok {
@@ -125,7 +153,7 @@ func unknownFields(v any, t reflect.Type, path string, out *[]Problem) {
 		for _, k := range keys {
 			ft, ok := fields[k]
 			if !ok {
-				*out = append(*out, Problem{Path: joinPath(path, k), Message: "不认识的字段"})
+				*out = append(*out, Problem{Path: joinPath(path, k), Message: "未知字段"})
 				continue
 			}
 			unknownFields(obj[k], ft, joinPath(path, k), out)
@@ -163,16 +191,8 @@ func (c *Config) validate() []Problem {
 		add("version", "必须是 %d", Version)
 	}
 
-	names := map[string]bool{}
-	for i, m := range c.Models {
-		p := fmt.Sprintf("models[%d]", i)
-		switch {
-		case m.Name == "":
-			add(p+".name", "不能为空")
-		case names[m.Name]:
-			add(p+".name", "与前面的模型重名：%s", m.Name)
-		}
-		names[m.Name] = true
+	if m := c.Model; m != nil {
+		const p = "model"
 		if u, err := url.Parse(m.Endpoint); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			add(p+".endpoint", "必须是完整的 http(s) 地址")
 		}
@@ -242,9 +262,6 @@ func (c *Config) validate() []Problem {
 	if d := c.NotesDir; d != "" && d != "~" && !strings.HasPrefix(d, "~/") && !filepath.IsAbs(d) {
 		add("notesDir", "必须是绝对路径，或以 ~/ 开头")
 	}
-	if c.DefaultModel != "" && !names[c.DefaultModel] {
-		add("defaultModel", "没有名为「%s」的模型", c.DefaultModel)
-	}
 
 	ids := map[string]bool{}
 	for i, m := range c.Modes {
@@ -265,9 +282,6 @@ func (c *Config) validate() []Problem {
 		case "", OutputAuto, OutputMarkdown, OutputPlain:
 		default:
 			add(p+".output", "必须是 auto、markdown 或 plain")
-		}
-		if m.Model != "" && !names[m.Model] {
-			add(p+".model", "没有名为「%s」的模型", m.Model)
 		}
 	}
 

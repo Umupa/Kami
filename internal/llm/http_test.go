@@ -114,7 +114,6 @@ func testAuthHeaders(t *testing.T, format config.Format) {
 		t.Run(tt.name, func(t *testing.T) {
 			srv, recCh := captureServer(t)
 			model := config.Model{
-				Name:     "test",
 				Endpoint: srv.URL + "/stream",
 				Format:   format,
 				Model:    "test-model",

@@ -26,7 +26,7 @@ func abs(v float32) float32 {
 }
 
 const minRegion = 4
-const captureHint = "拖动框选要翻译的文字 · Esc 取消"
+const captureHint = "拖动框选文字 · Esc 取消"
 
 func (c *Capturer) view(ctx *ui.Context) {
 	root := ctx.Root().Background(ui.Transparent)

@@ -32,13 +32,29 @@ type Deps struct {
 	Client func(config.Model) llm.Client
 	Log    *slog.Logger
 	// Demo answers with a canned reply when no model is configured, for
-	// development builds.
+	// development builds that ask for it.
 	Demo bool
 	// Operator is what operator mode works with.
 	Operator Operator
+	// AgentPrompt returns the prompt that has a coding agent set up, fix or
+	// adjust the model.
+	AgentPrompt func() string
 	// OnBusy, when set, hears when a request starts and ends, on the main
 	// thread, as the menu bar icon shows it.
 	OnBusy func(busy bool)
+	// OnOutcome, when set, hears how each request to the model ended, on
+	// the main thread: nil when it was answered. Stops and Kami's own
+	// replies are not requests.
+	OnOutcome func(err error)
+	// Permissions reads the system permissions; RequestPermission asks for
+	// one, with macOS's prompt or, once it was shown, System Settings;
+	// Relaunch starts Kami again, as some grants need. Main thread.
+	Permissions       func() []operator.Permission
+	RequestPermission func(id string)
+	Relaunch          func()
+	// OnSetup, when set, hears the permission step start and end, so that
+	// the app resumes it after a restart (ResumeSetup).
+	OnSetup func(pending bool)
 	// NotesDir is where a configuration keeps the notes, and Trash moves a
 	// deleted note's file to the Trash.
 	NotesDir func(*config.Config) string
@@ -92,6 +108,13 @@ type Panel struct {
 	notes   notes
 	sess    *session.Session
 	cancel  context.CancelFunc
+	// said is the text of the app's own reply last shown (greet).
+	said string
+	// inSetup is set during the permission step, and heldOpen while the
+	// panel stays up as the user works elsewhere: in a coding agent, or in
+	// System Settings.
+	inSetup  bool
+	heldOpen bool
 	// results holds the other modes' sessions, by mode id.
 	results map[string]result
 
@@ -277,7 +300,7 @@ func New(d Deps) *Panel {
 		}
 	})
 	p.win.OnBlur(func() {
-		if p.pinned {
+		if p.pinned || p.heldOpen {
 			return
 		}
 		d.Log.Debug("panel blur")
@@ -328,7 +351,8 @@ func newPanel(d Deps) *Panel {
 
 // Toggle shows the panel, or hides it when it shows.
 func (p *Panel) Toggle() {
-	if p.win.IsVisible() {
+	// A panel left up behind other windows comes forward instead.
+	if p.win.IsVisible() && p.win.IsFocused() {
 		p.win.Hide()
 		return
 	}
@@ -356,6 +380,7 @@ func (p *Panel) Show() {
 	}
 	p.ask(p.place.bounds(p.height).Height)
 	p.win.SetBounds(p.place.bounds(p.height))
+	p.greet()
 	p.win.Show()
 	switch {
 	case p.noteMode():
@@ -395,7 +420,10 @@ func (p *Panel) Import(text string) {
 		p.clearResults()
 		p.least = 0
 		p.setMode(0)
-		p.run()
+		// With no model the text waits in the source for the first one.
+		if !p.unconfigured() {
+			p.run()
+		}
 	}
 	p.Show()
 }
@@ -436,6 +464,11 @@ func (p *Panel) importCaptured(text string) {
 		p.setBusy(false)
 		return
 	}
+	if p.unconfigured() {
+		// The text waits in the source for the first model.
+		p.greet()
+		return
+	}
 	// OCR is material, including text that happens to start with a slash
 	// command. It must never be interpreted as an Operator instruction.
 	p.runMaterial()
@@ -464,6 +497,7 @@ func (p *Panel) applyConfig(c *config.Config) {
 		current = p.modes[p.modeIdx].ID
 	}
 	inNotes := p.cfg != nil && p.noteMode()
+	arrived := p.unconfigured() && c.Model != nil
 	p.cfg, p.modes, p.modeIdx = c, modes, 0
 	p.custom = make(map[string]*design.Palette, len(c.Themes))
 	for _, t := range c.Themes {
@@ -480,10 +514,33 @@ func (p *Panel) applyConfig(c *config.Config) {
 	if p.deps.NotesDir != nil {
 		p.setNotesDir(p.deps.NotesDir(c))
 	}
+	// The panel greets as it shows (Show); here it only keeps what it said
+	// up to date.
+	switch {
+	case arrived:
+		p.connected()
+	case p.greeting():
+		p.greet()
+	}
 }
 
-// run starts a new session with the source in the current mode.
+// run starts a new session with the source in the current mode. With no
+// model to send it to, it copies the prompt that configures one, and the
+// source waits.
 func (p *Panel) run() {
+	if p.unconfigured() {
+		if !themeTyped(p.source) || p.capturedSource() {
+			p.copyTurn(-1)
+		}
+		return
+	}
+	if p.welcoming() && p.permissionStep() {
+		return
+	}
+	if p.inSetup {
+		// Using Kami ends the step, granted or not.
+		p.endSetup()
+	}
 	if request, ok := operator.Leading(p.source); ok && !p.capturedSource() {
 		p.runOperator(request)
 		return
@@ -503,7 +560,7 @@ func (p *Panel) runMaterial() {
 	if p.capturedSource() && m.ID == "translate" {
 		m.Input = config.InputMaterial
 	}
-	p.sess = session.New(m, p.source, m.Model)
+	p.sess = session.New(m, p.source)
 	p.list = newList()
 	p.start()
 }
@@ -514,7 +571,7 @@ func (p *Panel) send() {
 	if p.sess == nil || p.sess.Busy() || ask == "" {
 		return
 	}
-	p.sess.FollowUp(ask, p.sess.Last().Model)
+	p.sess.FollowUp(ask)
 	p.follow = ""
 	// A follow-up goes to the end, wherever the user had scrolled.
 	p.list.ScrollToEnd()
@@ -545,6 +602,7 @@ func (p *Panel) reset() {
 	p.least = 0
 	p.captureSource = ""
 	p.sourceIn.Focus()
+	p.greet()
 }
 
 func (p *Panel) setBusy(busy bool) {
@@ -560,10 +618,11 @@ var errNoModel = &llm.Error{Kind: llm.KindConfig, Detail: "no model configured"}
 func (p *Panel) start() {
 	sess, turn := p.sess, len(p.sess.Turns)-1
 	sess.Turns[turn].Status = session.Streaming
-	model, ok := p.cfg.Model(sess.Turns[turn].Model)
+	var model config.Model
 	var client llm.Client
 	switch {
-	case ok:
+	case p.cfg.Model != nil:
+		model = *p.cfg.Model
 		client = p.deps.Client(model)
 	case p.deps.Demo:
 		client = llm.Demo{}
@@ -644,6 +703,9 @@ func (p *Panel) finish(sess *session.Session, turn int, err error) {
 				t.Reply = operator.Visible(t.Reply)
 			}
 		}()
+	}
+	if p.deps.OnOutcome != nil && !t.Local && !errors.Is(err, context.Canceled) && err != errNoModel {
+		p.deps.OnOutcome(err)
 	}
 	switch {
 	case err == nil:

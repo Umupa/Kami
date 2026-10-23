@@ -6,166 +6,90 @@ import (
 	"testing"
 )
 
-func TestAgentPromptQuotesExecutable(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "config dir")
+func TestAgentPromptQuotesPaths(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Application Support", "Kami")
 	cases := []struct {
 		name       string
 		exe        string
 		wantQuoted string
 	}{
-		{
-			name:       "space",
-			exe:        "/Applications/My Apps/Kami",
-			wantQuoted: `'/Applications/My Apps/Kami'`,
-		},
-		{
-			name:       "single quote",
-			exe:        "/Applications/O'Brien/Kami",
-			wantQuoted: `'/Applications/O'\''Brien/Kami'`,
-		},
+		{"space", "/Applications/My Apps/Kami", `'/Applications/My Apps/Kami'`},
+		{"single quote", "/Applications/O'Brien/Kami", `'/Applications/O'\''Brien/Kami'`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			prompt := AgentPrompt(PromptInput{
-				Exe:      tc.exe,
-				Dir:      dir,
-				Snapshot: Snapshot{Config: &Config{Version: Version}},
-			})
+			prompt := AgentPrompt(PromptInput{Exe: tc.exe, Dir: dir, Config: &Config{Version: Version}})
 			for _, want := range []string{
-				filepath.Join(dir, FileName),
-				filepath.Join(dir, SchemaFileName),
-				"apiKey",
-				tc.wantQuoted + " check 检查全部模型",
-				tc.wantQuoted + " check <模型名> --verbose",
+				"Kami 的命令行：" + tc.wantQuoted + "\n",
+				"配置文件：'" + filepath.Join(dir, FileName) + "'\n",
+				"字段说明：'" + filepath.Join(dir, SchemaFileName) + "'\n",
+				"`Kami check`",
+				"`Kami check --verbose`",
+				"model.apiKey",
 			} {
 				if !strings.Contains(prompt, want) {
-					t.Errorf("prompt does not contain %q", want)
+					t.Errorf("prompt does not contain %q:\n%s", want, prompt)
 				}
 			}
-			if strings.Contains(prompt, "key set") {
-				t.Error("prompt still tells the assistant to run key set")
-			}
 		})
 	}
 }
 
-func TestAgentPromptModelSummary(t *testing.T) {
-	const fastKey = "sk-fast-distinctive-secret"
-	cfg := &Config{Models: []Model{
-		{
-			Name:     "fast",
-			Endpoint: "https://fast.example.com/v1/chat/completions",
-			Format:   FormatChatCompletions,
-			Model:    "gpt-fast",
-			APIKey:   fastKey,
-			Auth:     AuthBearer,
-		},
-		{
-			Name:     "strong",
-			Endpoint: "https://api.strong.example.com:8443/v1/messages",
-			Format:   FormatAnthropicMessages,
-			Model:    "claude",
-			Auth:     AuthNone,
-		},
-		{
-			Name:     "local",
-			Endpoint: "http://127.0.0.1:8080/v1",
-			Format:   FormatResponses,
-			Model:    "local",
-			Auth:     AuthBearer,
-		},
-	}}
-	prompt := AgentPrompt(PromptInput{
-		Exe:      "/bin/Kami",
-		Dir:      t.TempDir(),
-		Snapshot: Snapshot{Config: cfg},
-	})
-
-	wantLines := []string{
-		"- fast：chat-completions，gpt-fast，fast.example.com，Key 已配置\n",
-		"- strong：anthropic-messages，claude，api.strong.example.com:8443，不需要 Key\n",
-		"- local：responses，local，127.0.0.1:8080，Key 未设置\n",
-	}
-	for _, want := range wantLines {
-		if got := strings.Count(prompt, want); got != 1 {
-			t.Errorf("prompt contains the summary line %q %d times, want 1", want, got)
-		}
-	}
-	if strings.Contains(prompt, fastKey) {
-		t.Error("prompt contains the model's API key")
-	}
-}
-
-func TestAgentPromptTask(t *testing.T) {
-	t.Run("no models", func(t *testing.T) {
-		prompt := AgentPrompt(PromptInput{
-			Exe:      "/bin/Kami",
-			Dir:      t.TempDir(),
-			Snapshot: Snapshot{Config: &Config{Version: Version}},
-		})
-		task := promptTask(t, prompt)
-		for _, want := range []string{"问我用哪家服务", "fast", "strong"} {
-			if !strings.Contains(task, want) {
-				t.Errorf("task does not mention %q", want)
-			}
-		}
-	})
-
-	t.Run("invalid config", func(t *testing.T) {
-		err := &Error{Problems: []Problem{
-			{Path: "models[0].endpoint", Message: "必须是完整的 http(s) 地址"},
-			{Path: "modes[0].name", Message: "自定义模式必须写名字"},
-		}}
-		prompt := AgentPrompt(PromptInput{
-			Exe:      "/bin/Kami",
-			Dir:      t.TempDir(),
-			Snapshot: Snapshot{Config: &Config{Version: Version}, Err: err},
-		})
-		task := promptTask(t, prompt)
-		if !strings.Contains(task, "先读 config.json 和上面的问题，把它修好，再检查。") {
-			t.Errorf("task does not say to fix the file: %q", task)
-		}
-		if strings.Contains(task, "问我用哪家服务") {
-			t.Error("task asks for a service while the file needs fixing")
-		}
-		for _, line := range []string{
-			"  - models[0].endpoint：必须是完整的 http(s) 地址\n",
-			"  - modes[0].name：自定义模式必须写名字\n",
-		} {
-			if got := strings.Count(prompt, line); got != 1 {
-				t.Errorf("prompt contains problem line %q %d times, want 1", line, got)
-			}
-		}
-	})
-
-	t.Run("models", func(t *testing.T) {
-		cfg := &Config{
-			Version: Version,
-			Models:  []Model{{Name: "fast", Format: FormatChatCompletions, Model: "gpt-fast"}},
-		}
-		prompt := AgentPrompt(PromptInput{
-			Exe:      "/bin/Kami",
-			Dir:      t.TempDir(),
-			Snapshot: Snapshot{Config: cfg},
-		})
-		task := promptTask(t, prompt)
-		if !strings.Contains(task, "问我想调整什么，默认保留现有的服务和模型。") {
-			t.Errorf("task does not ask what to change: %q", task)
-		}
-		if strings.Contains(task, "问我用哪家服务") {
-			t.Error("task asks for a service although models are configured")
-		}
-	})
-}
-
-func promptTask(t *testing.T, prompt string) string {
+// decodeFor decodes a config for a prompt test, defaults filled in.
+func decodeFor(t *testing.T, data string) *Config {
 	t.Helper()
-	const marker = "## 任务\n\n"
-	i := strings.Index(prompt, marker)
-	if i < 0 {
-		t.Fatalf("prompt has no task section: %q", prompt)
+	c, err := Decode([]byte(data))
+	if err != nil {
+		t.Fatal(err)
 	}
-	return prompt[i+len(marker):]
+	return c
+}
+
+// The prompt does not depend on the state of the configuration: the agent
+// learns it from `Kami check`, so a copy taken earlier stays right.
+func TestAgentPromptIsTheSameInEveryState(t *testing.T) {
+	const model = `"model":{"endpoint":"https://api.example.com/v1/chat/completions","format":"chat-completions","model":"m"`
+	want := AgentPrompt(PromptInput{Exe: "/bin/Kami", Dir: "/tmp/Kami", Config: decodeFor(t, `{"version":1}`)})
+	for name, data := range map[string]string{
+		"no key":  `{"version":1,` + model + `}}`,
+		"working": `{"version":1,` + model + `,"apiKey":"k"}}`,
+	} {
+		if got := AgentPrompt(PromptInput{Exe: "/bin/Kami", Dir: "/tmp/Kami", Config: decodeFor(t, data)}); got != want {
+			t.Errorf("%s: the prompt differs from the one with no model:\n%s", name, got)
+		}
+	}
+	for _, step := range []string{
+		"运行 `Kami check`，按结果走",
+		"- 还没有配置模型 → 带我从头配置",
+		"- 配置文件有问题 → 直接修好",
+		"- 请求失败 → 运行 `Kami check --verbose`",
+		"- 已经可用 → 告诉我一声，问我想调整什么",
+		"一次只问一个问题，给编号选项",
+		"2. 没有 Key，但有订阅",
+		"用 magpie（https://github.com/yetone/magpie）",
+		"http://127.0.0.1:3425",
+		"我同意后再安装",
+		"你用 pbpaste 读出来，直接写进 model.apiKey",
+		"## 选模型",
+		"优先选便宜、快、不带思考的模型，比如 DeepSeek、GPT 的 mini / nano 系列、`gpt6-luna`",
+		"Claude Haiku 这类模型单价高出不少，除非我点名要，不要默认选它",
+	} {
+		if !strings.Contains(want, step) {
+			t.Errorf("prompt does not say %q:\n%s", step, want)
+		}
+	}
+}
+
+func TestAgentPromptSendsUserBack(t *testing.T) {
+	for _, tc := range []struct{ shortcuts, want string }{
+		{``, "回到 Kami，按 ⌥Space 打开面板，输入一段文字按 ⏎ 试一次。"},
+		{`,"shortcuts":{"panel":"none"}`, "回到 Kami，从菜单栏打开面板，输入一段文字按 ⏎ 试一次。"},
+	} {
+		prompt := AgentPrompt(PromptInput{Exe: "/bin/Kami", Dir: t.TempDir(), Config: decodeFor(t, `{"version":1`+tc.shortcuts+`}`)})
+		if !strings.Contains(prompt, tc.want) {
+			t.Errorf("prompt does not say %q:\n%s", tc.want, prompt)
+		}
+	}
 }
 
 func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
@@ -174,9 +98,7 @@ func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
 		Version:         Version,
 		MyLanguage:      "secret-language-value",
 		ForeignLanguage: "secret-foreign-value",
-		DefaultModel:    "alpha",
-		Models: []Model{{
-			Name:          "alpha",
+		Model: &Model{
 			Endpoint:      "https://api.example.com/secret-path?token=secret-query",
 			Format:        FormatChatCompletions,
 			Model:         "alpha-model",
@@ -185,15 +107,10 @@ func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
 			Headers:       map[string]string{"X-Secret-Header": "secret-header-value"},
 			Body:          map[string]any{"api_key": "secret-body-value"},
 			ContextWindow: 424242,
-		}},
+		},
 		Shortcuts: Shortcuts{Panel: "secret-shortcut-value"},
 	}
-	prompt := AgentPrompt(PromptInput{
-		Exe:      "/bin/Kami",
-		Dir:      t.TempDir(),
-		Snapshot: Snapshot{Config: cfg},
-	})
-
+	prompt := AgentPrompt(PromptInput{Exe: "/bin/Kami", Dir: t.TempDir(), Config: cfg})
 	for _, secret := range []string{
 		"secret-schema-value",
 		"secret-language-value",
@@ -205,13 +122,11 @@ func TestAgentPromptDoesNotLeakConfigValues(t *testing.T) {
 		"secret-body-value",
 		"424242",
 		"secret-shortcut-value",
+		"alpha-model",
+		"api.example.com",
 	} {
 		if strings.Contains(prompt, secret) {
 			t.Errorf("prompt leaks the config value %q", secret)
 		}
-	}
-	wantLine := "- alpha：chat-completions，alpha-model，api.example.com，Key 已配置\n"
-	if got := strings.Count(prompt, wantLine); got != 1 {
-		t.Errorf("prompt contains the summary line %q %d times, want 1", wantLine, got)
 	}
 }

@@ -15,7 +15,6 @@ func TestResponsesRequest(t *testing.T) {
 	t.Run("with system", func(t *testing.T) {
 		srv, recCh := captureServer(t)
 		model := config.Model{
-			Name:     "test",
 			Endpoint: srv.URL + "/v1/responses",
 			Format:   config.FormatResponses,
 			Model:    "gpt-test",

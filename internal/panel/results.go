@@ -17,7 +17,7 @@ type result struct {
 // showResult shows the session of mode id, putting the one shown aside. An
 // operator session the source still asks for stays: it belongs to no mode.
 func (p *Panel) showResult(id string) {
-	if p.sess != nil && (p.sess.Operator && p.operatorActive() || !p.sess.Operator && p.sess.Mode.ID == id) {
+	if p.sess != nil && (p.greeting() || p.sess.Operator && p.operatorActive() || !p.sess.Operator && p.sess.Mode.ID == id) {
 		return
 	}
 	p.park()
@@ -30,12 +30,13 @@ func (p *Panel) showResult(id string) {
 }
 
 // park puts the session shown aside under its mode, leaving none shown. An
-// operator session is not kept: it is stopped and dropped.
+// operator session or the app's own reply is not kept: it is stopped and
+// dropped.
 func (p *Panel) park() {
 	if p.sess == nil {
 		return
 	}
-	if p.sess.Operator {
+	if p.sess.Operator || p.greeting() {
 		p.stop()
 	} else {
 		p.dropResult(p.sess.Mode.ID)

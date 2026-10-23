@@ -45,9 +45,6 @@ func TestResolveBuiltins(t *testing.T) {
 		if strings.TrimSpace(m.Prompt) == "" {
 			t.Errorf("modes[%d].Prompt is empty", i)
 		}
-		if m.Model != "" {
-			t.Errorf("modes[%d].Model = %q, want empty without models", i, m.Model)
-		}
 	}
 }
 
@@ -101,15 +98,6 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 				return m
 			}(),
 		},
-		{
-			name:  "model",
-			entry: config.Mode{ID: "prompt", Model: "chosen"},
-			want: func() Mode {
-				m := base
-				m.Model = "chosen"
-				return m
-			}(),
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -129,9 +117,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 
 func TestResolveCustomModeDefaults(t *testing.T) {
 	cfg := &config.Config{
-		DefaultModel: "fast",
-		Models:       []config.Model{{Name: "fast"}, {Name: "strong"}},
-		Modes:        []config.Mode{{ID: "summary", Name: "总结", Prompt: "总结文本"}},
+		Modes: []config.Mode{{ID: "summary", Name: "总结", Prompt: "总结文本"}},
 	}
 	modes, err := Resolve(cfg)
 	if err != nil {
@@ -144,7 +130,6 @@ func TestResolveCustomModeDefaults(t *testing.T) {
 		Prompt: "总结文本",
 		Input:  config.InputMaterial,
 		Output: config.OutputMarkdown,
-		Model:  "fast",
 	}
 	if len(modes) != 1 {
 		t.Fatalf("len(Resolve) = %d, want 1", len(modes))
@@ -230,75 +215,6 @@ func TestResolveListedSubset(t *testing.T) {
 	}
 	if modes[1].Input != config.InputMaterial || modes[1].Output != config.OutputAuto {
 		t.Errorf("translate = %+v, want the built-in input and output", modes[1])
-	}
-}
-
-func TestResolveModel(t *testing.T) {
-	fastStrong := []config.Model{{Name: "fast"}, {Name: "strong"}}
-	cases := []struct {
-		name string
-		cfg  *config.Config
-		want []string
-	}{
-		{
-			name: "built-in preferences",
-			cfg:  &config.Config{DefaultModel: "fast", Models: fastStrong},
-			want: []string{"fast", "fast", "strong", "fast"},
-		},
-		{
-			name: "prompt falls back without strong",
-			cfg:  &config.Config{DefaultModel: "fast", Models: []config.Model{{Name: "fast"}}},
-			want: []string{"fast", "fast", "fast", "fast"},
-		},
-		{
-			name: "ask falls back without fast",
-			cfg:  &config.Config{DefaultModel: "strong", Models: []config.Model{{Name: "strong"}}},
-			want: []string{"strong", "strong", "strong", "strong"},
-		},
-		{
-			name: "ask prefers fast over the default",
-			cfg:  &config.Config{DefaultModel: "strong", Models: []config.Model{{Name: "strong"}, {Name: "fast"}}},
-			want: []string{"strong", "strong", "strong", "fast"},
-		},
-		{
-			name: "explicit model wins",
-			cfg: &config.Config{
-				DefaultModel: "strong",
-				Models:       fastStrong,
-				Modes:        []config.Mode{{ID: "prompt", Model: "fast"}},
-			},
-			want: []string{"fast"},
-		},
-		{
-			name: "custom mode uses the default",
-			cfg: &config.Config{
-				DefaultModel: "strong",
-				Models:       fastStrong,
-				Modes:        []config.Mode{{ID: "summary", Name: "总结", Prompt: "总结文本"}},
-			},
-			want: []string{"strong"},
-		},
-		{
-			name: "no models",
-			cfg:  &config.Config{},
-			want: []string{"", "", "", ""},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			modes, err := Resolve(tc.cfg)
-			if err != nil {
-				t.Fatalf("Resolve: %v", err)
-			}
-			if len(modes) != len(tc.want) {
-				t.Fatalf("len(Resolve) = %d, want %d", len(modes), len(tc.want))
-			}
-			for i, want := range tc.want {
-				if modes[i].Model != want {
-					t.Errorf("modes[%d].Model = %q, want %q", i, modes[i].Model, want)
-				}
-			}
-		})
 	}
 }
 

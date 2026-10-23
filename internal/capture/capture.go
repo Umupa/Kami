@@ -35,7 +35,6 @@ const recognitionTimeout = 30 * time.Second
 // backend separates system acquisition from the picker and its lifecycle.
 type backend struct {
 	access  func() bool
-	request func() bool
 	display func() mygo.Display
 	freeze  func(context.Context, mygo.Display) (*macos.Image, error)
 	read    func(context.Context, *macos.Image, macos.Rect) Result
@@ -67,7 +66,7 @@ type Capturer struct {
 // New returns a Capturer and warms both recognition languages in the background.
 func New(log *slog.Logger, done func(Result)) *Capturer {
 	c := &Capturer{log: log, done: done, post: mygo.RunOnMain, sys: backend{
-		access: macos.ScreenAccess, request: macos.RequestScreenAccess,
+		access:  macos.ScreenAccess,
 		display: func() mygo.Display { return mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint()) },
 		freeze: func(ctx context.Context, d mygo.Display) (*macos.Image, error) {
 			return macos.CaptureDisplay(ctx, uint32(d.ID), int(math.Round(float64(d.Bounds.Width)*d.ScaleFactor)), int(math.Round(float64(d.Bounds.Height)*d.ScaleFactor)))
@@ -94,7 +93,7 @@ func (c *Capturer) Start() {
 		return
 	}
 	if !c.sys.access() {
-		c.sys.request()
+		// The app asks for it: a prompt, or System Settings after one.
 		c.done(Result{Err: macos.ErrNoScreenAccess})
 		return
 	}

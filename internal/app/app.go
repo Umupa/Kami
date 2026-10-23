@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
+	"reflect"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -22,6 +22,7 @@ import (
 	"github.com/Umupa/Kami/internal/llm"
 	"github.com/Umupa/Kami/internal/macos"
 	"github.com/Umupa/Kami/internal/mode"
+	"github.com/Umupa/Kami/internal/operator"
 	"github.com/Umupa/Kami/internal/panel"
 	"github.com/Umupa/Kami/internal/selection"
 )
@@ -42,11 +43,28 @@ type app struct {
 	tapping    bool
 	clipboard  *macos.Pasteboard
 	capturer   *capture.Capturer
-	// askedListen is set once Input Monitoring has been asked for.
-	askedListen      bool
+	// asked holds the permissions asked for in this run: macOS prompts once,
+	// so the next ask opens System Settings. mayAskListen is set when
+	// Input Monitoring may be asked for unprompted, at a launch with a
+	// model; a first run asks for it in the panel's permission step.
+	asked        map[string]bool
+	mayAskListen bool
+	// screenAtLaunch is whether Screen Recording was granted at launch: a
+	// grant after takes effect from the next.
+	screenAtLaunch   bool
 	readingSelection bool
 	// undo is config.json before the last operator edit.
 	undo []byte
+	// statusIcon and brokenIcon are the symbols of the menu's status lines;
+	// nil when they could not be installed. conn is what they say of the
+	// model, and checks counts the checks so a stale one is dropped. Main
+	// thread only.
+	statusIcon, brokenIcon *macos.StatusMenuItem
+	conn                   connection
+	checks                 int
+	// Dock starts hidden. Only actual setting changes update the native policy.
+	dockVisible         bool
+	setActivationPolicy func(mygo.ActivationPolicy)
 }
 
 // Run starts the app and returns when it quits. A second launch returns at
@@ -72,7 +90,7 @@ func Run() error {
 	if err != nil {
 		logDir = dataDir
 	}
-	a := &app{log: openLog(logDir, mygo.IsDev()), configDir: dataDir}
+	a := &app{log: openLog(logDir, mygo.IsDev()), configDir: dataDir, setActivationPolicy: mygo.App.SetActivationPolicy}
 	a.log.Info("launch", "version", mygo.App.Version(), "dev", mygo.IsDev())
 
 	if err := config.Prepare(dataDir); err != nil {
@@ -83,6 +101,11 @@ func Run() error {
 
 	ctx, stop := context.WithCancel(context.Background())
 	mygo.App.OnSecondInstance(func([]string, string) {
+		if a.panel != nil {
+			a.showPanel()
+		}
+	})
+	mygo.App.OnActivate(func(bool) {
 		if a.panel != nil {
 			a.showPanel()
 		}
@@ -102,18 +125,25 @@ func (a *app) ready(ctx context.Context) {
 		Store:  a.store,
 		Client: func(config.Model) llm.Client { return llm.HTTP{} },
 		Log:    a.log,
-		Demo:   mygo.IsDev(),
+		// Canned replies hide the first run, so only on request.
+		Demo: mygo.IsDev() && os.Getenv("KAMI_DEMO") == "1",
 		Operator: panel.Operator{
 			State: a.operatorState,
 			Apply: a.applyOps,
 			Undo:  a.undoOps,
 			Run:   a.runAction,
 		},
+		AgentPrompt: a.agentPrompt,
 		NotesDir: func(c *config.Config) string {
 			home, _ := os.UserHomeDir()
 			return c.Notes(a.configDir, home)
 		},
-		Trash: macos.Trash,
+		Trash:             macos.Trash,
+		OnOutcome:         func(err error) { a.requestEnded(err) },
+		Permissions:       a.permissionStates,
+		RequestPermission: a.requestPermission,
+		Relaunch:          mygo.App.Relaunch,
+		OnSetup:           func(pending bool) { macos.SetDefaultBool(setupPending, pending) },
 		OnBusy: func(busy bool) {
 			if a.tray != nil {
 				a.tray.SetIcon(trayIcon(busy), true)
@@ -122,19 +152,49 @@ func (a *app) ready(ctx context.Context) {
 	})
 	a.hotkeys = hotkey.NewManager(a.log)
 	a.capturer = capture.New(a.log, a.captured)
-	a.log.Info("screen recording access", "allowed", macos.ScreenAccess())
+	a.screenAtLaunch = macos.ScreenAccess()
+	a.log.Info("screen recording access", "allowed", a.screenAtLaunch)
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.capturer.Close() })
 
-	// Everything else is in the panel: /operator shows and changes settings.
+	// The menu keeps entry points and the local Dock preference.
+	const agentLabel, restartLabel = "复制提示词", "重新启动 Kami"
+	for label, symbol := range map[string]string{
+		agentLabel: "doc.on.clipboard", restartLabel: "arrow.clockwise",
+		showDockLabel: "dock.rectangle", hideDockLabel: "dock.rectangle",
+	} {
+		if cleanup, err := macos.InstallMenuItemSymbol(label, symbol); err != nil {
+			a.log.Error("menu icon", "label", label, "err", err)
+		} else {
+			mygo.App.OnQuit(cleanup)
+		}
+	}
+	// The status lines are found by the titles they are created with.
+	const statusTitle, brokenTitle = "Kami 状态", "Kami 配置"
+	for _, w := range []struct {
+		icon  **macos.StatusMenuItem
+		title string
+	}{{&a.statusIcon, statusTitle}, {&a.brokenIcon, brokenTitle}} {
+		if s, err := macos.WatchStatusMenuItem(w.title); err != nil {
+			a.log.Error("status menu icon", "err", err)
+		} else {
+			*w.icon = s
+			mygo.App.OnQuit(s.Close)
+		}
+	}
 	a.menu = mygo.NewMenu([]*mygo.MenuItem{
-		{ID: "config-error", Hidden: true, Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
-		{ID: "config-error-sep", Type: mygo.MenuItemSeparator, Hidden: true},
-		{Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
-		{Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
+		{ID: "status", Label: statusTitle, Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
+		{ID: "broken", Label: brokenTitle, Hidden: true, Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
+		mygo.Separator(),
+		{ID: "show", Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
+		{ID: "capture", Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
+		mygo.Separator(),
+		a.dockMenuItem(),
+		// The agent can look into Kami at any time, not only on a first run.
+		{Label: agentLabel, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.Clipboard.WriteText(a.agentPrompt()) }},
 		mygo.Separator(),
 		// Input Monitoring and Screen Recording grants apply from the next
 		// launch.
-		{Label: "重新启动 Kami", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Relaunch() }},
+		{Label: restartLabel, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Relaunch() }},
 		{Label: "退出 Kami", Role: mygo.RoleQuit},
 	})
 	tray, err := mygo.NewTray(mygo.TrayOptions{
@@ -150,18 +210,31 @@ func (a *app) ready(ctx context.Context) {
 		return
 	}
 	a.tray = tray
+	first := a.store.Snapshot().Config.Model == nil
+	// A first run asks for nothing before the user has seen the app.
+	a.mayAskListen = !first
 	a.showSnapshot(a.store.Snapshot())
 	a.applyShortcuts(a.store.Snapshot().Config)
 	a.applyLaunchAtLogin(a.store.Snapshot().Config)
+	a.applyDock(a.store.Snapshot().Config)
 	a.store.Subscribe(func(s config.Snapshot) {
 		a.logSnapshot(s)
-		a.showSnapshot(s)
 		mygo.RunOnMain(func() {
+			a.showSnapshot(s)
 			a.applyShortcuts(s.Config)
 			a.applyLaunchAtLogin(s.Config)
+			a.applyDock(s.Config)
 		})
 	})
 	go a.watchConfig(ctx)
+	switch {
+	case first:
+		// Without a model the app has one thing to show: how to get one.
+		a.showPanel()
+	case macos.DefaultBool(setupPending) && a.panel.ResumeSetup():
+		// Granting a permission often restarts Kami midway through.
+		a.showPanel()
+	}
 }
 
 // applyShortcuts registers the global shortcuts of c.
@@ -173,6 +246,15 @@ func (a *app) applyShortcuts(c *config.Config) {
 		{Name: "capture", Shortcut: c.Shortcuts.Capture, Action: a.startCapture},
 	}
 	a.hotkeys.Apply(bindings)
+	// The menu shows the combinations; a double tap has no way to be shown
+	// there.
+	for id, shortcut := range map[string]string{"show": c.Shortcuts.Panel, "capture": c.Shortcuts.Capture} {
+		acc := ""
+		if sc, err := config.ParseShortcut(shortcut); err == nil && !sc.IsZero() && sc.Double == 0 {
+			acc = hotkey.Accelerator(sc)
+		}
+		a.menu.ItemByID(id).SetAccelerator(acc)
+	}
 	a.doubleTaps = a.doubleTaps[:0]
 	for _, b := range bindings {
 		if sc, err := config.ParseShortcut(b.Shortcut); err == nil && sc.Double != 0 {
@@ -219,7 +301,7 @@ func (a *app) captured(r capture.Result) {
 	switch {
 	case r.Canceled:
 	case errors.Is(r.Err, macos.ErrNoScreenAccess):
-		a.log.Info("capture permission requested")
+		a.requestPermission(operator.PermScreenRecording)
 	case r.Err != nil:
 		a.log.Warn("capture", "err", r.Err)
 		macos.CaptureFailureFeedback()
@@ -244,8 +326,8 @@ func (a *app) importSelection() {
 	if !macos.AXTrusted() {
 		// Without Accessibility there is no selection to read; macOS shows
 		// the way to grant it.
-		macos.RequestAXTrust()
-		a.panel.Notify("带入选中的文字需要「辅助功能」权限：在系统设置里允许 Kami。开关已经打开却仍然无效时，先用「−」把 Kami 从列表里移除，再重新添加。")
+		a.requestPermission(operator.PermAccessibility)
+		a.panel.Notify("带入选区需要「辅助功能」权限。开关已打开仍无效时，从列表中移除 Kami 再重新添加。")
 		return
 	}
 	if a.clipboard == nil {
@@ -283,10 +365,9 @@ func (a *app) watchKeys() {
 			}
 		}
 	})
-	if errors.Is(err, macos.ErrNoListenAccess) && !a.askedListen {
+	if errors.Is(err, macos.ErrNoListenAccess) && a.mayAskListen && !a.asked[operator.PermInputMonitoring] {
 		// macOS prompts once, and applies a grant after a restart.
-		a.askedListen = true
-		macos.RequestListenAccess()
+		a.promptPermission(operator.PermInputMonitoring)
 	}
 	if err != nil {
 		a.log.Warn("watch keys", "err", err)
@@ -323,36 +404,85 @@ func (a *app) watchConfig(ctx context.Context) {
 	}
 }
 
-// showSnapshot puts what is wrong with config.json at the top of the menu.
+// showSnapshot shows a configuration in the menu, and checks the model's
+// connection when the model changed. Main thread only.
 func (a *app) showSnapshot(s config.Snapshot) {
-	item := a.menu.ItemByID("config-error")
-	sep := a.menu.ItemByID("config-error-sep")
-	if s.Err == nil {
-		item.SetVisible(false)
-		sep.SetVisible(false)
-		a.tray.SetToolTip("Kami")
-		return
-	}
-	label := "配置有误，沿用上一份配置"
-	var ce *config.Error
-	if errors.As(s.Err, &ce) && len(ce.Problems) > 0 {
-		label = "配置有误：" + ce.Problems[0].String()
-		if n := len(ce.Problems); n > 1 {
-			label += "（共 " + strconv.Itoa(n) + " 项）"
+	if m := s.Config.Model; !reflect.DeepEqual(m, a.conn.model) {
+		a.conn = connection{}
+		if m != nil {
+			copied := *m
+			a.conn.model = &copied
+			a.check(copied)
 		}
 	}
-	item.SetLabel(label)
-	item.SetVisible(true)
-	sep.SetVisible(true)
-	a.tray.SetToolTip("Kami\n" + s.Err.Error())
+	a.showStatus()
+}
+
+// setupPending is the user default set while the permission step after the
+// first model is unfinished.
+const setupPending = "permissionSetupPending"
+
+// checkTimeout bounds the check of a newly configured model.
+const checkTimeout = 30 * time.Second
+
+// check sends the model a ping, as `Kami check` does, so the menu can say
+// whether it answers before the user sends anything.
+func (a *app) check(m config.Model) {
+	if m.APIKey == "" && m.Auth != config.AuthNone {
+		return
+	}
+	a.checks++
+	n := a.checks
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
+		defer cancel()
+		_, took, err := llm.Ping(ctx, llm.HTTP{}, m, m.APIKey)
+		a.log.Info("model check", "ok", err == nil, "ms", took.Milliseconds())
+		mygo.RunOnMain(func() {
+			if n == a.checks {
+				a.conn.known, a.conn.err = true, err
+				a.showStatus()
+			}
+		})
+	}()
+}
+
+// requestEnded updates the connection from a request the user sent. Main
+// thread only.
+func (a *app) requestEnded(err error) {
+	if a.conn.model == nil || !tellsConnection(err) {
+		return
+	}
+	a.checks++ // a check still running is older news
+	a.conn.known, a.conn.err = true, err
+	a.showStatus()
+}
+
+// showStatus puts the model and its connection at the top of the menu, with
+// a line for a broken config.json. Main thread only.
+func (a *app) showStatus() {
+	model, broken, tooltip := menuStatus(a.store.Snapshot(), a.conn)
+	a.menu.ItemByID("status").SetLabel(model.label)
+	if a.statusIcon != nil {
+		a.statusIcon.SetSymbol(model.symbol, model.tint)
+	}
+	item := a.menu.ItemByID("broken")
+	item.SetVisible(broken != nil)
+	if broken != nil {
+		item.SetLabel(broken.label)
+		if a.brokenIcon != nil {
+			a.brokenIcon.SetSymbol(broken.symbol, broken.tint)
+		}
+	}
+	a.tray.SetToolTip(tooltip)
 }
 
 func (a *app) logSnapshot(s config.Snapshot) {
 	if s.Err != nil {
-		a.log.Warn("config invalid, keeping the last valid one", "problems", s.Err.Error())
+		a.log.Warn("config has errors, retaining usable settings", "problems", s.Err.Error())
 		return
 	}
-	a.log.Info("config loaded", "models", len(s.Config.Models), "modes", len(s.Config.Modes))
+	a.log.Info("config loaded", "model", s.Config.Model != nil, "modes", len(s.Config.Modes))
 }
 
 // All panel entry points wait for the capture that owns the keyboard.

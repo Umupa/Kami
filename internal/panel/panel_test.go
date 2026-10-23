@@ -30,7 +30,7 @@ var update = flag.Bool("update", false, "rewrite the snapshots in testdata")
 
 const testAPIKey = "sk-panel-test-key"
 
-const testConfig = `{"version":1,"models":[{"name":"fast","endpoint":"https://example.com/v1","format":"chat-completions","model":"m","apiKey":"` + testAPIKey + `"}]}`
+const testConfig = `{"version":1,"model":{"endpoint":"https://example.com/v1","format":"chat-completions","model":"m","apiKey":"` + testAPIKey + `"}}`
 
 // script is a client that replies with fixed pieces.
 type script struct{ pieces []string }
@@ -56,12 +56,18 @@ type harness struct {
 
 func newHarness(t *testing.T, client llm.Client) *harness {
 	t.Helper()
+	return newHarnessWith(t, client, testConfig)
+}
+
+// newHarnessWith drives a panel on config.json as given.
+func newHarnessWith(t *testing.T, client llm.Client, configJSON string) *harness {
+	t.Helper()
 	if err := design.LoadFont(); err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, config.FileName)
-	if err := os.WriteFile(path, []byte(testConfig), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(configJSON), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	h := &harness{t: t}
@@ -189,8 +195,8 @@ func TestRequestCarriesModelAPIKey(t *testing.T) {
 	if got.Key != testAPIKey {
 		t.Errorf("request key = %q, want the model's apiKey", got.Key)
 	}
-	if got.Model.Name != "fast" {
-		t.Errorf("request model = %q, want fast", got.Model.Name)
+	if got.Model.Model != "m" {
+		t.Errorf("request model = %q, want m", got.Model.Model)
 	}
 }
 

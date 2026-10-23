@@ -11,17 +11,20 @@ import (
 // and the run parameters, come from the contract System adds, so a prompt
 // edited in config.json cannot lose them.
 const (
-	translatePrompt = `Translate the text. If it is not in my_language, translate it into my_language; if it is in my_language, translate it into foreign_language.
+	translatePrompt = `Translate the text accurately and fluently. If it is not in my_language, translate it into my_language; if it is in my_language, translate it into foreign_language.
+Polish phrasing in the target language to read naturally. When the text is disorganized or dense, format it cleanly with appropriate paragraphs, lists, or tables.
 The text may be copied from a terminal or recognized from a screenshot: drop box-drawing characters, terminal markers and line breaks that only come from the width of the screen, and join the lines into the paragraphs they were.
-Keep code, file paths, commands, identifiers and error messages exactly as they are. Keep the Markdown structure of text that has one.`
+Keep code, file paths, commands, identifiers, brand names and error messages exactly as they are. Preserve or improve the Markdown structure.`
 
-	improvePrompt = `Improve the text in its own language: fix grammar, spelling and word choice, and make it read naturally, without changing what it means or its tone unless they are wrong.
-When the text is disorganized, such as notes, chat logs or text copied from a web page or PDF, also organize it into clear Markdown with headings, lists and tables where they help. Do not add facts that are not in the text or drop ones that are.
+	improvePrompt = `Improve the text in its own language: fix grammar, spelling and phrasing. Make it clear and natural without changing its meaning, tone, or perspective.
+When the text is disorganized, such as notes, chat logs or text copied from a web page or PDF, organize it into clear Markdown with headings, lists and tables where they help. Do not add facts that are not in the text or drop ones that are.
 Otherwise keep its formatting. Return only the result.`
 
-	promptPrompt = `Turn the requirement into a prompt for an AI assistant, structured as Background, Goal, Constraints and Acceptance criteria, in the language of the text. Do not invent requirements: list what is missing as open questions at the end.`
+	promptPrompt = `Turn the requirement into a structured prompt for an AI assistant in the language of the text.
+Use clear Markdown headings: ## Background, ## Goal, ## Constraints, and ## Acceptance criteria.
+Do not invent requirements: list missing details as ## Open questions at the end.`
 
-	askPrompt = `Answer the question directly: the conclusion first, then only the details that matter. Say so when you are not sure. Answer in the language of the question.`
+	askPrompt = `Answer the question directly: the conclusion first, then only the details that matter. Say so when you are not sure. Return no polite filler. Answer in the language of the question.`
 )
 
 // The contracts tell the model how to read the first user message. A

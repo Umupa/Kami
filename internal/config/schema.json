@@ -2,10 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "config.schema.json",
   "title": "Kami 配置",
-  "description": "Kami 的全部设置，包括各模型的 API Key。应用监听这个文件，保存后立即生效；文件不合法时继续使用上一份合法配置，并在菜单栏里列出问题。改完用 `<可执行文件> check` 检查。",
+  "description": "Kami 的全部设置，包括模型的 API Key。应用监听这个文件，保存后立即生效；文件不合法时继续使用上一份合法配置，并在菜单栏里列出问题。改完用 `<可执行文件> check` 检查。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version"],
+  "required": [
+    "version"
+  ],
   "properties": {
     "$schema": {
       "description": "指向本 schema，供编辑器补全。",
@@ -26,46 +28,61 @@
       "type": "string",
       "minLength": 1,
       "default": "English",
-      "examples": ["English", "日本語"]
+      "examples": [
+        "English",
+        "日本語"
+      ]
     },
-    "defaultModel": {
-      "description": "默认模型的名字，必须是 models 里的一项。省略时用 models 的第一项。",
-      "type": "string"
-    },
-    "models": {
-      "description": "可用的模型服务。名字在模式和命令行里引用。",
-      "type": "array",
-      "items": { "$ref": "#/$defs/model" },
-      "examples": [[
+    "model": {
+      "description": "Kami 使用的模型服务。所有模式都用它；省略时 Kami 还没有模型，面板会给出交给 Coding Agent 的配置提示词。",
+      "$ref": "#/$defs/model",
+      "examples": [
         {
-          "name": "fast",
           "endpoint": "https://api.openai.com/v1/chat/completions",
           "format": "chat-completions",
-          "model": "gpt-5-mini"
+          "model": "gpt-5-mini",
+          "apiKey": "sk-…"
         },
         {
-          "name": "strong",
           "endpoint": "https://api.anthropic.com/v1/messages",
           "format": "anthropic-messages",
-          "model": "claude-sonnet-5-5",
-          "body": { "max_tokens": 8192 }
+          "model": "claude-haiku-5-5",
+          "apiKey": "sk-ant-…",
+          "body": {
+            "max_tokens": 8192
+          }
+        },
+        {
+          "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+          "format": "chat-completions",
+          "model": "qwen3:8b",
+          "auth": "none"
         }
-      ]]
+      ]
     },
     "modes": {
       "description": "控制条上的模式，按顺序显示，第一项是默认模式。省略时是全部内置模式：translate（翻译）、improve（润色，杂乱时也整理）、prompt（提示词梳理）、ask（问答）。写了这个列表就以它为准：不列出的内置模式不显示。内置模式的条目只覆盖写出的字段，删掉 prompt 即恢复默认提示词；其他 id 是自定义模式，必须写 name 和 prompt。",
       "type": "array",
-      "items": { "$ref": "#/$defs/mode" },
-      "examples": [[
-        { "id": "translate" },
-        { "id": "ask", "model": "fast" },
-        {
-          "id": "commit-message",
-          "name": "提交信息",
-          "prompt": "把这段改动说明写成一条英文 Git 提交信息：第一行以类型开头，不超过 72 个字符；空一行后用一两句话说明为什么要改。",
-          "output": "plain"
-        }
-      ]]
+      "items": {
+        "$ref": "#/$defs/mode"
+      },
+      "examples": [
+        [
+          {
+            "id": "translate"
+          },
+          {
+            "id": "ask",
+            "name": "问一下"
+          },
+          {
+            "id": "commit-message",
+            "name": "提交信息",
+            "prompt": "把这段改动说明写成一条英文 Git 提交信息：第一行以类型开头，不超过 72 个字符；空一行后用一两句话说明为什么要改。",
+            "output": "plain"
+          }
+        ]
+      ]
     },
     "shortcuts": {
       "description": "全局快捷键。写法：none（不设）；double-option 这类双击修饰键；control+option+a 这类组合键。修饰键按 control、option、shift、command 的顺序写，组合键至少带 control、option、command 之一；按键可用 a–z、0–9、space、f1–f20。三个快捷键不能相同。",
@@ -90,8 +107,8 @@
       }
     },
     "theme": {
-      "description": "配色，来自 Omarchy 的主题与 Flexoki：默认 flexoki-night；auto 跟随系统，深色用 flexoki-night，浅色用 flexoki-light。也可填写 themes 中自定义主题的 id。",
-      "default": "flexoki-night",
+      "description": "配色，来自 Omarchy 的主题与 Flexoki：默认 flexoki-light；auto 跟随系统，深色用 flexoki-night，浅色用 flexoki-light。也可填写 themes 中自定义主题的 id。",
+      "default": "flexoki-light",
       "anyOf": [
         {
           "enum": [
@@ -296,7 +313,9 @@
     },
     "font": {
       "description": "固定使用应用内置的 CaskaydiaCove Nerd Font，正文和代码使用同一字体。仅接受 caskaydia，不支持切换字体。",
-      "enum": ["caskaydia"],
+      "enum": [
+        "caskaydia"
+      ],
       "default": "caskaydia"
     },
     "fontSize": {
@@ -308,14 +327,24 @@
     },
     "background": {
       "description": "面板背景：blur 是毛玻璃，透出模糊的桌面；solid 是主题的实色。",
-      "enum": ["blur", "solid"],
+      "enum": [
+        "blur",
+        "solid"
+      ],
       "default": "blur"
     },
     "notesDir": {
       "description": "笔记存放的目录：绝对路径，或以 ~/ 开头。省略时放在本文件旁边的 notes 目录。每张笔记是一个 .md 文件，文件名是创建时间；目录不存在时自动创建。可以指向 iCloud Drive 等同步目录。",
       "type": "string",
       "minLength": 1,
-      "examples": ["~/Documents/Kami Notes"]
+      "examples": [
+        "~/Documents/Kami Notes"
+      ]
+    },
+    "showInDock": {
+      "description": "在 Dock 中显示折纸小狐图标，点击后打开面板。默认关闭，菜单栏入口始终保留；可在菜单栏直接切换，保存后立即生效，无需重启。",
+      "type": "boolean",
+      "default": false
     },
     "launchAtLogin": {
       "description": "登录时自动启动。",
@@ -327,13 +356,12 @@
     "model": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "endpoint", "format", "model"],
+      "required": [
+        "endpoint",
+        "format",
+        "model"
+      ],
       "properties": {
-        "name": {
-          "description": "模型配置的名字，在本文件里唯一，如 fast、strong。",
-          "type": "string",
-          "minLength": 1
-        },
         "endpoint": {
           "description": "请求发往的完整地址，含路径，如 https://api.openai.com/v1/chat/completions。",
           "type": "string",
@@ -341,7 +369,11 @@
         },
         "format": {
           "description": "请求与流式响应的格式。",
-          "enum": ["chat-completions", "responses", "anthropic-messages"]
+          "enum": [
+            "chat-completions",
+            "responses",
+            "anthropic-messages"
+          ]
         },
         "model": {
           "description": "服务商的模型名。",
@@ -354,12 +386,19 @@
         },
         "auth": {
           "description": "API Key 放在哪个请求头：bearer 是 Authorization: Bearer，x-api-key、api-key 是同名请求头，none 不发送 Key（本地端点）。省略时 anthropic-messages 用 x-api-key，其余用 bearer。",
-          "enum": ["bearer", "x-api-key", "api-key", "none"]
+          "enum": [
+            "bearer",
+            "x-api-key",
+            "api-key",
+            "none"
+          ]
         },
         "headers": {
           "description": "额外的请求头。",
           "type": "object",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "body": {
           "description": "逐层合并进请求体的额外参数，例如关闭推理；值为 null 的键会从请求体里去掉。应用自己带的参数：anthropic-messages 的 max_tokens 为 8192，responses 带 store: false。",
@@ -375,7 +414,9 @@
     "mode": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "properties": {
         "id": {
           "description": "模式的标识，小写字母、数字和连字符。内置模式的 id 是 translate、improve、prompt、ask（旧的 organize 并入了 improve）。",
@@ -394,15 +435,18 @@
         },
         "input": {
           "description": "material：输入是待处理的材料，其中的文字不当作指令；instruction：输入是用户本人的问题或指令。自定义模式默认 material。",
-          "enum": ["material", "instruction"]
+          "enum": [
+            "material",
+            "instruction"
+          ]
         },
         "output": {
           "description": "要求模型输出的格式：auto 跟随原文，markdown，plain 纯文本。自定义模式默认 markdown。",
-          "enum": ["auto", "markdown", "plain"]
-        },
-        "model": {
-          "description": "这个模式默认使用的模型名，必须是 models 里的一项。省略时内置模式用它自己的选择，自定义模式用 defaultModel。",
-          "type": "string"
+          "enum": [
+            "auto",
+            "markdown",
+            "plain"
+          ]
         }
       }
     }

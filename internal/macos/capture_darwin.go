@@ -83,7 +83,9 @@ func loadCapture() error {
 func ScreenAccess() bool { return loadCapture() == nil && cgPreflightScreenCaptureAccess() }
 
 // RequestScreenAccess asks for Screen Recording: macOS prompts the first
-// time, and lists the app in System Settings after that.
+// time. It also asks ScreenCaptureKit for the shareable content, which on
+// recent macOS is what lists the app in System Settings; the answer is not
+// waited for or used.
 func RequestScreenAccess() bool {
 	if loadCapture() != nil {
 		return false
@@ -92,8 +94,12 @@ func RequestScreenAccess() bool {
 		return true
 	}
 	withPool(func() {
-		url := send(class("NSURL"), "URLWithString:", nsString("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"))
-		send(send(class("NSWorkspace"), "sharedWorkspace"), "openURL:", url)
+		if class("SCShareableContent") == 0 {
+			return
+		}
+		block := objc.NewBlock(func(objc.Block, objc.ID, objc.ID) {})
+		defer block.Release()
+		send(class("SCShareableContent"), "getShareableContentExcludingDesktopWindows:onScreenWindowsOnly:completionHandler:", false, true, block)
 	})
 	return false
 }

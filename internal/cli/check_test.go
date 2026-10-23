@@ -16,61 +16,32 @@ import (
 	"github.com/Umupa/Kami/internal/llm"
 )
 
-// checkTestAlphaConfig returns a config.json with one alpha model. apiKey is
+// checkTestAlphaConfig returns a config.json with the alpha model. apiKey is
 // left out when empty, which is what check reports as a missing key.
 func checkTestAlphaConfig(apiKey string) string {
 	key := ""
 	if apiKey != "" {
-		key = fmt.Sprintf(",\n      \"apiKey\": %q", apiKey)
+		key = fmt.Sprintf(",\n    \"apiKey\": %q", apiKey)
 	}
 	return fmt.Sprintf(`{
   "version": 1,
-  "models": [
-    {
-      "name": "alpha",
-      "endpoint": "https://alpha.example.com/v1/chat/completions",
-      "format": "chat-completions",
-      "model": "alpha-model"%s
-    }
-  ]
+  "model": {
+    "endpoint": "https://alpha.example.com/v1/chat/completions",
+    "format": "chat-completions",
+    "model": "alpha-model"%s
+  }
 }`, key)
 }
 
-const (
-	checkTestTwoModels = `{
+const checkTestAuthNoneConfig = `{
   "version": 1,
-  "defaultModel": "alpha",
-  "models": [
-    {
-      "name": "alpha",
-      "endpoint": "https://alpha.example.com/v1/chat/completions",
-      "format": "chat-completions",
-      "model": "alpha-model",
-      "apiKey": "key-alpha"
-    },
-    {
-      "name": "beta",
-      "endpoint": "https://beta.example.com/v1/chat/completions",
-      "format": "chat-completions",
-      "model": "beta-model",
-      "apiKey": "key-beta"
-    }
-  ]
+  "model": {
+    "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+    "format": "chat-completions",
+    "model": "local-model",
+    "auth": "none"
+  }
 }`
-
-	checkTestAuthNoneConfig = `{
-  "version": 1,
-  "models": [
-    {
-      "name": "local",
-      "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
-      "format": "chat-completions",
-      "model": "local-model",
-      "auth": "none"
-    }
-  ]
-}`
-)
 
 type checkTestEnv struct {
 	t      *testing.T
@@ -138,17 +109,12 @@ func (te *checkTestEnv) assertNoSecret(secret string) {
 }
 
 type checkJSONOutput struct {
-	OK     bool             `json:"ok"`
-	Models []checkJSONModel `json:"models"`
-	Config string           `json:"config"`
-}
-
-type checkJSONModel struct {
-	Model  string         `json:"model"`
 	OK     bool           `json:"ok"`
+	Model  string         `json:"model"`
 	Millis int64          `json:"ms"`
 	Reply  string         `json:"reply"`
 	Error  *checkJSONFail `json:"error"`
+	Config string         `json:"config"`
 }
 
 type checkJSONFail struct {
@@ -184,8 +150,8 @@ func (f *checkFakeClient) failWith(model string, err error) {
 func (f *checkFakeClient) Stream(ctx context.Context, req llm.Request, onText func(string)) error {
 	f.mu.Lock()
 	f.requests = append(f.requests, req)
-	reply, hasReply := f.replies[req.Model.Name]
-	err := f.errs[req.Model.Name]
+	reply, hasReply := f.replies[req.Model.Model]
+	err := f.errs[req.Model.Model]
 	delay := f.delay
 	f.mu.Unlock()
 
@@ -261,7 +227,7 @@ func TestCheckInvalidConfig(t *testing.T) {
 	})
 }
 
-func TestCheckNoModels(t *testing.T) {
+func TestCheckNoModel(t *testing.T) {
 	t.Run("text", func(t *testing.T) {
 		te := newCheckTestEnv(t)
 		te.writeConfig(`{"version":1}`)
@@ -272,7 +238,7 @@ func TestCheckNoModels(t *testing.T) {
 		if te.stdout.Len() != 0 {
 			t.Error("stdout is not empty")
 		}
-		if !strings.Contains(te.stderr.String(), "还没有模型") {
+		if !strings.Contains(te.stderr.String(), "还没有配置模型") {
 			t.Error("stderr does not say the config has no models")
 		}
 		if te.client.count() != 0 {
@@ -291,7 +257,7 @@ func TestCheckNoModels(t *testing.T) {
 		if got.OK {
 			t.Error("JSON ok = true, want false")
 		}
-		if !strings.Contains(got.Config, "还没有模型") {
+		if !strings.Contains(got.Config, "还没有配置模型") {
 			t.Errorf("JSON config error = %q, want the no-models message", got.Config)
 		}
 		if te.stderr.Len() != 0 {
@@ -300,43 +266,55 @@ func TestCheckNoModels(t *testing.T) {
 	})
 }
 
-func TestCheckUnknownModel(t *testing.T) {
+func TestCheckTakesNoModelName(t *testing.T) {
 	te := newCheckTestEnv(t)
-	te.writeConfig(checkTestTwoModels)
+	te.writeConfig(checkTestAlphaConfig("key-alpha"))
 
-	if code := te.runCheck("gamma"); code != ExitUsage {
+	if code := te.runCheck("alpha"); code != ExitUsage {
 		t.Fatalf("exit = %d, want %d", code, ExitUsage)
 	}
-	if te.stdout.Len() != 0 {
-		t.Error("stdout is not empty")
-	}
-	errOut := te.stderr.String()
-	for _, want := range []string{"gamma", "alpha", "beta"} {
-		if !strings.Contains(errOut, want) {
-			t.Errorf("stderr does not mention %q", want)
-		}
+	if !strings.Contains(te.stderr.String(), "用法：Kami check [--verbose] [--json]") {
+		t.Error("stderr does not show the usage")
 	}
 	if te.client.count() != 0 {
 		t.Errorf("requests = %d, want 0", te.client.count())
 	}
 }
 
-func TestCheckRejectsTwoModels(t *testing.T) {
-	te := newCheckTestEnv(t)
-	te.writeConfig(checkTestTwoModels)
+func TestCheckModelAnswers(t *testing.T) {
+	t.Run("text", func(t *testing.T) {
+		te := newCheckTestEnv(t)
+		te.writeConfig(checkTestAlphaConfig("key-alpha"))
+		te.client.answer("alpha-model", "first reply")
 
-	if code := te.runCheck("alpha", "beta"); code != ExitUsage {
-		t.Fatalf("exit = %d, want %d", code, ExitUsage)
-	}
-	if te.stdout.Len() != 0 {
-		t.Error("stdout is not empty")
-	}
-	if !strings.Contains(te.stderr.String(), "一次只能检查一个模型") {
-		t.Error("stderr does not explain the one-model limit")
-	}
-	if te.client.count() != 0 {
-		t.Errorf("requests = %d, want 0", te.client.count())
-	}
+		if code := te.runCheck(); code != ExitOK {
+			t.Fatalf("exit = %d, want %d", code, ExitOK)
+		}
+		if out := te.stdout.String(); !strings.Contains(out, "✓ alpha-model：可用") || !strings.Contains(out, "回复「first reply」") {
+			t.Errorf("stdout does not report the model as available: %q", out)
+		}
+		if te.stderr.Len() != 0 {
+			t.Error("stderr is not empty")
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		te := newCheckTestEnv(t)
+		te.writeConfig(checkTestAlphaConfig("key-alpha"))
+		te.client.answer("alpha-model", "first reply")
+		te.client.delay = 5 * time.Millisecond
+
+		if code := te.runCheck("--json"); code != ExitOK {
+			t.Fatalf("exit = %d, want %d", code, ExitOK)
+		}
+		got := te.decodeJSON()
+		if !got.OK || got.Model != "alpha-model" || got.Reply != "first reply" || got.Millis <= 0 || got.Error != nil {
+			t.Errorf("JSON = %+v, want the model answering", got)
+		}
+		if te.stderr.Len() != 0 {
+			t.Error("stderr is not empty")
+		}
+	})
 }
 
 func TestCheckMissingKey(t *testing.T) {
@@ -350,12 +328,9 @@ func TestCheckMissingKey(t *testing.T) {
 	if got.OK {
 		t.Error("JSON ok = true, want false")
 	}
-	if len(got.Models) != 1 {
-		t.Fatalf("len(models) = %d, want 1", len(got.Models))
-	}
-	fail := got.Models[0]
-	if fail.Model != "alpha" {
-		t.Errorf("model = %q, want alpha", fail.Model)
+	fail := got
+	if fail.Model != "alpha-model" {
+		t.Errorf("model = %q, want alpha-model", fail.Model)
 	}
 	if fail.OK {
 		t.Error("model ok = true, want false")
@@ -377,12 +352,12 @@ func TestCheckMissingKey(t *testing.T) {
 func TestCheckAuthNoneRunsWithoutKey(t *testing.T) {
 	te := newCheckTestEnv(t)
 	te.writeConfig(checkTestAuthNoneConfig)
-	te.client.answer("local", "local reply")
+	te.client.answer("local-model", "local reply")
 
 	if code := te.runCheck(); code != ExitOK {
 		t.Fatalf("exit = %d, want %d", code, ExitOK)
 	}
-	if !strings.Contains(te.stdout.String(), "✓ local：可用") {
+	if !strings.Contains(te.stdout.String(), "✓ local-model：可用") {
 		t.Error("stdout does not report the auth-none model as available")
 	}
 	if te.stderr.Len() != 0 {
@@ -392,8 +367,8 @@ func TestCheckAuthNoneRunsWithoutKey(t *testing.T) {
 		t.Fatalf("requests = %d, want 1", te.client.count())
 	}
 	req := te.client.request(0)
-	if req.Model.Name != "local" {
-		t.Errorf("request model = %q, want local", req.Model.Name)
+	if req.Model.Model != "local-model" {
+		t.Errorf("request model = %q, want local-model", req.Model.Model)
 	}
 	if req.Model.Auth != config.AuthNone {
 		t.Errorf("request auth = %q, want %q", req.Model.Auth, config.AuthNone)
@@ -406,109 +381,21 @@ func TestCheckAuthNoneRunsWithoutKey(t *testing.T) {
 func TestCheckAuthNoneReplyNotCorrupted(t *testing.T) {
 	te := newCheckTestEnv(t)
 	te.writeConfig(checkTestAuthNoneConfig)
-	te.client.answer("local", "local reply")
+	te.client.answer("local-model", "local reply")
 
 	if code := te.runCheck("--json"); code != ExitOK {
 		t.Fatalf("exit = %d, want %d", code, ExitOK)
 	}
 	got := te.decodeJSON()
-	if len(got.Models) != 1 {
-		t.Fatalf("len(models) = %d, want 1", len(got.Models))
+	if got.Reply != "local reply" {
+		t.Errorf("reply = %q, want %q", got.Reply, "local reply")
 	}
-	if got.Models[0].Reply != "local reply" {
-		t.Errorf("reply = %q, want %q", got.Models[0].Reply, "local reply")
-	}
-}
-
-func TestCheckAllModelsAnswer(t *testing.T) {
-	t.Run("text", func(t *testing.T) {
-		te := newCheckTestEnv(t)
-		te.writeConfig(checkTestTwoModels)
-		te.client.answer("alpha", "first reply")
-		te.client.answer("beta", "second reply")
-
-		if code := te.runCheck(); code != ExitOK {
-			t.Fatalf("exit = %d, want %d", code, ExitOK)
-		}
-		out := te.stdout.String()
-		if got := strings.Count(out, "✓ "); got != 2 {
-			t.Errorf("stdout has %d check marks, want 2", got)
-		}
-		for _, want := range []string{
-			"✓ alpha：可用",
-			"回复「first reply」",
-			"✓ beta：可用",
-			"回复「second reply」",
-		} {
-			if !strings.Contains(out, want) {
-				t.Errorf("stdout does not contain %q", want)
-			}
-		}
-		if strings.Contains(out, "✗") {
-			t.Error("stdout reports a failure")
-		}
-		if te.stderr.Len() != 0 {
-			t.Error("stderr is not empty")
-		}
-		if te.client.count() != 2 {
-			t.Errorf("requests = %d, want 2", te.client.count())
-		}
-	})
-
-	t.Run("json", func(t *testing.T) {
-		te := newCheckTestEnv(t)
-		te.writeConfig(checkTestTwoModels)
-		te.client.answer("alpha", "first reply")
-		te.client.answer("beta", "second reply")
-		te.client.delay = 5 * time.Millisecond
-
-		if code := te.runCheck("--json"); code != ExitOK {
-			t.Fatalf("exit = %d, want %d", code, ExitOK)
-		}
-		got := te.decodeJSON()
-		if !got.OK {
-			t.Error("JSON ok = false, want true")
-		}
-		if len(got.Models) != 2 {
-			t.Fatalf("len(models) = %d, want 2", len(got.Models))
-		}
-		want := []struct {
-			model, reply string
-		}{
-			{"alpha", "first reply"},
-			{"beta", "second reply"},
-		}
-		for i, w := range want {
-			m := got.Models[i]
-			if m.Model != w.model {
-				t.Errorf("models[%d].model = %q, want %q", i, m.Model, w.model)
-			}
-			if !m.OK {
-				t.Errorf("models[%d].ok = false, want true", i)
-			}
-			if m.Reply != w.reply {
-				t.Errorf("models[%d].reply = %q, want %q", i, m.Reply, w.reply)
-			}
-			if m.Millis <= 0 {
-				t.Errorf("models[%d].ms = %d, want a positive duration", i, m.Millis)
-			}
-			if m.Error != nil {
-				t.Errorf("models[%d].error = %+v, want nil", i, m.Error)
-			}
-		}
-		if !strings.Contains(te.stdout.String(), `"ms":`) {
-			t.Error("JSON output does not contain the ms field")
-		}
-		if te.stderr.Len() != 0 {
-			t.Error("stderr is not empty")
-		}
-	})
 }
 
 func TestCheckLimitedError(t *testing.T) {
 	te := newCheckTestEnv(t)
 	te.writeConfig(checkTestAlphaConfig("key-alpha"))
-	te.client.failWith("alpha", &llm.Error{Kind: llm.KindLimited, Status: 429, Detail: "too many requests"})
+	te.client.failWith("alpha-model", &llm.Error{Kind: llm.KindLimited, Status: 429, Detail: "too many requests"})
 
 	if code := te.runCheck("--json"); code != ExitCheckFailed {
 		t.Fatalf("exit = %d, want %d", code, ExitCheckFailed)
@@ -517,10 +404,7 @@ func TestCheckLimitedError(t *testing.T) {
 	if got.OK {
 		t.Error("JSON ok = true, want false")
 	}
-	if len(got.Models) != 1 {
-		t.Fatalf("len(models) = %d, want 1", len(got.Models))
-	}
-	fail := got.Models[0]
+	fail := got
 	if fail.OK {
 		t.Error("model ok = true, want false")
 	}
@@ -546,10 +430,7 @@ func TestCheckEmptyReply(t *testing.T) {
 	if got.OK {
 		t.Error("JSON ok = true, want false")
 	}
-	if len(got.Models) != 1 {
-		t.Fatalf("len(models) = %d, want 1", len(got.Models))
-	}
-	fail := got.Models[0]
+	fail := got
 	if fail.OK {
 		t.Error("model ok = true, want false")
 	}
@@ -569,7 +450,7 @@ func TestCheckMasksKey(t *testing.T) {
 		const secret = "sk-check-secret-reply"
 		te := newCheckTestEnv(t)
 		te.writeConfig(checkTestAlphaConfig(secret))
-		te.client.answer("alpha", "the key is "+secret)
+		te.client.answer("alpha-model", "the key is "+secret)
 
 		if code := te.runCheck(); code != ExitOK {
 			t.Fatalf("exit = %d, want %d", code, ExitOK)
@@ -587,7 +468,7 @@ func TestCheckMasksKey(t *testing.T) {
 		const secret = "sk-check-secret-detail"
 		te := newCheckTestEnv(t)
 		te.writeConfig(checkTestAlphaConfig(secret))
-		te.client.failWith("alpha", &llm.Error{Kind: llm.KindConfig, Detail: "rejected key " + secret})
+		te.client.failWith("alpha-model", &llm.Error{Kind: llm.KindConfig, Detail: "rejected key " + secret})
 
 		if code := te.runCheck("--json"); code != ExitCheckFailed {
 			t.Fatalf("exit = %d, want %d", code, ExitCheckFailed)
@@ -605,7 +486,7 @@ func TestCheckMasksKey(t *testing.T) {
 		const secret = "sk-check-secret-plain"
 		te := newCheckTestEnv(t)
 		te.writeConfig(checkTestAlphaConfig(secret))
-		te.client.failWith("alpha", &checkTestError{message: "rejected key " + secret})
+		te.client.failWith("alpha-model", &checkTestError{message: "rejected key " + secret})
 
 		if code := te.runCheck("--json"); code != ExitCheckFailed {
 			t.Fatalf("exit = %d, want %d", code, ExitCheckFailed)
@@ -624,7 +505,7 @@ func TestCheckVerbose(t *testing.T) {
 	const secret = "sk-check-secret-verbose"
 	te := newCheckTestEnv(t)
 	te.writeConfig(checkTestAlphaConfig(secret))
-	te.client.answer("alpha", "ok")
+	te.client.answer("alpha-model", "ok")
 
 	if code := te.runCheck("--verbose"); code != ExitOK {
 		t.Fatalf("exit = %d, want %d", code, ExitOK)
@@ -643,33 +524,6 @@ func TestCheckVerbose(t *testing.T) {
 		}
 	}
 	te.assertNoSecret(secret)
-	if te.stderr.Len() != 0 {
-		t.Error("stderr is not empty")
-	}
-}
-
-func TestCheckOneModel(t *testing.T) {
-	te := newCheckTestEnv(t)
-	te.writeConfig(checkTestTwoModels)
-	te.client.answer("alpha", "alpha reply")
-	te.client.answer("beta", "beta reply")
-
-	if code := te.runCheck("beta"); code != ExitOK {
-		t.Fatalf("exit = %d, want %d", code, ExitOK)
-	}
-	if got := te.client.count(); got != 1 {
-		t.Fatalf("requests = %d, want 1", got)
-	}
-	if got := te.client.request(0).Model.Name; got != "beta" {
-		t.Errorf("request model = %q, want beta", got)
-	}
-	out := te.stdout.String()
-	if !strings.Contains(out, "✓ beta：可用") {
-		t.Error("stdout does not report beta")
-	}
-	if strings.Contains(out, "alpha") {
-		t.Error("stdout mentions alpha, which was not checked")
-	}
 	if te.stderr.Len() != 0 {
 		t.Error("stderr is not empty")
 	}

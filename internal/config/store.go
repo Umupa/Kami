@@ -11,8 +11,8 @@ import (
 
 // Snapshot is what the app runs on.
 type Snapshot struct {
-	// Config is the last valid configuration, never nil: before the file was
-	// ever valid it is the starter configuration.
+	// Config is never nil. A model error keeps the last valid model while
+	// valid settings still load; other errors keep the last valid configuration.
 	Config *Config
 	// Err is what is wrong with the file on disk now; nil when the file is
 	// Config.
@@ -73,8 +73,9 @@ func (s *Store) Subscribe(fn func(Snapshot)) (cancel func()) {
 }
 
 // Reload reads the file again. A valid file replaces the configuration; an
-// invalid or missing one keeps it and sets Err. Subscribers are told only when
-// the snapshot changed.
+// invalid model keeps the last valid model but still loads valid settings.
+// Other invalid or missing files keep the configuration and set Err.
+// Subscribers are told only when the snapshot changed.
 func (s *Store) Reload() Snapshot {
 	s.reload.Lock()
 	defer s.reload.Unlock()
@@ -96,14 +97,22 @@ func (s *Store) Reload() Snapshot {
 		next.Err = &Error{Problems: []Problem{{Message: fmt.Sprintf("读不了配置文件：%v", err)}}}
 	default:
 		c, derr := Decode(data)
-		if derr == nil && s.check != nil {
-			derr = s.check(c)
+		if derr != nil {
+			if settings, err := decodeSettings(data); err == nil {
+				settings.Model = next.Config.Model
+				c = settings
+			}
 		}
-		if derr == nil {
-			next = Snapshot{Config: c}
-		} else {
-			next.Err = derr
+		if c != nil && s.check != nil {
+			if err := s.check(c); err != nil {
+				c = nil
+				derr = errors.Join(derr, err)
+			}
 		}
+		if c != nil {
+			next.Config = c
+		}
+		next.Err = derr
 	}
 
 	s.mu.Lock()

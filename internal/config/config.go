@@ -1,7 +1,7 @@
 // Package config reads, validates and watches config.json, the single source
 // of the app's settings. Agents edit the file directly, guided by the JSON
 // Schema written next to it; the app reloads it on every change and keeps the
-// last valid configuration while the file is broken.
+// valid settings even while model service fields are broken.
 package config
 
 import (
@@ -16,15 +16,18 @@ const Version = 1
 // Config is a validated configuration with every default filled in. It is
 // shared between goroutines and must not be changed after Decode returns it.
 type Config struct {
-	Schema          string    `json:"$schema,omitempty"`
-	Version         int       `json:"version"`
-	MyLanguage      string    `json:"myLanguage,omitempty"`
-	ForeignLanguage string    `json:"foreignLanguage,omitempty"`
-	DefaultModel    string    `json:"defaultModel,omitempty"`
-	Models          []Model   `json:"models,omitempty"`
-	Modes           []Mode    `json:"modes,omitempty"`
-	Shortcuts       Shortcuts `json:"shortcuts,omitzero"`
-	LaunchAtLogin   bool      `json:"launchAtLogin,omitempty"`
+	Schema          string `json:"$schema,omitempty"`
+	Version         int    `json:"version"`
+	MyLanguage      string `json:"myLanguage,omitempty"`
+	ForeignLanguage string `json:"foreignLanguage,omitempty"`
+	// Model is the one model service every mode uses; nil until one is
+	// configured.
+	Model         *Model    `json:"model,omitempty"`
+	Modes         []Mode    `json:"modes,omitempty"`
+	Shortcuts     Shortcuts `json:"shortcuts,omitzero"`
+	LaunchAtLogin bool      `json:"launchAtLogin,omitempty"`
+	// ShowInDock adds the app icon to the Dock without hiding the menu bar entry.
+	ShowInDock bool `json:"showInDock,omitempty"`
 	// Theme names the colors: "auto" follows the system's appearance.
 	Theme  string  `json:"theme,omitempty"`
 	Themes []Theme `json:"themes,omitempty"`
@@ -59,7 +62,7 @@ const (
 var Themes = []string{"auto", "catppuccin", "catppuccin-latte", "ethereal", "flexoki-light", "flexoki-night", "gruvbox", "hackerman", "kanagawa", "lumon", "lupine", "matte-black", "osaka-jade", "rose-pine", "solitude", "starship", "tokyo-night", "vantablack", "white"}
 
 // DefaultTheme is the theme of a config that names none.
-const DefaultTheme = "flexoki-night"
+const DefaultTheme = "flexoki-light"
 
 // RemovedThemes were themes once; a config naming one gets DefaultTheme
 // rather than an error.
@@ -92,9 +95,8 @@ func (c *Config) CustomTheme(id string) (Theme, bool) {
 	return Theme{}, false
 }
 
-// Model is one named model service.
+// Model is the model service: where requests go and how.
 type Model struct {
-	Name     string `json:"name"`
 	Endpoint string `json:"endpoint"`
 	Format   Format `json:"format"`
 	Model    string `json:"model"`
@@ -147,9 +149,6 @@ type Mode struct {
 	Prompt string `json:"prompt,omitempty"`
 	Input  Input  `json:"input,omitempty"`
 	Output Output `json:"output,omitempty"`
-	// Model is the name of the mode's default model; empty uses the
-	// built-in mode's choice, else defaultModel.
-	Model string `json:"model,omitempty"`
 }
 
 // Input says how the first message of a session is read.
@@ -207,16 +206,6 @@ func (c *Config) Notes(configDir, home string) string {
 	return filepath.Clean(c.NotesDir)
 }
 
-// Model returns the model with the given name.
-func (c *Config) Model(name string) (Model, bool) {
-	for _, m := range c.Models {
-		if m.Name == name {
-			return m, true
-		}
-	}
-	return Model{}, false
-}
-
 // applyDefaults fills in what the file left out, so that readers of a decoded
 // Config never handle empty values themselves.
 func (c *Config) applyDefaults() {
@@ -226,13 +215,10 @@ func (c *Config) applyDefaults() {
 	if c.ForeignLanguage == "" {
 		c.ForeignLanguage = DefaultForeignLanguage
 	}
-	if c.DefaultModel == "" && len(c.Models) > 0 {
-		c.DefaultModel = c.Models[0].Name
-	}
-	for i := range c.Models {
-		if c.Models[i].Auth == "" {
-			c.Models[i].Auth = c.Models[i].Format.DefaultAuth()
-		}
+	if c.Model != nil && c.Model.Auth == "" {
+		m := *c.Model
+		m.Auth = m.Format.DefaultAuth()
+		c.Model = &m
 	}
 	if c.Theme == "" || slices.Contains(RemovedThemes, c.Theme) {
 		c.Theme = DefaultTheme

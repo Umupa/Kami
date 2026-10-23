@@ -127,21 +127,39 @@ func validKey(k string) bool {
 	return false
 }
 
-// Glyphs shows a shortcut as macOS menus do: ⌃⌥A, 双击 ⌥, 未设置.
+// Glyphs shows a shortcut as macOS menus do: ⌃⌥A, ⌥Space, 双击 ⌥, 未设置.
 func (s Shortcut) Glyphs() string {
-	glyph := map[Modifiers]string{ModControl: "⌃", ModOption: "⌥", ModShift: "⇧", ModCommand: "⌘"}
 	switch {
 	case s.IsZero():
 		return "未设置"
 	case s.Double != 0:
-		return "双击 " + glyph[s.Double]
+		return "双击 " + modifierGlyph(s.Double)
 	}
-	var b strings.Builder
+	return strings.Join(s.Keys(), "")
+}
+
+// Keys are the keys of a shortcut as their keycaps read, modifiers first:
+// ⌥ and Space for option+space; the one modifier of a double tap.
+func (s Shortcut) Keys() []string {
+	if s.Double != 0 {
+		return []string{modifierGlyph(s.Double)}
+	}
+	var keys []string
 	for _, m := range modifierNames {
 		if s.Mods&m.mod != 0 {
-			b.WriteString(glyph[m.mod])
+			keys = append(keys, modifierGlyph(m.mod))
 		}
 	}
-	b.WriteString(strings.ToUpper(s.Key))
-	return b.String()
+	switch {
+	case s.Key == "":
+	case s.Key == "space":
+		keys = append(keys, "Space")
+	default:
+		keys = append(keys, strings.ToUpper(s.Key))
+	}
+	return keys
+}
+
+func modifierGlyph(mod Modifiers) string {
+	return map[Modifiers]string{ModControl: "⌃", ModOption: "⌥", ModShift: "⇧", ModCommand: "⌘"}[mod]
 }

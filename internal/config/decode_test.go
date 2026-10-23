@@ -12,23 +12,14 @@ func TestDecodeFullConfig(t *testing.T) {
   "version": 1,
   "myLanguage": "日本語",
   "foreignLanguage": "English",
-  "models": [
-    {
-      "name": "fast",
-      "endpoint": "https://api.openai.com/v1/chat/completions",
-      "format": "chat-completions",
-      "model": "gpt-5-mini"
-    },
-    {
-      "name": "strong",
-      "endpoint": "https://api.anthropic.com/v1/messages",
-      "format": "anthropic-messages",
-      "model": "claude-sonnet-5-5",
-      "headers": {"X-Trace-Id": "abc"},
-      "body": {"max_tokens": 8192},
-      "contextWindow": 200000
-    }
-  ],
+  "model": {
+    "endpoint": "https://api.anthropic.com/v1/messages",
+    "format": "anthropic-messages",
+    "model": "claude-sonnet-5-5",
+    "headers": {"X-Trace-Id": "abc"},
+    "body": {"max_tokens": 8192},
+    "contextWindow": 200000
+  },
   "modes": [
     {"id": "translate"},
     {
@@ -36,10 +27,9 @@ func TestDecodeFullConfig(t *testing.T) {
       "name": "总结",
       "prompt": "用三句话总结原文。",
       "input": "instruction",
-      "output": "plain",
-      "model": "strong"
+      "output": "plain"
     },
-    {"id": "ask", "model": "fast"}
+    {"id": "ask"}
   ],
   "shortcuts": {
     "panel": "double-command",
@@ -65,27 +55,13 @@ func TestDecodeFullConfig(t *testing.T) {
 	if cfg.ForeignLanguage != "English" {
 		t.Errorf("ForeignLanguage = %q, want English", cfg.ForeignLanguage)
 	}
-	// The file leaves defaultModel out, so the first model is the default.
-	if cfg.DefaultModel != "fast" {
-		t.Errorf("DefaultModel = %q, want fast", cfg.DefaultModel)
-	}
 	if !cfg.LaunchAtLogin {
 		t.Error("LaunchAtLogin = false, want true")
 	}
 
-	if len(cfg.Models) != 2 {
-		t.Fatalf("len(Models) = %d, want 2", len(cfg.Models))
-	}
-	fast, ok := cfg.Model("fast")
-	if !ok {
-		t.Fatal("Model(fast) not found")
-	}
-	if fast.Auth != AuthBearer {
-		t.Errorf("fast.Auth = %q, want %q", fast.Auth, AuthBearer)
-	}
-	strong, ok := cfg.Model("strong")
-	if !ok {
-		t.Fatal("Model(strong) not found")
+	strong := cfg.Model
+	if strong == nil {
+		t.Fatal("Model is nil")
 	}
 	if strong.Auth != AuthXAPIKey {
 		t.Errorf("strong.Auth = %q, want %q", strong.Auth, AuthXAPIKey)
@@ -107,7 +83,7 @@ func TestDecodeFullConfig(t *testing.T) {
 	if custom.ID != "summarize" || custom.Name != "总结" || custom.Prompt != "用三句话总结原文。" {
 		t.Errorf("custom mode = %+v", custom)
 	}
-	if custom.Input != InputInstruction || custom.Output != OutputPlain || custom.Model != "strong" {
+	if custom.Input != InputInstruction || custom.Output != OutputPlain {
 		t.Errorf("custom mode settings = %+v", custom)
 	}
 	wantShortcuts := Shortcuts{
@@ -124,22 +100,19 @@ func TestDecodeAPIKeyRoundTrip(t *testing.T) {
 	const key = "sk-round-trip-distinctive"
 	const data = `{
   "version": 1,
-  "models": [
-    {
-      "name": "fast",
-      "endpoint": "https://example.com/v1",
-      "format": "chat-completions",
-      "model": "m",
-      "apiKey": "sk-round-trip-distinctive"
-    }
-  ]
+  "model": {
+    "endpoint": "https://example.com/v1",
+    "format": "chat-completions",
+    "model": "m",
+    "apiKey": "sk-round-trip-distinctive"
+  }
 }`
 
 	cfg, err := Decode([]byte(data))
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	if got := cfg.Models[0].APIKey; got != key {
+	if got := cfg.Model.APIKey; got != key {
 		t.Fatalf("APIKey = %q, want %q", got, key)
 	}
 	encoded, err := Encode(cfg)
@@ -153,7 +126,7 @@ func TestDecodeAPIKeyRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode(Encode): %v", err)
 	}
-	if got := again.Models[0].APIKey; got != key {
+	if got := again.Model.APIKey; got != key {
 		t.Errorf("decoded APIKey = %q, want %q", got, key)
 	}
 }
@@ -166,11 +139,8 @@ func TestDecodeMinimalConfig(t *testing.T) {
 	if cfg.Version != Version {
 		t.Errorf("Version = %d, want %d", cfg.Version, Version)
 	}
-	if len(cfg.Models) != 0 || len(cfg.Modes) != 0 {
-		t.Errorf("Models = %v, Modes = %v, want both empty", cfg.Models, cfg.Modes)
-	}
-	if cfg.DefaultModel != "" {
-		t.Errorf("DefaultModel = %q, want empty without models", cfg.DefaultModel)
+	if cfg.Model != nil || len(cfg.Modes) != 0 {
+		t.Errorf("Model = %v, Modes = %v, want neither", cfg.Model, cfg.Modes)
 	}
 	if cfg.Schema != "" {
 		t.Errorf("Schema = %q, want empty", cfg.Schema)
@@ -180,20 +150,11 @@ func TestDecodeMinimalConfig(t *testing.T) {
 func TestDecodeDefaults(t *testing.T) {
 	const data = `{
   "version": 1,
-  "models": [
-    {
-      "name": "fast",
-      "endpoint": "https://example.com/v1/responses",
-      "format": "responses",
-      "model": "m"
-    },
-    {
-      "name": "strong",
-      "endpoint": "https://example.com/v1/messages",
-      "format": "anthropic-messages",
-      "model": "m"
-    }
-  ]
+  "model": {
+    "endpoint": "https://example.com/v1/responses",
+    "format": "responses",
+    "model": "m"
+  }
 }`
 
 	cfg, err := Decode([]byte(data))
@@ -206,14 +167,8 @@ func TestDecodeDefaults(t *testing.T) {
 	if cfg.ForeignLanguage != DefaultForeignLanguage {
 		t.Errorf("ForeignLanguage = %q, want %q", cfg.ForeignLanguage, DefaultForeignLanguage)
 	}
-	if cfg.DefaultModel != "fast" {
-		t.Errorf("DefaultModel = %q, want first model fast", cfg.DefaultModel)
-	}
-	if cfg.Models[0].Auth != AuthBearer {
-		t.Errorf("models[0].Auth = %q, want %q", cfg.Models[0].Auth, AuthBearer)
-	}
-	if cfg.Models[1].Auth != AuthXAPIKey {
-		t.Errorf("models[1].Auth = %q, want %q", cfg.Models[1].Auth, AuthXAPIKey)
+	if cfg.Model.Auth != AuthBearer {
+		t.Errorf("model.Auth = %q, want %q", cfg.Model.Auth, AuthBearer)
 	}
 	wantShortcuts := Shortcuts{
 		Panel:     DefaultPanelShortcut,
@@ -226,8 +181,6 @@ func TestDecodeDefaults(t *testing.T) {
 }
 
 func TestDecodeProblems(t *testing.T) {
-	const fastModel = `{"name":"fast","endpoint":"https://example.com/v1","format":"chat-completions","model":"m"}`
-
 	tests := []struct {
 		name     string
 		input    string
@@ -238,7 +191,7 @@ func TestDecodeProblems(t *testing.T) {
 			name: "syntax error",
 			input: `{
   "version": 1
-  "models": []
+  "modes": []
 }`,
 			path:     "",
 			contains: "第 3 行",
@@ -253,25 +206,25 @@ func TestDecodeProblems(t *testing.T) {
 			name:     "unknown top level field",
 			input:    `{"version":1,"foo":true}`,
 			path:     "foo",
-			contains: "不认识的字段",
+			contains: "未知字段",
 		},
 		{
 			name:     "unknown field in model",
-			input:    `{"version":1,"models":[` + fastModel + `,{"name":"strong","endpoint":"https://example.com/v1","format":"responses","model":"m","foo":1}]}`,
-			path:     "models[1].foo",
-			contains: "不认识的字段",
+			input:    `{"version":1,"model":{"endpoint":"https://example.com/v1","format":"responses","model":"m","foo":1}}`,
+			path:     "model.foo",
+			contains: "未知字段",
 		},
 		{
 			name:     "unknown field in shortcuts",
 			input:    `{"version":1,"shortcuts":{"foo":"bar"}}`,
 			path:     "shortcuts.foo",
-			contains: "不认识的字段",
+			contains: "未知字段",
 		},
 		{
 			name:     "unknown field in mode",
 			input:    `{"version":1,"modes":[{"id":"translate","foo":true}]}`,
 			path:     "modes[0].foo",
-			contains: "不认识的字段",
+			contains: "未知字段",
 		},
 		{
 			name:     "wrong type",
@@ -292,64 +245,52 @@ func TestDecodeProblems(t *testing.T) {
 			contains: "必须是 1",
 		},
 		{
-			name:     "model empty name",
-			input:    `{"version":1,"models":[{"name":"","endpoint":"https://example.com/v1","format":"chat-completions","model":"m"}]}`,
-			path:     "models[0].name",
-			contains: "不能为空",
-		},
-		{
-			name:     "model duplicate name",
-			input:    `{"version":1,"models":[` + fastModel + `,{"name":"fast","endpoint":"https://example.com/v1","format":"responses","model":"m"}]}`,
-			path:     "models[1].name",
-			contains: "重名",
+			name:     "models of an earlier shape",
+			input:    `{"version":1,"models":[]}`,
+			path:     "models",
+			contains: "未知字段",
 		},
 		{
 			name:     "model endpoint scheme",
-			input:    `{"version":1,"models":[{"name":"m","endpoint":"ftp://example.com/v1","format":"chat-completions","model":"m"}]}`,
-			path:     "models[0].endpoint",
+			input:    `{"version":1,"model":{"endpoint":"ftp://example.com/v1","format":"chat-completions","model":"m"}}`,
+			path:     "model.endpoint",
 			contains: "http(s)",
 		},
 		{
 			name:     "model endpoint host",
-			input:    `{"version":1,"models":[{"name":"m","endpoint":"https:///v1","format":"chat-completions","model":"m"}]}`,
-			path:     "models[0].endpoint",
+			input:    `{"version":1,"model":{"endpoint":"https:///v1","format":"chat-completions","model":"m"}}`,
+			path:     "model.endpoint",
 			contains: "http(s)",
 		},
 		{
 			name:     "model bad format",
-			input:    `{"version":1,"models":[{"name":"m","endpoint":"https://example.com/v1","format":"chat","model":"m"}]}`,
-			path:     "models[0].format",
+			input:    `{"version":1,"model":{"endpoint":"https://example.com/v1","format":"chat","model":"m"}}`,
+			path:     "model.format",
 			contains: "chat-completions",
 		},
 		{
 			name:     "model empty model",
-			input:    `{"version":1,"models":[{"name":"m","endpoint":"https://example.com/v1","format":"chat-completions","model":""}]}`,
-			path:     "models[0].model",
+			input:    `{"version":1,"model":{"endpoint":"https://example.com/v1","format":"chat-completions","model":""}}`,
+			path:     "model.model",
 			contains: "不能为空",
 		},
 		{
 			name:     "model bad auth",
-			input:    `{"version":1,"models":[{"name":"m","endpoint":"https://example.com/v1","format":"chat-completions","model":"m","auth":"basic"}]}`,
-			path:     "models[0].auth",
+			input:    `{"version":1,"model":{"endpoint":"https://example.com/v1","format":"chat-completions","model":"m","auth":"basic"}}`,
+			path:     "model.auth",
 			contains: "bearer",
 		},
 		{
 			name:     "model invalid header name",
-			input:    `{"version":1,"models":[{"name":"m","endpoint":"https://example.com/v1","format":"chat-completions","model":"m","headers":{"Bad Header":"x"}}]}`,
-			path:     "models[0].headers",
+			input:    `{"version":1,"model":{"endpoint":"https://example.com/v1","format":"chat-completions","model":"m","headers":{"Bad Header":"x"}}}`,
+			path:     "model.headers",
 			contains: "请求头",
 		},
 		{
 			name:     "model negative context window",
-			input:    `{"version":1,"models":[{"name":"m","endpoint":"https://example.com/v1","format":"chat-completions","model":"m","contextWindow":-1}]}`,
-			path:     "models[0].contextWindow",
+			input:    `{"version":1,"model":{"endpoint":"https://example.com/v1","format":"chat-completions","model":"m","contextWindow":-1}}`,
+			path:     "model.contextWindow",
 			contains: "负数",
-		},
-		{
-			name:     "default model missing",
-			input:    `{"version":1,"models":[` + fastModel + `],"defaultModel":"missing"}`,
-			path:     "defaultModel",
-			contains: "没有名为",
 		},
 		{
 			name:     "mode id uppercase",
@@ -388,10 +329,10 @@ func TestDecodeProblems(t *testing.T) {
 			contains: "auto",
 		},
 		{
-			name:     "mode missing model",
-			input:    `{"version":1,"modes":[{"id":"translate","model":"missing"}]}`,
+			name:     "mode with a model of its own",
+			input:    `{"version":1,"modes":[{"id":"translate","model":"fast"}]}`,
 			path:     "modes[0].model",
-			contains: "没有名为",
+			contains: "未知字段",
 		},
 		{
 			name:     "shortcut invalid",
@@ -433,30 +374,29 @@ func TestDecodeProblems(t *testing.T) {
 func TestDecodeHeadersAndBodyAreFreeForm(t *testing.T) {
 	const data = `{
   "version": 1,
-  "models": [{
-    "name": "m",
+  "model": {
     "endpoint": "https://example.com/v1",
     "format": "chat-completions",
     "model": "m",
     "headers": {"X-Trace-Id": "abc", "x-custom": "v"},
     "body": {"temperature": 0.1, "tools": null, "nested": {"a": [1, 2]}}
-  }]
+  }
 }`
 
 	cfg, err := Decode([]byte(data))
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	if got := cfg.Models[0].Headers["X-Trace-Id"]; got != "abc" {
+	if got := cfg.Model.Headers["X-Trace-Id"]; got != "abc" {
 		t.Errorf("Headers[X-Trace-Id] = %q, want abc", got)
 	}
-	if got := cfg.Models[0].Headers["x-custom"]; got != "v" {
+	if got := cfg.Model.Headers["x-custom"]; got != "v" {
 		t.Errorf("Headers[x-custom] = %q, want v", got)
 	}
-	if got := cfg.Models[0].Body["temperature"]; got != 0.1 {
+	if got := cfg.Model.Body["temperature"]; got != 0.1 {
 		t.Errorf("Body[temperature] = %v, want 0.1", got)
 	}
-	if _, ok := cfg.Models[0].Body["nested"]; !ok {
+	if _, ok := cfg.Model.Body["nested"]; !ok {
 		t.Error("Body[nested] missing")
 	}
 }
@@ -464,28 +404,22 @@ func TestDecodeHeadersAndBodyAreFreeForm(t *testing.T) {
 func TestDecodeReportsEveryProblem(t *testing.T) {
 	const data = `{
   "version": 2,
-  "models": [
-    {"name": "m", "endpoint": "ftp://x", "format": "bad", "model": "", "auth": "bad"},
-    {"name": "m", "endpoint": "https://example.com/v1", "format": "chat-completions", "model": "x"}
-  ],
-  "defaultModel": "missing",
+  "model": {"endpoint": "ftp://x", "format": "bad", "model": "", "auth": "bad"},
   "modes": [{"id": "Bad"}],
   "shortcuts": {"panel": "command+control+a", "selection": "control+command+a"}
 }`
 
 	problems := decodeProblems(t, data)
-	const wantCount = 9
+	const wantCount = 7
 	if len(problems) != wantCount {
 		t.Fatalf("got %d problems, want %d: %v", len(problems), wantCount, problems)
 	}
 	want := []string{
 		"version",
-		"models[0].endpoint",
-		"models[0].format",
-		"models[0].model",
-		"models[0].auth",
-		"models[1].name",
-		"defaultModel",
+		"model.endpoint",
+		"model.format",
+		"model.model",
+		"model.auth",
 		"modes[0].id",
 		"shortcuts.selection",
 	}
@@ -504,9 +438,9 @@ func TestErrorString(t *testing.T) {
 	err := &Error{Problems: []Problem{
 		{Message: "文件不是 JSON 对象"},
 		{Path: "version", Message: "必须是 1"},
-		{Path: "models[0].name", Message: "不能为空"},
+		{Path: "model.model", Message: "不能为空"},
 	}}
-	want := "文件不是 JSON 对象\nversion：必须是 1\nmodels[0].name：不能为空"
+	want := "文件不是 JSON 对象\nversion：必须是 1\nmodel.model：不能为空"
 	if got := err.Error(); got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}

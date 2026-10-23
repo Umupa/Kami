@@ -15,13 +15,13 @@ import (
 	"github.com/Umupa/Kami/internal/llm"
 )
 
-// checkTimeout bounds one model's check.
+// checkTimeout bounds the check.
 const checkTimeout = 60 * time.Second
 
-// checkResult is one model's check, as --json prints it.
+// checkResult is the model's check, as --json prints it.
 type checkResult struct {
-	Model   string     `json:"model"`
 	OK      bool       `json:"ok"`
+	Model   string     `json:"model"`
 	Millis  int64      `json:"ms"`
 	Reply   string     `json:"reply,omitempty"`
 	Problem *checkFail `json:"error,omitempty"`
@@ -33,27 +33,15 @@ type checkFail struct {
 	Message string `json:"message"`
 }
 
-// runCheck validates config.json, then sends each model, or the one named, a
-// small request: the user's configuration works when every model answers.
+// runCheck validates config.json, then sends the model a small request: the
+// user's configuration works when it answers.
 func runCheck(env *Env, args []string) int {
 	fs := flag.NewFlagSet("Kami check", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	verbose := fs.Bool("verbose", false, "")
 	jsonOut := fs.Bool("json", false, "")
-	var names []string
-	rest := args
-	for {
-		if err := fs.Parse(rest); err != nil {
-			fmt.Fprintln(env.Stderr, "用法：Kami check [模型名] [--verbose] [--json]")
-			return ExitUsage
-		}
-		if rest = fs.Args(); len(rest) == 0 {
-			break
-		}
-		names, rest = append(names, rest[0]), rest[1:]
-	}
-	if len(names) > 1 {
-		fmt.Fprintln(env.Stderr, "一次只能检查一个模型，省略模型名则检查全部。")
+	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
+		fmt.Fprintln(env.Stderr, "用法：Kami check [--verbose] [--json]")
 		return ExitUsage
 	}
 
@@ -61,49 +49,32 @@ func runCheck(env *Env, args []string) int {
 	if err != nil {
 		return checkConfigFailed(env, *jsonOut, err)
 	}
-	models := cfg.Models
-	if len(names) == 1 {
-		m, ok := cfg.Model(names[0])
-		if !ok {
-			return checkConfigFailed(env, *jsonOut, errors.New(missingModelMessage(cfg, names[0])))
-		}
-		models = []config.Model{m}
-	}
-	if len(models) == 0 {
-		return checkConfigFailed(env, *jsonOut, errors.New("配置里还没有模型：在 config.json 的 models 里添加一项。"))
+	if cfg.Model == nil {
+		return checkConfigFailed(env, *jsonOut, errors.New("还没有配置模型：在 config.json 里写上 model。"))
 	}
 
 	client := env.Client
 	if client == nil {
 		client = llm.HTTP{}
 	}
-	results := make([]checkResult, 0, len(models))
-	for _, m := range models {
-		r := checkModel(env, client, m, *verbose && !*jsonOut)
-		results = append(results, r)
-		if !*jsonOut {
-			printCheck(env.Stdout, r)
-		}
-	}
-	ok := !slices.ContainsFunc(results, func(r checkResult) bool { return !r.OK })
+	r := checkModel(env, client, *cfg.Model, *verbose && !*jsonOut)
 	if *jsonOut {
-		data, _ := json.Marshal(struct {
-			OK     bool          `json:"ok"`
-			Models []checkResult `json:"models"`
-		}{ok, results})
+		data, _ := json.Marshal(r)
 		fmt.Fprintf(env.Stdout, "%s\n", data)
+	} else {
+		printCheck(env.Stdout, r)
 	}
-	if !ok {
+	if !r.OK {
 		return ExitCheckFailed
 	}
 	return ExitOK
 }
 
 func checkModel(env *Env, client llm.Client, m config.Model, verbose bool) checkResult {
-	r := checkResult{Model: m.Name}
+	r := checkResult{Model: m.Model}
 	key := m.APIKey
 	if key == "" && m.Auth != config.AuthNone {
-		r.Problem = &checkFail{Kind: "config", Message: fmt.Sprintf("「%s」没有 apiKey：在 config.json 里给这个模型加上 apiKey。", m.Name)}
+		r.Problem = &checkFail{Kind: "config", Message: "model 没有 apiKey：在 config.json 的 model 里加上 apiKey。"}
 		return r
 	}
 	if verbose {

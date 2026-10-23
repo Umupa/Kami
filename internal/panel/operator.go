@@ -47,14 +47,12 @@ func (p *Panel) runOperator(request string) {
 	p.notice = ""
 	p.list = newList()
 	m := operatorMode
-	m.Model = p.cfg.DefaultModel
-	p.sess = session.New(m, request, m.Model)
+	p.sess = session.New(m, request)
 	p.sess.Operator = true
 	// The request is sent; what comes next is a follow-up, and ⌘Z there
 	// undoes the edit.
 	p.followIn.Focus()
-	_, hasModel := p.cfg.Model(m.Model)
-	if request == "" || !hasModel || p.deps.Operator.State == nil {
+	if request == "" || p.cfg.Model == nil || p.deps.Operator.State == nil {
 		p.answerLocally(p.sess.Last())
 		return
 	}
@@ -62,14 +60,13 @@ func (p *Panel) runOperator(request string) {
 	p.start()
 }
 
-// answerLocally answers without a model: the guide, which also tells how to
-// configure one.
+// answerLocally answers without a model: the guide.
 func (p *Panel) answerLocally(t *session.Turn) {
 	var s operator.State
 	if p.deps.Operator.State != nil {
 		s = p.deps.Operator.State()
 	}
-	t.Reply, t.Model, t.Status, t.Local = operator.Guide(s), "", session.Done, true
+	t.Reply, t.Status, t.Local = operator.Guide(s), session.Done, true
 }
 
 // finishOperator applies what an operator reply asked for and says what
@@ -96,7 +93,7 @@ func (p *Panel) finishOperator(t *session.Turn) {
 				if theme, ok := c.CustomTheme(c.Theme); ok {
 					pal := design.Derive(design.Themes[theme.Base], theme.Colors)
 					if ratio := design.Contrast(pal.Text, pal.Background); ratio < 4.5 {
-						t.Reply += fmt.Sprintf("\n\n正文与背景的对比度是 %.1f:1，低于 4.5:1，可能不易阅读。", ratio)
+						t.Reply += fmt.Sprintf("\n\n正文与背景的对比度是 %.1f:1，低于建议的 4.5:1。", ratio)
 					}
 				}
 			}
