@@ -62,4 +62,4 @@ if codesign -dr - build/darwin-arm64/Kami.app 2>&1 | grep -q 'designated => cdha
 	exit 1
 fi
 gh release edit "$tag" --draft=false --latest
-echo "已发布 $tag。" >&2
+echo "已发布 ${tag}。" >&2
