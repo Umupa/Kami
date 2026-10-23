@@ -133,11 +133,13 @@
 
 **放弃**：多个字体预设和静默替代字体；主题壁纸作背景（干扰阅读）。
 
-## D17 名称为 Kami · 墨（2026-10-22）
+## D17 名称为 Kami（2026-10-23）
 
-**决定**：完整产品名为 `Kami · 墨`，中文称呼为「墨」。项目与应用使用 `Kami`：GitHub 仓库 `Umupa/Kami`，Go 模块 `github.com/Umupa/Kami`，应用标识 `dev.umupa.kami`，构建产物 `Kami.app`，配置与日志目录 `Kami`，Operator 改动块 `kami-operator`，开发签名身份 `Kami Dev`。
+**决定**：产品名只有 `Kami`，中文里也这样称呼。项目与应用一致：GitHub 仓库 `Umupa/Kami`，Go 模块 `github.com/Umupa/Kami`，应用标识 `dev.umupa.kami`，构建产物 `Kami.app`，配置与日志目录 `Kami`，Operator 改动块 `kami-operator`，开发签名身份 `Kami Dev`。
 
-**理由**：Kami 意为纸，与「墨」组成纸与文字的意象，呼应翻译、润色、问答和随手记录的用途。
+**理由**：Kami 是日语里的「纸」，呼应翻译、润色、问答和随手记录这些处理文字的用途；一个名字到处一致，不必解释两个名字的关系。
+
+**放弃**：另加中文名「墨」。
 
 ## D18 笔记是临时记录的草稿纸（2026-10-19）
 
