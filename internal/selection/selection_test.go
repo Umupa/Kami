@@ -19,6 +19,7 @@ const (
 	copyNever copyMode = iota
 	copyImmediately
 	copyAfterDelay
+	copyClearThenWrite
 )
 
 type restoreCall struct {
@@ -77,6 +78,12 @@ func (f *fakeSystem) PressCopy() {
 	switch mode {
 	case copyImmediately:
 		f.paste(text)
+	case copyClearThenWrite:
+		f.mu.Lock()
+		f.contents = nil
+		f.changes++
+		f.mu.Unlock()
+		fallthrough
 	case copyAfterDelay:
 		go func() {
 			time.Sleep(delay)
@@ -400,34 +407,21 @@ func TestReadLateCopyAfterWait(t *testing.T) {
 	}
 }
 
-func TestReadSecondLateCopyRestored(t *testing.T) {
-	original := sampleSnapshot()
-	f := &fakeSystem{
-		contents: cloneSnapshot(original),
-		focused:  macos.Focused{HasSelection: true, SelectedLength: 0},
-		copyMode: copyImmediately,
-		copyText: "first",
-	}
+// Once the requested copy completed, later clipboard changes belong to the
+// user and must not be rolled back by its late-copy guard.
+func TestReadSuccessfulCopyLeavesNextWriteAlone(t *testing.T) {
+	f := &fakeSystem{contents: sampleSnapshot(), copyMode: copyImmediately, copyText: "selected text"}
 	r := newTestReader(f)
-
-	if got := r.Read(context.Background()); got != "first" {
-		t.Fatalf("Read() = %q, want %q", got, "first")
+	if got := r.Read(context.Background()); got != "selected text" {
+		t.Fatalf("Read() = %q", got)
+	}
+	f.paste("next user copy")
+	time.Sleep(r.LateWindow + 20*time.Millisecond)
+	if got := f.String(); got != "next user copy" {
+		t.Fatalf("clipboard = %q, want next user copy", got)
 	}
 	if calls := f.restoreLog(); len(calls) != 1 {
-		t.Fatalf("got %d Restore calls after the copy, want 1", len(calls))
-	}
-
-	// A late copy arrives while the guard is still watching.
-	f.paste("second")
-	calls := waitForRestores(t, f, 2)
-	if !reflect.DeepEqual(calls[1].snapshot, original) {
-		t.Errorf("restored snapshot = %#v, want %#v", calls[1].snapshot, original)
-	}
-	if !calls[1].transient {
-		t.Error("second late copy was not restored transiently")
-	}
-	if got := f.String(); got != "original" {
-		t.Errorf("String() = %q after the late copy, want %q", got, "original")
+		t.Fatalf("got %d restores, want 1", len(calls))
 	}
 }
 
@@ -555,5 +549,51 @@ func TestReadEmptyClipboard(t *testing.T) {
 	}
 	if got := f.String(); got != "" {
 		t.Errorf("String() = %q after Read, want empty", got)
+	}
+}
+
+// Native apps can publish a copy asynchronously, after the original 50 ms
+// budget, or clear the pasteboard before publishing its text.
+func TestReadAsyncCopy(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		mode  copyMode
+		delay time.Duration
+	}{
+		{"slow application", copyAfterDelay, 100 * time.Millisecond},
+		{"clear before write", copyClearThenWrite, 20 * time.Millisecond},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &fakeSystem{contents: sampleSnapshot(), copyMode: tt.mode, copyDelay: tt.delay, copyText: "selected text"}
+			r := newTestReader(f)
+			r.CopyWait = 0 // Exercise the production default.
+			if got := r.Read(context.Background()); got != "selected text" {
+				t.Fatalf("Read() = %q, want selected text", got)
+			}
+			if f.pressCount() != 1 {
+				t.Fatal("copy must be sent exactly once")
+			}
+			if got := f.String(); got != "original" {
+				t.Fatalf("clipboard = %q, want original", got)
+			}
+		})
+	}
+}
+
+func TestReadLateCopyWaitsForTextAfterClear(t *testing.T) {
+	f := &fakeSystem{contents: sampleSnapshot(), copyMode: copyNever}
+	r := newTestReader(f)
+	if got := r.Read(context.Background()); got != "" {
+		t.Fatalf("Read() = %q", got)
+	}
+	f.mu.Lock()
+	f.contents = nil
+	f.changes++
+	f.mu.Unlock()
+	time.Sleep(10 * r.Poll)
+	f.paste("late selected text")
+	waitForRestores(t, f, 1)
+	if got := f.String(); got != "original" {
+		t.Fatalf("clipboard = %q, want original", got)
 	}
 }

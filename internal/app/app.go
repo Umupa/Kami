@@ -355,7 +355,7 @@ func (a *app) importSelection() {
 		}
 		a.clipboard = pb
 	}
-	r := &selection.Reader{Sys: selection.NewSystem(a.clipboard, macos.KeyCodeFor('c'))}
+	r := &selection.Reader{Sys: selection.NewSystem(a.clipboard, macos.KeyCodeFor('c')), Log: a.log}
 	a.readingSelection = true
 	go func() {
 		start := time.Now()

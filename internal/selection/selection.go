@@ -6,6 +6,7 @@ package selection
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -33,6 +34,8 @@ type Clipboard interface {
 // Reader reads selections. The zero durations take the defaults.
 type Reader struct {
 	Sys System
+	// Log records copy outcomes and timings, never selected text.
+	Log *slog.Logger
 	// AXTimeout bounds every Accessibility call.
 	AXTimeout time.Duration
 	// CopyWait is how long the copy fallback waits for the clipboard.
@@ -46,7 +49,7 @@ type Reader struct {
 
 const (
 	defaultAXTimeout  = 150 * time.Millisecond
-	defaultCopyWait   = 50 * time.Millisecond
+	defaultCopyWait   = 500 * time.Millisecond
 	defaultLateWindow = time.Second
 	defaultPoll       = 5 * time.Millisecond
 )
@@ -99,19 +102,44 @@ func (r *Reader) copy(ctx context.Context) string {
 	sys.PressCopy()
 
 	poll := orDefault(r.Poll, defaultPoll)
-	deadline := time.Now().Add(orDefault(r.CopyWait, defaultCopyWait))
-	for sys.ChangeCount() == before {
-		if time.Now().After(deadline) || ctx.Err() != nil {
-			// The copy may still come; put the clipboard back if it does.
-			go r.guard(snap, before)
+	start := time.Now()
+	deadline := start.Add(orDefault(r.CopyWait, defaultCopyWait))
+	outcome := "timeout"
+	defer func() {
+		if r.Log != nil {
+			r.Log.Info("selection copy", "outcome", outcome, "ms", time.Since(start).Milliseconds())
+		}
+	}()
+	for {
+		// clearContents changes the count before an app publishes its data.
+		// Keep waiting for text instead of restoring over an unfinished copy.
+		if sys.ChangeCount() != before {
+			if text := sys.String(); text != "" {
+				sys.Restore(snap, true)
+				outcome = "copied"
+				return text
+			}
+		}
+		if ctx.Err() != nil || !time.Now().Before(deadline) {
+			if ctx.Err() != nil {
+				outcome = "canceled"
+			}
+			count := before
+			if sys.ChangeCount() != before {
+				count = sys.Restore(snap, true)
+			}
+			// Only an unfinished copy needs a late guard. Watching after success
+			// would overwrite the user's next deliberate clipboard write.
+			go r.guard(snap, count)
 			return ""
 		}
-		time.Sleep(poll)
+		timer := time.NewTimer(poll)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+		case <-timer.C:
+		}
 	}
-	text := sys.String()
-	restored := sys.Restore(snap, true)
-	go r.guard(snap, restored)
-	return text
 }
 
 // guard puts the clipboard back once more if a copy lands after count, within
@@ -122,10 +150,13 @@ func (r *Reader) guard(snap macos.Snapshot, count int) {
 	deadline := time.Now().Add(orDefault(r.LateWindow, defaultLateWindow))
 	for time.Now().Before(deadline) {
 		time.Sleep(poll)
-		if sys.ChangeCount() != count {
+		if sys.ChangeCount() != count && sys.String() != "" {
 			sys.Restore(snap, true)
 			return
 		}
+	}
+	if sys.ChangeCount() != count {
+		sys.Restore(snap, true)
 	}
 }
 
