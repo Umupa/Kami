@@ -5,52 +5,44 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"math"
 )
 
-// trayIcon draws the menu bar icon, black on transparent for macOS to tint:
-// a speech bubble, the panel's answer to a selection. busy adds a dot at its
-// tail, shown while a request runs.
+// trayIcon reduces the origami fox to pointed ears and cutout eyes. A template
+// uses alpha alone so macOS can tint it on light, dark and selected menu bars.
+// The request indicator stays separate from the face at 18 points.
 func trayIcon(busy bool) []byte {
-	const size = 36 // 18 points at 2x
-	img := image.NewNRGBA(image.Rect(0, 0, size, size))
-	ink := func(x, y int, a float64) {
-		if a <= 0 {
-			return
+	const size, samples = 36, 4 // 18 points at 2x, with subpixel edge coverage.
+	face := [][2]float64{{3, 3}, {13, 9}, {23, 9}, {33, 3}, {30, 19}, {18, 31}, {6, 19}}
+	leftEye := [][2]float64{{8, 14}, {14, 17}, {15, 22}, {11, 19}}
+	rightEye := [][2]float64{{28, 14}, {22, 17}, {21, 22}, {25, 19}}
+	inside := func(x, y float64, polygon [][2]float64) bool {
+		in := false
+		previous := polygon[len(polygon)-1]
+		for _, current := range polygon {
+			if (current[1] > y) != (previous[1] > y) &&
+				x < (previous[0]-current[0])*(y-current[1])/(previous[1]-current[1])+current[0] {
+				in = !in
+			}
+			previous = current
 		}
-		old := img.NRGBAAt(x, y).A
-		img.SetNRGBA(x, y, color.NRGBA{A: max(old, uint8(math.Min(a, 1)*255))})
+		return in
 	}
-	// A rounded rectangle outline, w pixels wide, anti-aliased by its signed
-	// distance.
-	cx, cy, hw, hh, r, w := 18.0, 16.0, 14.0, 10.0, 7.0, 3.0
+	img := image.NewNRGBA(image.Rect(0, 0, size, size))
 	for y := range size {
 		for x := range size {
-			qx := math.Abs(float64(x)+0.5-cx) - hw + r
-			qy := math.Abs(float64(y)+0.5-cy) - hh + r
-			d := math.Hypot(math.Max(qx, 0), math.Max(qy, 0)) + math.Min(math.Max(qx, qy), 0) - r
-			ink(x, y, 0.5-(math.Abs(d+w/2)-w/2))
-		}
-	}
-	// The tail, below the left of the bubble.
-	for y := 26; y < 32; y++ {
-		for x := 10; x < 10+(32-y); x++ {
-			ink(x, y, 1)
-		}
-	}
-	// Two lines of text inside.
-	for _, l := range [][3]int{{11, 25, 13}, {11, 20, 18}} {
-		for x := l[0]; x < l[1]; x++ {
-			for y := l[2]; y < l[2]+2; y++ {
-				ink(x, y, 1)
+			coverage := 0
+			for sy := range samples {
+				for sx := range samples {
+					px := float64(x) + (float64(sx)+0.5)/samples
+					py := float64(y) + (float64(sy)+0.5)/samples
+					fox := inside(px, py, face) && !inside(px, py, leftEye) && !inside(px, py, rightEye)
+					dx, dy := px-30.5, py-30.5
+					if fox || busy && dx*dx+dy*dy < 9 {
+						coverage++
+					}
+				}
 			}
-		}
-	}
-	if busy {
-		for y := range size {
-			for x := range size {
-				ink(x, y, 3.5-math.Hypot(float64(x)-29.5, float64(y)-29.5))
-			}
+			img.SetNRGBA(x, y, color.NRGBA{A: uint8(coverage * 255 / (samples * samples))})
 		}
 	}
 	var b bytes.Buffer

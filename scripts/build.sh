@@ -9,6 +9,8 @@ cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 name="Kami Dev"
 app="build/darwin-arm64/Kami.app"
 
+swift scripts/icon.swift
+
 if [[ "${1:-}" == "--ad-hoc" ]]; then
 	shift
 	echo "临时签名构建：重新构建后系统权限会失效。" >&2
