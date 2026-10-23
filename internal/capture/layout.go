@@ -1,11 +1,9 @@
-// Portions adapted from Xuanwo/cida, Sources/Cida/TextRecognition.swift,
-// commit 3099e0dcbc2bafe0a86e6a04d1941b78afacbfd6 (Swift to Go).
-// Licensed under Apache-2.0; see third_party/cida/LICENSE.
 package capture
 
 import (
+	"cmp"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -13,110 +11,144 @@ import (
 	"github.com/Umupa/Kami/internal/macos"
 )
 
-// recognizedText preserves intentional breaks while rejoining visual wraps.
+// row is one visual line of the picture: the recognized lines that share a
+// baseline, left to right, with the box around them.
+type row struct {
+	text                     string
+	left, top, right, bottom float64
+}
+
+func (r row) height() float64 { return r.bottom - r.top }
+
+// recognizedText turns what Vision read into the text a reader would have
+// copied: a wrapped line rejoins its paragraph, while the breaks the author
+// made (a blank line, a list item, a line that ends early) stay.
 func recognizedText(lines []macos.Line) string {
-	clean := make([]macos.Line, 0, len(lines))
-	for _, l := range lines {
-		if l.Text = strings.TrimSpace(l.Text); l.Text != "" {
-			clean = append(clean, l)
-		}
-	}
-	if len(clean) == 0 {
+	rows := readingRows(lines)
+	if len(rows) == 0 {
 		return ""
 	}
-	sort.SliceStable(clean, func(i, j int) bool { return clean[i].Box.Y+clean[i].Box.H/2 < clean[j].Box.Y+clean[j].Box.H/2 })
-	var groups [][]macos.Line
-	for _, l := range clean {
-		if len(groups) > 0 {
-			last := groups[len(groups)-1]
-			b := last[len(last)-1].Box
-			if math.Abs(l.Box.Y+l.Box.H/2-b.Y-b.H/2) < min(l.Box.H, b.H)/2 {
-				groups[len(groups)-1] = append(last, l)
-				continue
-			}
-		}
-		groups = append(groups, []macos.Line{l})
+	heights := make([]float64, len(rows))
+	edge := 0.0
+	for i, r := range rows {
+		heights[i] = r.height()
+		edge = max(edge, r.right)
 	}
-	rows := make([]macos.Line, 0, len(groups))
-	for _, group := range groups {
-		sort.SliceStable(group, func(i, j int) bool { return group[i].Box.X < group[j].Box.X })
-		row := group[0]
-		for _, l := range group[1:] {
-			row.Text += " " + l.Text
-			x, y := min(row.Box.X, l.Box.X), min(row.Box.Y, l.Box.Y)
-			row.Box = macos.Rect{X: x, Y: y, W: max(row.Box.X+row.Box.W, l.Box.X+l.Box.W) - x, H: max(row.Box.Y+row.Box.H, l.Box.Y+l.Box.H) - y}
-		}
-		rows = append(rows, row)
-	}
-	heights := make([]float64, 0, len(rows))
-	right := float64(0)
-	for _, r := range rows {
-		heights = append(heights, r.Box.H)
-		right = max(right, r.Box.X+r.Box.W)
-	}
-	sort.Float64s(heights)
-	typical := heights[len(heights)/2]
-	text := rows[0].Text
-	for i, row := range rows[1:] {
-		previous := rows[i]
-		if row.Box.Y-previous.Box.Y-previous.Box.H > typical*0.8 || startsListItem(row.Text) || roomForWord(previous, row, right) {
-			text += "\n" + row.Text
+	slices.Sort(heights)
+	lineHeight := heights[len(heights)/2]
+
+	text := rows[0].text
+	for i := 1; i < len(rows); i++ {
+		if authorBreak(rows[i-1], rows[i], lineHeight, edge) {
+			text += "\n" + rows[i].text
 		} else {
-			text = joinWrapped(text, row.Text)
+			text = rejoin(text, rows[i].text)
 		}
 	}
 	return strings.TrimSpace(text)
 }
 
-func roomForWord(previous, row macos.Line, right float64) bool {
-	first, _ := utf8.DecodeRuneInString(row.Text)
-	word := 0
-	if isCJK(first) {
-		word = 1
-	} else {
-		for _, r := range row.Text {
-			if unicode.IsSpace(r) {
-				break
-			}
-			word++
+// readingRows groups lines whose vertical centers are within half a line of
+// each other, top to bottom.
+func readingRows(lines []macos.Line) []row {
+	var kept []macos.Line
+	for _, l := range lines {
+		if l.Text = strings.TrimSpace(l.Text); l.Text != "" {
+			kept = append(kept, l)
 		}
 	}
-	characterWidth := previous.Box.W / float64(utf8.RuneCountInString(previous.Text))
-	return right-previous.Box.X-previous.Box.W > characterWidth*(float64(word)*1.4+1)
+	center := func(l macos.Line) float64 { return l.Box.Y + l.Box.H/2 }
+	slices.SortStableFunc(kept, func(a, b macos.Line) int { return cmp.Compare(center(a), center(b)) })
+
+	var groups [][]macos.Line
+	for _, l := range kept {
+		if n := len(groups); n > 0 {
+			prev := groups[n-1][len(groups[n-1])-1]
+			if math.Abs(center(l)-center(prev)) < min(l.Box.H, prev.Box.H)/2 {
+				groups[n-1] = append(groups[n-1], l)
+				continue
+			}
+		}
+		groups = append(groups, []macos.Line{l})
+	}
+
+	rows := make([]row, len(groups))
+	for i, g := range groups {
+		slices.SortStableFunc(g, func(a, b macos.Line) int { return cmp.Compare(a.Box.X, b.Box.X) })
+		words := make([]string, len(g))
+		r := row{left: math.Inf(1), top: math.Inf(1), right: math.Inf(-1), bottom: math.Inf(-1)}
+		for j, l := range g {
+			words[j] = l.Text
+			r.left, r.top = min(r.left, l.Box.X), min(r.top, l.Box.Y)
+			r.right, r.bottom = max(r.right, l.Box.X+l.Box.W), max(r.bottom, l.Box.Y+l.Box.H)
+		}
+		r.text = strings.Join(words, " ")
+		rows[i] = r
+	}
+	return rows
 }
 
-func startsListItem(text string) bool {
-	first, n := utf8.DecodeRuneInString(text)
-	if strings.ContainsRune("•◦▪▫‣∙·●○■□▸►", first) {
+// authorBreak reports whether next starts a new line in the original text
+// rather than continuing prev: a gap larger than a line, a list item, or prev
+// stopping short of the text's right edge although next's first word fits.
+func authorBreak(prev, next row, lineHeight, edge float64) bool {
+	if next.top-prev.bottom > lineHeight*0.8 || listItem(next.text) {
 		return true
 	}
-	if strings.ContainsRune("-*+", first) {
+	first, _ := utf8.DecodeRuneInString(next.text)
+	word := 1
+	if !isCJK(first) {
+		word = strings.IndexFunc(next.text, unicode.IsSpace)
+		if word < 0 {
+			word = len(next.text)
+		}
+		word = utf8.RuneCountInString(next.text[:word])
+	}
+	glyph := (prev.right - prev.left) / float64(utf8.RuneCountInString(prev.text))
+	return edge-prev.right > glyph*(float64(word)*1.4+1)
+}
+
+// listItem reports whether text begins with a bullet or a number of one to
+// three digits followed by "、", ". " or ") ".
+func listItem(text string) bool {
+	first, n := utf8.DecodeRuneInString(text)
+	switch {
+	case strings.ContainsRune("•◦▪▫‣∙·●○■□▸►", first):
+		return true
+	case strings.ContainsRune("-*+", first):
 		return strings.HasPrefix(text[n:], " ")
 	}
-	digits := 0
-	for digits < len(text) && text[digits] >= '0' && text[digits] <= '9' {
-		digits++
-	}
+	digits := strings.IndexFunc(text, func(r rune) bool { return r < '0' || r > '9' })
 	if digits < 1 || digits > 3 {
 		return false
 	}
-	marker := text[digits:]
-	return strings.HasPrefix(marker, "、") || strings.HasPrefix(marker, ". ") || strings.HasPrefix(marker, ") ")
+	for _, marker := range []string{"、", ". ", ") "} {
+		if strings.HasPrefix(text[digits:], marker) {
+			return true
+		}
+	}
+	return false
 }
 
-func joinWrapped(head, tail string) string {
-	last, n := utf8.DecodeLastRuneInString(head)
-	first, _ := utf8.DecodeRuneInString(tail)
-	if head == "" || tail == "" || isCJK(last) || isCJK(first) {
-		return head + tail
+// rejoin continues text with a wrapped line: directly next to Chinese or
+// Japanese, without the hyphen of a word split across lines, and otherwise
+// after a space.
+func rejoin(text, next string) string {
+	last, n := utf8.DecodeLastRuneInString(text)
+	first, _ := utf8.DecodeRuneInString(next)
+	if isCJK(last) || isCJK(first) {
+		return text + next
 	}
-	before, _ := utf8.DecodeLastRuneInString(head[:len(head)-n])
-	if last == '-' && unicode.IsLetter(before) && unicode.IsLower(first) {
-		return head[:len(head)-n] + tail
+	if before, _ := utf8.DecodeLastRuneInString(text[:len(text)-n]); last == '-' && unicode.IsLetter(before) && unicode.IsLower(first) {
+		return text[:len(text)-n] + next
 	}
-	return head + " " + tail
+	return text + " " + next
 }
 
+// isCJK reports whether r belongs to a script written without spaces between
+// words, or is its punctuation.
 func isCJK(r rune) bool {
-	return r >= 0x3000 && r <= 0x30ff || r >= 0x3400 && r <= 0x4dbf || r >= 0x4e00 && r <= 0x9fff || r >= 0xf900 && r <= 0xfaff || r >= 0xff00 && r <= 0xffef
+	return unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana) ||
+		r >= '　' && r <= '〿' || // CJK symbols and punctuation
+		r >= '＀' && r <= '￯' // fullwidth forms
 }

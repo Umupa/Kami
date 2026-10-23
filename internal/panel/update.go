@@ -10,7 +10,7 @@ import (
 	"github.com/Umupa/Kami/internal/design"
 )
 
-// A newer version of Kami takes the panel over as it opens, as 辞达's does
+// A newer version of Kami takes the panel over as it opens
 // (requirements F14): its version, a choice on the control bar, and its
 // notes. The user's own session stays underneath and comes back with any
 // choice but a restart.

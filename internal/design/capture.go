@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Capture follows Cida's capture surface rather than the conversation theme.
+// Capture has its own surface rather than the conversation theme.
 // The veil follows the frozen image; the hint follows the app's appearance.
 const (
 	CaptureRadius     = 8

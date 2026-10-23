@@ -104,8 +104,9 @@ func CaptureDisplay(ctx context.Context, displayID uint32, width, height int) (*
 	return r.image, nil
 }
 
-// ConfigureCaptureWindow gives a nonactivating MyGo panel Cida's capture
-// window behavior. It runs on the main thread before the window is shown.
+// ConfigureCaptureWindow makes a nonactivating MyGo panel a borderless
+// window above everything, on every Space. It runs on the main thread before
+// the window is shown.
 func ConfigureCaptureWindow(handle uintptr) error {
 	if handle == 0 {
 		return errors.New("macos: capture window is unavailable")

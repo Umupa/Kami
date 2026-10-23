@@ -14,7 +14,7 @@ import (
 
 var updateSnapshots = flag.Bool("update", false, "rewrite capture snapshots")
 
-// visualPicker generates an article in memory at the Cida reference viewport.
+// visualPicker generates an article in memory.
 // No window, live screen, or system input is used.
 func visualPicker(t *testing.T, dark bool) (*Capturer, *ui.Tester) {
 	t.Helper()

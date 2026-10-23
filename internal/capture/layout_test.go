@@ -6,7 +6,7 @@ import (
 	"github.com/Umupa/Kami/internal/macos"
 )
 
-func TestRecognizedParagraphsMatchCida(t *testing.T) {
+func TestRecognizedParagraphs(t *testing.T) {
 	line := func(text string, row int, width float64) macos.Line {
 		return macos.Line{Text: text, Box: macos.Rect{X: 0.1, Y: 0.1 + float64(row)*0.06, W: width, H: 0.04}}
 	}
