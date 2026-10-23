@@ -9,18 +9,13 @@ cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 name="Kami Dev"
 app="build/darwin-arm64/Kami.app"
 
-swift scripts/icon.swift
-
 if [[ "${1:-}" == "--ad-hoc" ]]; then
 	shift
 	echo "临时签名构建：重新构建后系统权限会失效。" >&2
 	exec go tool mygo build -skip-dmg "$@"
 fi
 
-if ! security find-identity -v -p codesigning | grep -q "\"$name\""; then
-	echo "还没有签名身份「${name}」，先创建（每台 Mac 一次）。" >&2
-	scripts/dev-cert.sh
-fi
+scripts/dev-cert.sh
 go tool mygo build -skip-dmg -sign "$name" "$@"
 
 # A designated requirement that names only the cdhash changes with every

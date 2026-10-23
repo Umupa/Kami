@@ -6,12 +6,5 @@
 set -euo pipefail
 
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
-name="Kami Dev"
-
-swift scripts/icon.swift
-
-if ! security find-identity -v -p codesigning | grep -q "\"$name\""; then
-	echo "还没有签名身份「${name}」，先创建（每台 Mac 一次）。" >&2
-	scripts/dev-cert.sh
-fi
-exec go tool mygo dev -sign "$name" "$@"
+scripts/dev-cert.sh
+exec go tool mygo dev -sign "Kami Dev" "$@"

@@ -1,13 +1,13 @@
 // Adapt the selected ImageGen artwork for the Dock; the menu bar is drawn in Go.
-// Run from anywhere: swift scripts/icon.swift
+// Run from anywhere after changing the artwork: swift scripts/icon.swift
 import AppKit
 
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-let sourceURL = root.appendingPathComponent("scripts/icon-selected-fox.png")
+let sourceURL = root.appendingPathComponent("assets/icon-fox.png")
 guard let source = NSBitmapImageRep(data: try Data(contentsOf: sourceURL)),
       source.bitsPerSample == 8, !source.isPlanar, source.samplesPerPixel >= 3,
       let pixels = source.bitmapData else {
-	fatalError("icon-selected-fox.png must be an 8-bit RGB image")
+	fatalError("icon-fox.png must be an 8-bit RGB image")
 }
 let stride = source.bitsPerPixel / 8
 let colorOffset = source.bitmapFormat.contains(.alphaFirst) ? 1 : 0

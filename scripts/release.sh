@@ -42,10 +42,7 @@ if ! security find-identity -v -p codesigning | grep -q "\"$name\""; then
 fi
 
 echo "检查…" >&2
-test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
-go vet ./...
-go tool mygo vet .
-go test ./...
+scripts/check.sh
 
 if ! grep -q "\"version\": \"$version\"" mygo.json; then
 	sed -i '' -E "s/\"version\": \"[0-9.]+\"/\"version\": \"$version\"/" mygo.json

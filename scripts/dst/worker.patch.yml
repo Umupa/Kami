@@ -1,7 +1,0 @@
-# Overlay for `dsh --profile headless`: run delegated tasks at max reasoning effort.
-# The provider and model must match the user's dsh-tui profile.
-- id: agent-default-model
-  config:
-    provider: magpie
-    model: sub2api/deepseek-flash
-    reasoningEffort: max
