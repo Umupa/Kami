@@ -55,6 +55,8 @@ type Deps struct {
 	// OnSetup, when set, hears the permission step start and end, so that
 	// the app resumes it after a restart (ResumeSetup).
 	OnSetup func(pending bool)
+	// Updates is what the panel does about a newer version of Kami.
+	Updates Updates
 	// NotesDir is where a configuration keeps the notes, and Trash moves a
 	// deleted note's file to the Trash.
 	NotesDir func(*config.Config) string
@@ -115,6 +117,15 @@ type Panel struct {
 	// System Settings.
 	inSetup  bool
 	heldOpen bool
+	// updating is set while the update screen shows; updateIdx is its
+	// chosen item, focusUpdate asks for its keyboard focus, and
+	// updateConfirmed is set once the user asked for the restart while
+	// the panel is up.
+	updating        bool
+	updateIdx       int
+	focusUpdate     bool
+	updateConfirmed bool
+	updateMD        markdown.Options
 	// results holds the other modes' sessions, by mode id.
 	results map[string]result
 
@@ -381,6 +392,9 @@ func (p *Panel) Show() {
 	p.ask(p.place.bounds(p.height).Height)
 	p.win.SetBounds(p.place.bounds(p.height))
 	p.greet()
+	// A restart asked for and left behind waits for the next ask.
+	p.updateConfirmed = false
+	p.offerUpdate()
 	p.win.Show()
 	switch {
 	case p.noteMode():

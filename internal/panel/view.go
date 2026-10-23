@@ -124,6 +124,10 @@ func (p *Panel) view(c *ui.Context) {
 			}
 		})
 		content.Children(func() {
+			if p.updating {
+				p.updateView(c, pal)
+				return
+			}
 			if p.noteMode() {
 				p.noteView(c, pal)
 				p.filler(c)

@@ -59,9 +59,11 @@ type app struct {
 	// nil when they could not be installed. conn is what they say of the
 	// model, and checks counts the checks so a stale one is dropped. Main
 	// thread only.
-	statusIcon, brokenIcon *macos.StatusMenuItem
-	conn                   connection
-	checks                 int
+	statusIcon, brokenIcon, updateIcon *macos.StatusMenuItem
+	// updates is what Kami knows of a newer version of itself.
+	updates *updates
+	conn    connection
+	checks  int
 	// Dock starts hidden. Only actual setting changes update the native policy.
 	dockVisible         bool
 	setActivationPolicy func(mygo.ActivationPolicy)
@@ -121,6 +123,7 @@ func Run() error {
 }
 
 func (a *app) ready(ctx context.Context) {
+	a.updates = newUpdates(a.log, a.showUpdate)
 	a.panel = panel.New(panel.Deps{
 		Store:  a.store,
 		Client: func(config.Model) llm.Client { return llm.HTTP{} },
@@ -144,6 +147,14 @@ func (a *app) ready(ctx context.Context) {
 		RequestPermission: a.requestPermission,
 		Relaunch:          mygo.App.Relaunch,
 		OnSetup:           func(pending bool) { macos.SetDefaultBool(setupPending, pending) },
+		Updates: panel.Updates{
+			Offer:   a.updates.Offer,
+			State:   a.updates.State,
+			Install: a.updates.Install,
+			Later:   a.updates.Later,
+			Skip:    a.updates.Skip,
+			Restart: mygo.App.Relaunch,
+		},
 		OnBusy: func(busy bool) {
 			if a.tray != nil {
 				a.tray.SetIcon(trayIcon(busy), true)
@@ -169,11 +180,11 @@ func (a *app) ready(ctx context.Context) {
 		}
 	}
 	// The status lines are found by the titles they are created with.
-	const statusTitle, brokenTitle = "Kami 状态", "Kami 配置"
+	const statusTitle, brokenTitle, updateTitle = "Kami 状态", "Kami 配置", "Kami 更新"
 	for _, w := range []struct {
 		icon  **macos.StatusMenuItem
 		title string
-	}{{&a.statusIcon, statusTitle}, {&a.brokenIcon, brokenTitle}} {
+	}{{&a.statusIcon, statusTitle}, {&a.brokenIcon, brokenTitle}, {&a.updateIcon, updateTitle}} {
 		if s, err := macos.WatchStatusMenuItem(w.title); err != nil {
 			a.log.Error("status menu icon", "err", err)
 		} else {
@@ -184,6 +195,10 @@ func (a *app) ready(ctx context.Context) {
 	a.menu = mygo.NewMenu([]*mygo.MenuItem{
 		{ID: "status", Label: statusTitle, Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
 		{ID: "broken", Label: brokenTitle, Hidden: true, Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
+		{ID: "update", Label: updateTitle, Hidden: true, Click: func(*mygo.MenuItem, *mygo.Window) {
+			a.panel.ShowUpdate()
+			a.showPanel()
+		}},
 		mygo.Separator(),
 		{ID: "show", Label: "显示面板", Click: func(*mygo.MenuItem, *mygo.Window) { a.showPanel() }},
 		{ID: "capture", Label: "截图识别", Click: func(*mygo.MenuItem, *mygo.Window) { a.startCapture() }},
@@ -227,6 +242,7 @@ func (a *app) ready(ctx context.Context) {
 		})
 	})
 	go a.watchConfig(ctx)
+	go a.updates.run(ctx)
 	switch {
 	case first:
 		// Without a model the app has one thing to show: how to get one.
@@ -456,6 +472,31 @@ func (a *app) requestEnded(err error) {
 	a.checks++ // a check still running is older news
 	a.conn.known, a.conn.err = true, err
 	a.showStatus()
+}
+
+// showUpdate shows the newer version in the menu. Main thread only.
+func (a *app) showUpdate() {
+	if a.menu == nil {
+		return
+	}
+	s, _ := a.updates.State()
+	label := a.updates.menuLabel()
+	item := a.menu.ItemByID("update")
+	item.SetVisible(label != "")
+	if label == "" {
+		return
+	}
+	item.SetLabel(label)
+	if a.updateIcon != nil {
+		symbol, tint := "arrow.down.circle", macos.TintNone
+		switch s.Phase {
+		case panel.UpdateReady:
+			symbol = "arrow.clockwise.circle"
+		case panel.UpdateFailed:
+			symbol, tint = "exclamationmark.circle.fill", macos.TintOrange
+		}
+		a.updateIcon.SetSymbol(symbol, tint)
+	}
 }
 
 // showStatus puts the model and its connection at the top of the menu, with

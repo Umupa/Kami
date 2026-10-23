@@ -132,13 +132,13 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
       ├─ 前台是自己 / 安全输入 / 密码框 → 无选区
       ├─ 辅助功能：聚焦元素的 kAXSelectedText（超时 150ms）→ 有文字就返回
       └─ 复制兜底：备份剪贴板每一项 → CGEvent ⌘C（只带 ⌘，按键盘布局取 C）
-                  → 等 changeCount 变化（最多 50ms）→ 取纯文本
+                  → 等 changeCount 变化且纯文本写完（最多 500ms，兼容异步复制）→ 取纯文本
                   → 排除整行复制（与 kAXValue 比较）→ 原样写回并标 TransientType
-                  → 1 秒内迟到的复制也写回
+                  → 仅未完成的复制启用 1 秒迟到恢复；成功后不再监听后续写入
  └► 主线程：与上次带入的相同或无选区 → 原样显示面板；不同 → 新会话，默认模式立即执行，再显示面板
 ```
 
-面板在读选区之后才显示，所以带入的文字和面板一起出现，不从旧内容跳变。
+面板在读选区之后才显示，所以带入的文字和面板一起出现，不从旧内容跳变。复制兜底不能把 `clearContents` 导致的计数变化当成文本已就绪；等待期间尊重取消，超时后只恢复剪贴板，不再交付迟到文字。日志记录复制成功、超时或取消及耗时，不记录选区或剪贴板内容。
 
 ### ⌥S 截图
 
@@ -243,3 +243,11 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
 - 面板只在显示时（`Show`）和 ⌘N 后打招呼；`applyConfig` 只更新已在显示的回复，或在模型从无到有时说「已连接」，因为面板在 `New` 里第一次读配置时还没有窗口和主线程投递。
 - 配置类失败：`copyTurn` 在最近一轮失败且无回复时复制同一份配置提示词，不附失败详情。
 - `app`：没有模型的启动直接显示面板，且不请求输入监控；本次运行中模型配好后也不自动请求，交给面板的授权步骤（`Deps.Permissions`、`RequestPermission`、`Relaunch`）。步骤进行中由 `Deps.OnSetup` 在用户默认设置里记下 `permissionSetupPending`（`macos.SetDefaultBool`，不进 config.json）；启动时有模型且该值为真，`panel.ResumeSetup` 接着显示剩余的权限。首次使用与授权步骤期间面板由 `holdForSetup` 设 `heldOpen`：失焦不隐藏但不置顶，系统设置与授权弹窗能盖住它。屏幕录制的请求另调用一次 ScreenCaptureKit 的 `getShareableContent`，较新的 macOS 靠它把 Kami 加进系统设置的列表。用户发起的权限请求都经 `app.requestPermission`：先 `promptPermission`（系统提示，一次运行最多一次，它把 Kami 加进列表），1.5 秒后仍未授权再打开设置页——同时打开时设置页会先于 Kami 入列；启动时自动请求输入监控只用 `promptPermission`，不打开设置页。菜单顶部的状态行由 `menuStatus`（`app/status.go`，纯函数）从配置快照和连接状态推出；连接状态来自模型变化时的一次 `llm.Ping`（30 秒超时，过期结果按计数丢弃）和面板的 `OnOutcome`（每次模型请求的结果，停止与 Kami 自己的回复不算）。MyGo 不提供菜单项图片，`macos.WatchStatusMenuItem` 按创建时的标题找到原生菜单项并持有它，之后标题由 MyGo 改、SF Symbol 与颜色由它改；「显示面板」「截图识别」的 `Accelerator` 随快捷键更新，双击修饰键无法写成 Accelerator，留空。
+
+## 十二、更新
+
+更新（需求 F14、D26）分三处：
+
+- `app/update.go` 的 `updates`：启动 5 秒后、之后每 6 小时调用 `mygo.Updater.Check`（30 秒超时，`Updater.Enabled()` 为假的构建不检查）；`Install` 在后台调用 `Update.Install`（10 分钟超时），按进度更新状态。状态在锁里，检查与下载的 goroutine 写，面板与菜单在主线程读；变化后经 `RunOnMain` 刷新菜单。`offered` 与 `updateLabel` 是纯函数：稍后只在内存里，跳过的版本在用户默认设置 `skippedUpdate`。
+- `panel/update.go`：`updating` 为真时面板只画更新界面（首行、可聚焦的选择条、可滚动的更新内容），不动用户的会话。`Show` 时 `offerUpdate`（首次使用与授权步骤期间不提示）；菜单项调用 `ShowUpdate`。选择条在自己的焦点子树里处理 Tab、⇧Tab、⏎、Esc。确认安装后 `updateConfirmed` 为真，面板可见时视图看到状态变成已安装、且没有请求进行中，就调用 `Restart`；`Show` 会清掉它，所以离开面板后不会自动重启。
+- 发布：`mygo.json` 的 `updates` 写着公钥与 `Umupa/Kami`，构建把清单地址与公钥写进二进制；没有私钥的日常构建照常进行，只是不生成更新包。`scripts/update-key.sh` 一次性生成密钥并把私钥存进钥匙串；`scripts/release.sh <版本>` 检查、改版本号、打 tag、推送、`mygo build -sign "Kami Dev" -upload` 上传 DMG 与更新包、发布 Release。

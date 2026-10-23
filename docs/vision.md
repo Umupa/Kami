@@ -20,7 +20,7 @@
 
 二期加入**笔记**：随手记一笔的草稿纸，在面板里 Tab 切过去就写，自动保存，可以有很多张；不接模型（见 [需求](requirements.md) F12）。
 
-自用为主：功能按我自己的这台 Mac 和使用习惯取舍，不为公开发布做取舍。接入模型例外：配置提示词要让 Coding Agent 带任何人配好，无论手上是 API Key、Claude / ChatGPT 等订阅，还是本机模型。
+自用为主：功能按我自己的这台 Mac 和使用习惯取舍。仓库公开，版本发布在 GitHub Releases，Kami 自己检查并安装更新（D26）。接入模型例外：配置提示词要让 Coding Agent 带任何人配好，无论手上是 API Key、Claude / ChatGPT 等订阅，还是本机模型。
 
 ## 三、目标
 

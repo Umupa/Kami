@@ -30,3 +30,35 @@ func SetDefaultBool(key string, v bool) {
 		}
 	})
 }
+
+// DefaultString reads a string from the app's user defaults; empty when it
+// is absent or the defaults cannot be read.
+func DefaultString(key string) string {
+	if openFrameworks() != nil {
+		return ""
+	}
+	var v string
+	withPool(func() {
+		s := send(send(class("NSUserDefaults"), "standardUserDefaults"), "stringForKey:", nsString(key))
+		if s != 0 {
+			v = goString(s)
+		}
+	})
+	return v
+}
+
+// SetDefaultString writes a string to the app's user defaults; empty
+// removes the key.
+func SetDefaultString(key, v string) {
+	if openFrameworks() != nil {
+		return
+	}
+	withPool(func() {
+		d := send(class("NSUserDefaults"), "standardUserDefaults")
+		if v == "" {
+			send(d, "removeObjectForKey:", nsString(key))
+		} else {
+			send(d, "setObject:forKey:", nsString(v), nsString(key))
+		}
+	})
+}

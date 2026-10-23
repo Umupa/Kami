@@ -8,5 +8,9 @@
     "infoPlist": {
       "LSUIElement": true
     }
+  },
+  "updates": {
+    "publicKey": "r1esq4EduCYkP6RdCy51+hskrBY7JRoz+BUNN5tln/s=",
+    "github": "Umupa/Kami"
   }
 }

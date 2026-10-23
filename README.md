@@ -10,6 +10,10 @@
 
 一期功能已实现，等待统一实测：面板与多轮对话、四个内置模式、三种模型格式、带入选区、截图识别、Operator（在面板里输入 `/operator` 查看和修改设置）、配置接口（`config.json` + `check`）。
 
+## 安装与更新
+
+从 [Releases](https://github.com/Umupa/Kami/releases) 下载 DMG，把 Kami 拖进「应用程序」。Kami 用自签名证书签名，第一次打开要在 Finder 里右键 Kami 选「打开」，或在「系统设置 → 隐私与安全性」里点「仍要打开」。之后的版本由 Kami 自己检查和安装：打开面板时会提示新版本。
+
 ## 构建与开发
 
 | 命令 | 作用 |
@@ -17,6 +21,8 @@
 | `scripts/build.sh` | 构建 `build/darwin-arm64/Kami.app`，用本机签名身份 `Kami Dev` 签名；第一次运行时自动创建该身份（需要输入一次系统密码） |
 | `scripts/dev.sh` | 带热重载的开发运行，同样签名。它是另一个应用 `Kami Dev`，权限与数据目录和正式构建分开；没有模型时显示首次使用引导，`KAMI_DEMO=1 scripts/dev.sh` 改用演示回复 |
 | `scripts/reset-permissions.sh [--dev]` | 清除 Kami 的辅助功能、输入监控、屏幕录制记录，用于授权错乱时 |
+| `scripts/release.sh <版本>` | 发布新版本：检查、改版本号、打 tag、构建签名并上传到 GitHub Releases；更新内容取自 `CHANGELOG.md` |
+| `scripts/update-key.sh` | 一次性生成更新签名密钥，私钥存进钥匙串（要另外备份） |
 
 签名固定后，重新构建不会丢失系统权限。`scripts/build.sh --ad-hoc` 只用于临时产物，它的权限在重新构建后失效。
 
