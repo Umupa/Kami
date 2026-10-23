@@ -36,7 +36,7 @@
 
 ## 验证
 
-- 每次改动都要通过 `scripts/check.sh`（gofmt、`go vet`、`go tool mygo vet`、`go test`）；改了 `internal/macos` 时运行 `scripts/check.sh --integration`。
+- 每次改动都要通过 `scripts/check.sh`（gofmt、arm64 与 amd64 的 `go vet`、`go tool mygo vet`、`go test`）；改了 `internal/macos` 时运行 `scripts/check.sh --integration`。
 - CI 只在手动触发时运行（`gh workflow run ci`），提交前在本机跑完检查。
 - 改了面板、Markdown 渲染或主题时，更新视觉快照并检查 PNG。
 - 系统集成测试用 `//go:build integration`，只做只读调用。

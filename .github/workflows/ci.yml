@@ -16,4 +16,4 @@ jobs:
       - name: check
         run: scripts/check.sh
       - name: build
-        run: go tool mygo build -skip-dmg
+        run: go tool mygo build -skip-dmg -platform darwin/arm64,darwin/amd64

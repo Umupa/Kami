@@ -24,7 +24,7 @@
 
 | 项 | 选择 | 说明 |
 | --- | --- | --- |
-| 语言 | Go 1.27（`go.mod` 写 `go 1.27.2`） | MyGo 要求 1.27+；只要 Command Line Tools，不需要 Xcode |
+| 语言 | Go 1.27（`go.mod` 写 `go 1.27.2`） | MyGo 要求 1.27+；只要 Command Line Tools，不需要 Xcode；没有 cgo，在任一台 Mac 上就能交叉编译 arm64 与 amd64 |
 | 框架 | [MyGo](https://github.com/egoist/mygo) v0.5.5，锁定精确版本 | CLI 作为 module tool（`go tool mygo`），不全局安装；升级单独评估 |
 | UI | MyGo 原生 UI，即时模式：视图是状态的函数，在主线程上按需重建 | 后台 goroutine 经 `Window.Update` 回到主线程 |
 | Markdown | `mygo/ui/markdown` | GFM、增量解析、半截语法、匀速出字与淡入（`Options.Reveal`）、代码高亮、复制还原 Markdown |
@@ -301,7 +301,7 @@ MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size conten
 - `app/update.go`：启动 5 秒后、之后每 6 小时调用 `mygo.Updater.Check`（30 秒超时，`Updater.Enabled()` 为假的构建不检查）；`Install` 在后台调用 `Update.Install`（10 分钟超时），按进度更新状态。状态在锁里，检查与下载的 goroutine 写，面板与菜单在主线程读，变化后经 `RunOnMain` 刷新菜单。`offered` 与 `updateLabel` 是纯函数；「稍后」只在内存里，跳过的版本在用户默认设置 `skippedUpdate`。
 - `panel/update.go`：`updating` 为真时面板只画更新界面，不动用户的会话。`Show` 时 `offerUpdate`（首次使用与授权步骤期间不提示）；菜单项调用 `ShowUpdate`。确认安装后 `updateConfirmed` 为真，面板可见、状态变成已安装且没有请求进行中时调用 `Restart`；`Show` 会清掉它，所以离开面板后不会自动重启。
 - 签名：所有构建都用本机的自签名身份「Kami Dev」（`scripts/dev-cert.sh` 创建，D8）；`mygo dev` 的应用是另一个应用 `Kami Dev`（`dev.umupa.kami.dev`），授权与数据目录分开。
-- 发布：`mygo.json` 的 `updates` 写着公钥与 `Umupa/Kami`，构建把清单地址与公钥写进二进制；没有私钥的日常构建照常进行，只是不生成更新包。`scripts/update-key.sh` 一次性生成密钥并把私钥存进钥匙串；`scripts/release.sh <版本>` 检查、改版本号、打 tag、推送、`mygo build -sign "Kami Dev" -upload` 上传 DMG 与更新包、发布 Release。
+- 发布：`mygo.json` 的 `updates` 写着公钥与 `Umupa/Kami`，构建把清单地址与公钥写进二进制；没有私钥的日常构建照常进行，只是不生成更新包。`scripts/update-key.sh` 一次性生成密钥并把私钥存进钥匙串；`scripts/release.sh <版本>` 检查、改版本号、打 tag、推送、`mygo build -platform darwin/arm64,darwin/amd64 -sign "Kami Dev" -upload` 上传两种架构的 DMG 与更新包、发布 Release。每份构建把自己架构的清单地址（`update-darwin-<arch>.json`）写进二进制，所以两种架构分别发布，不出 universal 包：清单名一变，已安装的版本就收不到更新。日常的 `build.sh`、`dev.sh` 只构建本机架构。
 
 ## 十四、测试
 

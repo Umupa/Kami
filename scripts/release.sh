@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Publishes version <x.y.z> of Kami from main: runs the checks, sets the
-# version in mygo.json, tags and pushes it, builds the disk image and the
-# signed update with the "Kami Dev" identity and the key in the keychain,
+# version in mygo.json, tags and pushes it, builds the disk images and the
+# signed updates for Apple silicon and Intel with the "Kami Dev" identity
+# and the key in the keychain,
 # uploads them to the GitHub release v<x.y.z> and publishes it. Installed
 # copies find it at their next check. CHANGELOG.md's "## <x.y.z>" section
 # is the release notes the update screen shows.
@@ -51,12 +52,16 @@ fi
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null || git tag "$tag"
 git push -q origin main "$tag"
 
-MYGO_UPDATER_PRIVATE_KEY="$key" go tool mygo build -sign "$name" -upload
+# Each architecture has its own update feed, baked into its build, so both
+# keep their names: a universal build would strand installed copies.
+MYGO_UPDATER_PRIVATE_KEY="$key" go tool mygo build -platform darwin/arm64,darwin/amd64 -sign "$name" -upload
 # A requirement that names only the cdhash would change with every version,
 # and with it every grant of every installed copy.
-if codesign -dr - build/darwin-arm64/Kami.app 2>&1 | grep -q 'designated => cdhash'; then
-	echo "Kami.app 没有用「${name}」签名，不发布：草稿 $tag 留着，修好后重新运行。" >&2
-	exit 1
-fi
+for arch in arm64 amd64; do
+	if codesign -dr - "build/darwin-$arch/Kami.app" 2>&1 | grep -q 'designated => cdhash'; then
+		echo "$arch 的 Kami.app 没有用「${name}」签名，不发布：草稿 $tag 留着，修好后重新运行。" >&2
+		exit 1
+	fi
+done
 gh release edit "$tag" --draft=false --latest
 echo "已发布 ${tag}。" >&2

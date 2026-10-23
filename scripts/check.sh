@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Runs the checks every change must pass: formatting, vet, MyGo's UI vet and
-# the tests. Pass --integration to add the read-only macOS integration tests.
+# Runs the checks every change must pass: formatting, vet on both released
+# architectures, MyGo's UI vet and the tests. Pass --integration to add the
+# read-only macOS integration tests.
 set -euo pipefail
 
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -11,6 +12,7 @@ if [[ -n $unformatted ]]; then
 	exit 1
 fi
 go vet ./...
+GOARCH=amd64 go vet ./...
 go tool mygo vet .
 go test ./...
 if [[ "${1:-}" == "--integration" ]]; then
