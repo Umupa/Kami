@@ -79,6 +79,42 @@ func TestNoteIsSavedAsTyped(t *testing.T) {
 	}
 }
 
+func TestEmptyNoteList(t *testing.T) {
+	for _, theme := range []string{"flexoki-light", "flexoki-night"} {
+		t.Run(theme, func(t *testing.T) {
+			h := newHarness(t, script{})
+			h.p.cfg.Theme = theme
+			h.enterNotes()
+			height := h.p.panelH
+			h.tt.Key(ui.Cmd, ui.KeyP)
+			h.drain()
+			if !h.tt.Focused("搜索笔记") || !h.tt.HasText("还没有笔记") || h.tt.HasText("打开") {
+				t.Fatalf("unexpected empty list: %v", h.tt.Texts())
+			}
+			h.snapshot("notes-empty-" + theme)
+			h.tt.Key(0, ui.KeyEnter)
+			h.drain()
+			if !h.p.notes.listOpen || len(h.noteFiles()) != 0 {
+				t.Fatal("Enter in the empty list changed the note")
+			}
+			h.tt.Type("第一张笔记")
+			h.drain()
+			if h.tt.HasText("还没有笔记") || !h.tt.HasText("新建") || h.tt.HasText("打开") {
+				t.Fatalf("unexpected create action: %v", h.tt.Texts())
+			}
+			h.snapshot("notes-create-" + theme)
+			h.tt.Key(0, ui.KeyEnter)
+			h.drain()
+			if h.p.notes.listOpen || h.p.notes.text != "第一张笔记" || !h.tt.Focused("笔记") {
+				t.Fatal("creating the first note did not return to its editor")
+			}
+			if h.p.panelH != height {
+				t.Fatalf("list changed panel height from %v to %v", height, h.p.panelH)
+			}
+		})
+	}
+}
+
 func TestNewNoteAndList(t *testing.T) {
 	h := newHarness(t, script{})
 	h.enterNotes()

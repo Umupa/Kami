@@ -611,6 +611,14 @@ func (p *Panel) listContent(c *ui.Context, pal *design.Palette) {
 		}
 	})
 	ui.Divider(c).Background(pal.Border)
+	if len(rows) == 0 && !create {
+		ui.Column(c).Padding(16, 18).Gap(5).Children(func() {
+			ui.Text(c, "还没有笔记").FontSize(p.sz.Label).FontWeight(600).TextColor(pal.Muted)
+			ui.Text(c, "输入标题，按回车新建").FontSize(p.sz.Caption).TextColor(pal.Faint)
+		})
+		n.reveal = false
+		return
+	}
 	now := time.Now()
 	ui.Scroll(c.Key("rows")).Grow(1).Shrink(1).MinHeight(0).Padding(4, 6, 6, 6).Gap(1).Children(func() {
 		group := ""
@@ -639,7 +647,11 @@ func (p *Panel) listContent(c *ui.Context, pal *design.Palette) {
 	ui.Divider(c).Background(pal.Border)
 	ui.Row(c).Shrink(0).PaddingX(12).PaddingY(7).Children(func() {
 		ui.Spacer(c)
-		p.kbd(c, pal, "⏎", "打开")
+		if create && sel == len(rows) {
+			p.kbd(c, pal, "⏎", "新建")
+		} else {
+			p.kbd(c, pal, "⏎", "打开")
+		}
 		if sel >= 0 && sel < len(rows) {
 			p.kbd(c, pal, "⌘⌫", "删除")
 		}
