@@ -35,9 +35,9 @@
       <main>
         <section class="hero" aria-labelledby="title">
           <div class="hero-text">
-            <p class="tagline">GPU 实时绘制 · 9 MB 安装包 · 流畅体验</p>
+            <p class="tagline"><span>100% Go</span><span>GPU 实时绘制</span><span>9 MB 安装包</span><span>流畅体验</span></p>
             <h1 id="title">Kami</h1>
-            <p class="sub"><span>一个快捷键，</span><span>把手头的文字交给你选的大模型。</span></p>
+            <p class="sub"><span>一个快捷键，</span><span>把手头的文字交给你的大模型。</span></p>
             <div class="get">
               <a class="button" data-download href="https://github.com/Umupa/Kami/releases/latest">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>
@@ -53,16 +53,17 @@
                 <button type="button" data-copy="brew install --cask umupa/kami/kami" aria-label="复制命令" title="复制命令"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.6V3.2A1.7 1.7 0 0 0 8.8 1.5H4.2A1.7 1.7 0 0 0 2.5 3.2v4.6a1.7 1.7 0 0 0 1.7 1.7h.4"/></svg></button>
               </div>
             </div>
+            <p class="req"><svg viewBox="0 0 14 17" aria-hidden="true"><path fill="currentColor" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.7-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C2.9 4.2 1.6 5 .9 6.3c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4 0 0-2-.8-2-3.5ZM9.5 2.8C10.1 2.1 10.5 1.1 10.4 0c-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.7-.9 2.7 1 .1 2-.5 2.6-1.2Z"/></svg>需要 macOS 15.2 或更新版本</p>
           </div>
           <div class="hero-art" aria-hidden="true">
             <div class="disc"></div>
+            <span class="spark s1"><svg viewBox="-1 -1 2 2"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
+            <span class="spark s2"><svg viewBox="-1 -1 2 2"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
+            <span class="spark s3"><svg viewBox="-1 -1 2 2"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
             <img class="mark" src="icon-512.png" alt="" width="512" height="512">
-            <kbd class="cap c-opt" data-keys="panel selection capture">⌥</kbd>
-            <kbd class="cap c-s" data-keys="capture">S</kbd>
-            <kbd class="cap c-space" data-keys="panel">Space</kbd>
-            <span class="spark s1"><svg viewBox="-1 -1 2 2" aria-hidden="true"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
-            <span class="spark s2"><svg viewBox="-1 -1 2 2" aria-hidden="true"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
-            <span class="spark s3"><svg viewBox="-1 -1 2 2" aria-hidden="true"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
+            <div class="cap-wrap c-opt"><div class="cap-float"><kbd class="cap" data-key="Alt" data-keys="panel selection capture">⌥</kbd></div></div>
+            <div class="cap-wrap c-s"><div class="cap-float"><kbd class="cap" data-key="KeyS" data-keys="capture">S</kbd></div></div>
+            <div class="cap-wrap c-space"><div class="cap-float"><kbd class="cap" data-key="Space" data-keys="panel">Space</kbd></div></div>
           </div>
         </section>
 
@@ -79,7 +80,7 @@
               <div class="story-steps">
                 <article class="step">
                   <h2>选中文字，双击 <span class="sym">⌥</span></h2>
-                  <p>带进来就译好；代码、路径原样保留。</p>
+                  <p>不用复制，也不用切换应用：译文立刻出现，外文译成中文，中文译成英文。</p>
                 </article>
                 <article class="step">
                   <h2>杂乱的文字，一键理清</h2>
@@ -87,11 +88,11 @@
                 </article>
                 <article class="step">
                   <h2>AI Chat</h2>
-                  <p>问一句，先给结论；不满意就接着追问。</p>
+                  <p>简单的问题，随时问随时答：<kbd>⌥</kbd><kbd>Space</kbd> 唤起，<kbd>⏎</kbd> 就有回答，不用另开聊天窗口。</p>
                 </article>
                 <article class="step">
                   <h2>随手记一笔</h2>
-                  <p>Raycast Notes 的平替：不接模型，停下就自动保存成 Markdown。</p>
+                  <p>功能类似 Raycast Notes，但不限条数；停下就自动保存成 Markdown。</p>
                 </article>
               </div>
             </div>
@@ -103,7 +104,7 @@
         </section>
 
         <section class="capture" aria-labelledby="capture-title">
-          <h2 id="capture-title" data-reveal><span>屏幕上的字，</span><span>框出来就能翻译</span></h2>
+          <h2 id="capture-title" data-reveal><span>在 <span class="lt">Mac</span> 的任何地方，</span><span>翻译和润色文字</span></h2>
           <p class="capture-sub" data-reveal>按 <kbd>⌥</kbd><kbd>S</kbd> 框选任意一块，在本机识别后直接翻译。</p>
           <div class="screen-wrap" data-reveal>
             <div class="device" aria-hidden="true">
@@ -114,10 +115,9 @@
                     <linearGradient id="wp1" x1="0" y1="0" x2="1" y2=".4"><stop offset="0" stop-color="#ffd9a8"/><stop offset=".6" stop-color="#f39a6b"/><stop offset="1" stop-color="#d9607e"/></linearGradient>
                     <linearGradient id="wp2" x1="0" y1="0" x2="1" y2=".6"><stop offset="0" stop-color="#c2549a"/><stop offset=".55" stop-color="#7a4fcf"/><stop offset="1" stop-color="#4b56d8"/></linearGradient>
                     <linearGradient id="wp3" x1="0" y1="0" x2="1" y2=".3"><stop offset="0" stop-color="#2b47c9"/><stop offset=".6" stop-color="#2a3aa0"/><stop offset="1" stop-color="#18205f"/></linearGradient>
-                    <filter id="wps"><feGaussianBlur stdDeviation="1.2"/></filter>
                   </defs>
                   <rect width="960" height="600" fill="url(#wp0)"/>
-                  <g filter="url(#wps)">
+                  <g>
                     <path d="M-20 330 C 150 230 330 300 480 210 S 770 40 980 100 L980 -20 L-20 -20Z" fill="url(#wp1)" opacity=".92"/>
                     <path d="M-20 450 C 190 320 380 410 570 290 S 830 150 980 220 L980 620 L-20 620Z" fill="url(#wp2)" opacity=".95"/>
                     <path d="M-20 550 C 230 430 440 520 650 410 S 890 320 980 370 L980 620 L-20 620Z" fill="url(#wp3)"/>
@@ -189,14 +189,32 @@
                   </div>
                 </div>
 
-                <div class="scene" data-scene="article" data-app="Preview">
-                  <div class="window article-window">
-                    <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">storage-engine.png</span></div>
-                    <div class="article">
-                      <h3>Storage engine</h3>
-                      <p>The new storage engine keeps every write in an append-only log and compacts it in the background, so reads never wait for a merge.</p>
-                      <p>Snapshots are taken without pausing writers. Each one records the log position it saw, and recovery replays the log from there.</p>
-                      <p>Benchmarks on a four-core machine show three times the real throughput of the previous engine while data stays consistent.</p>
+                <div class="scene" data-scene="image" data-app="Preview">
+                  <div class="window preview-window">
+                    <div class="preview-bar">
+                      <span class="lights"><i></i><i></i><i></i></span>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg>
+                      <span class="preview-title"><b>storage-engine.png</b><small>1920 × 1080</small></span>
+                      <span class="preview-tools">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.9v.1"/></svg>
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.8"/><path d="m10.6 10.6 3.4 3.4M5 7h4"/></svg>
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.8"/><path d="m10.6 10.6 3.4 3.4M5 7h4M7 5v4"/></svg>
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.8v8.4M5.2 4.4 8 1.6l2.8 2.8M4.5 6.5h-1v7.5h9V6.5h-1"/></svg>
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.2"/><path d="m5.6 10.4.6-2.2 3.6-3.6 1.6 1.6-3.6 3.6z"/></svg>
+                      </span>
+                    </div>
+                    <div class="canvas">
+                      <div class="slide">
+                        <p class="kicker">ARCHITECTURE · 12</p>
+                        <h4>Storage engine</h4>
+                        <div class="flow">
+                          <span>Writes</span><i>→</i><span class="log">Append-only log</span><i>→</i><span>Compaction</span>
+                        </div>
+                        <div class="flow under">
+                          <span class="snap">Snapshot</span><i>↺</i><span class="dim">Recovery</span>
+                        </div>
+                        <p class="caption">Snapshots never pause writers. Recovery replays the log from the last snapshot.</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -210,11 +228,11 @@
             </div>
             <div class="kami shot-panel" aria-hidden="true"></div>
           </div>
-          <ul class="scenes" aria-label="场景">
-            <li><button type="button" aria-pressed="true">系统界面</button></li>
-            <li><button type="button" aria-pressed="false">视频字幕</button></li>
-            <li><button type="button" aria-pressed="false">图片</button></li>
-          </ul>
+          <div class="scenes" role="tablist" aria-label="场景">
+            <button type="button" role="tab" aria-selected="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 5.5h13M4 4h.1M5.8 4h.1"/></svg><span>系统界面</span><i class="bar"></i></button>
+            <button type="button" role="tab" aria-selected="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M4.5 9.5h3M9 9.5h2.5M4.5 11.5h7"/></svg><span>视频字幕</span><i class="bar"></i></button>
+            <button type="button" role="tab" aria-selected="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5.5" cy="6.2" r="1.2"/><path d="m2 12.5 3.6-3.6 2.6 2.6 2-2 4.3 3.4"/></svg><span>图片</span><i class="bar"></i></button>
+          </div>
         </section>
 
         <section class="story" data-story="custom" aria-label="自定义" style="--n: 3">
@@ -272,8 +290,8 @@
             </div>
           </div>
           <div class="agent-item" data-reveal>
-            <h2>新版本写在面板里</h2>
-            <p>有更新时打开面板就能看到更新内容，确认一次即可安装。</p>
+            <h2>一键更新</h2>
+            <p>有新版本时，打开面板就能看到这一版改了什么，确认一次即可安装并重启。</p>
             <div class="kami mini update" aria-hidden="true">
               <div class="k-head">Kami 0.1.0 可以安装</div>
               <div class="k-rule"></div>
@@ -315,6 +333,7 @@
               <button type="button" data-copy="brew install --cask umupa/kami/kami" aria-label="复制命令" title="复制命令"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.6V3.2A1.7 1.7 0 0 0 8.8 1.5H4.2A1.7 1.7 0 0 0 2.5 3.2v4.6a1.7 1.7 0 0 0 1.7 1.7h.4"/></svg></button>
             </div>
           </div>
+          <p class="req" data-reveal><svg viewBox="0 0 14 17" aria-hidden="true"><path fill="currentColor" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.7-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C2.9 4.2 1.6 5 .9 6.3c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4 0 0-2-.8-2-3.5ZM9.5 2.8C10.1 2.1 10.5 1.1 10.4 0c-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.7-.9 2.7 1 .1 2-.5 2.6-1.2Z"/></svg>需要 macOS 15.2 或更新版本</p>
         </section>
       </main>
 

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-所有参与开发 Kami 的人与 agent 的工作规则。产品与命令见 [README.md](README.md)。
+所有参与开发 Kami 的人与 agent 的工作规则。产品介绍见 [README.md](README.md)，开发用的脚本见下面的目录。
 
 ## 目录
 
@@ -9,12 +9,13 @@
 | `docs/requirements.md` | 需求：Kami 做什么、做成什么样 |
 | `docs/architecture.md` | 架构：技术栈、模块、数据流、核心机制、测试 |
 | `docs/decisions.md` | 决策记录：关键决定、理由与放弃的方案 |
+| `docs/media/` | README 的动图与截图，从官网的演示录制；演示改了就重新录制 |
 | `internal/` | 应用代码，模块划分见 architecture.md §二 |
 | `main.go` | 入口：带子命令（`check`）时是命令行，否则启动应用 |
 | `assets/` | 图稿原图；`swift scripts/icon.swift` 由 `icon-fox.png` 生成 `resources/icon.png`，只在换图稿时运行 |
 | `scripts/` | `check.sh` 本地检查；`build.sh` 构建签名的 `.app`；`dev.sh` 签名的热重载开发运行；`dev-cert.sh` 创建本机签名身份（前两者自动调用）；`reset-permissions.sh` 清除授权记录；`release.sh <版本>` 打 tag 触发发布工作流并跟到结束，`cask.sh <版本>` 输出 Homebrew cask（发布工作流写进 tap `Umupa/homebrew-kami`），`ci-secrets.sh` 把签名身份与更新私钥写进 Actions secrets，`update-key.sh` 一次性生成更新签名密钥 |
 | `CHANGELOG.md` | 每个版本的更新内容，写给用户看，也是更新界面里显示的文字 |
-| `site/` | 官网：静态页面，不需要构建；演示面板在网页里重绘（D28），`themes.js` 与 `prompt.js` 分别由 `go test ./internal/design -update`、`go test ./internal/config -update` 写出 |
+| `site/` | 官网：静态页面，不需要构建；演示面板在网页里重绘（D28），`themes.js` 由 `go test ./internal/design -update` 写出，`prompt.js` 与 README 里的安装提示词由 `go test ./internal/config -update` 写出 |
 
 ## 文档先行
 

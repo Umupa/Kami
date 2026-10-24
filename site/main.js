@@ -328,10 +328,10 @@
       reply: "最好的界面，是你从来不用去找的那一个。",
     },
     {
-      id: "article",
-      target: [".article p:nth-of-type(2)"],
-      source: "Snapshots are taken without pausing writers. Each one records the log position it saw, and recovery replays the log from there.",
-      reply: "快照在不暂停写入的情况下生成。每个快照都记下它看到的日志位置，恢复时从那里重放日志。",
+      id: "image",
+      target: [".slide .caption"],
+      source: "Snapshots never pause writers. Recovery replays the log from the last snapshot.",
+      reply: "快照从不暂停写入。恢复时，从最近一次快照开始重放日志。",
     },
   ];
 
@@ -1622,8 +1622,19 @@
       })().catch(quiet);
     }
 
-    // The length of page that one step takes, as the stylesheet sets it.
-    const stepLength = () => parseFloat(getComputedStyle(section).getPropertyValue("--step")) * innerHeight / 100 || innerHeight * 0.72;
+    // The lengths of page a step takes, and the last one after it, as the
+    // stylesheet sets them in vh. Read again whenever the viewport changes
+    // (a phone's toolbar, or the layout viewport settling), not every frame.
+    const len = { step: 0, tail: 0, header: 0, w: 0, h: 0 };
+    const measure = () => {
+      if (len.w === innerWidth && len.h === innerHeight) return;
+      const css = getComputedStyle(section);
+      len.step = ((parseFloat(css.getPropertyValue("--step")) || 58) * innerHeight) / 100;
+      len.tail = ((parseFloat(css.getPropertyValue("--tail")) || 28) * innerHeight) / 100;
+      len.header = header.offsetHeight;
+      len.w = innerWidth;
+      len.h = innerHeight;
+    };
 
     const dots = steps.map((step, i) => {
       const b = el("button");
@@ -1631,8 +1642,9 @@
       b.setAttribute("role", "tab");
       b.setAttribute("aria-label", step.querySelector("h2").textContent);
       b.addEventListener("click", () => {
-        const top = section.getBoundingClientRect().top + scrollY - header.offsetHeight;
-        scrollTo({ top: top + i * stepLength() + 2, behavior: reduced ? "auto" : "smooth" });
+        measure();
+        const top = section.getBoundingClientRect().top + scrollY - len.header;
+        scrollTo({ top: top + i * len.step + 2, behavior: reduced ? "auto" : "smooth" });
       });
       section.querySelector(".story-dots").append(b);
       return b;
@@ -1645,17 +1657,45 @@
         s.classList.toggle("on", j === i);
         s.classList.toggle("past", j < i);
       });
-      dots.forEach((d, j) => d.setAttribute("aria-selected", String(j === i)));
+      dots.forEach((d, j) => {
+        d.setAttribute("aria-selected", String(j === i));
+        d.classList.toggle("past", j < i);
+      });
       play(i);
     }
 
-    // The step is how far the stage has been held: one step length each.
+    // scrub moves the steps' text with the page: each is whole around the
+    // middle of its length and slides out across the last part of it, as
+    // the next slides in, so the text follows every bit of scrolling.
+    function scrub(at) {
+      const last = steps.length - 1;
+      steps.forEach((s, j) => {
+        let d = at - (j + 0.5);
+        if (j === 0) d = Math.max(d, 0);
+        if (j === last) d = Math.min(d, 0);
+        const a = Math.max(0, Math.min(1, 1 - (Math.abs(d) - 0.3) * 5));
+        s.style.opacity = a.toFixed(3);
+        s.style.transform = `translate3d(0, ${(-d * 36).toFixed(1)}px, 0)`;
+        s.style.visibility = a > 0.001 ? "visible" : "hidden";
+      });
+    }
+
+    // The step is how far the stage has been held, one step length each;
+    // its line fills across that length as the page scrolls.
     function update() {
       const r = section.getBoundingClientRect();
       if (r.bottom <= 0 || r.top >= innerHeight) return;
-      const held = header.offsetHeight - r.top;
-      show(Math.max(0, Math.min(steps.length - 1, Math.floor(held / stepLength()))));
+      measure();
+      const held = Math.max(0, len.header - r.top);
+      const last = steps.length - 1;
+      const at = held / len.step;
+      const i = Math.min(last, Math.floor(at));
+      const through = i < last ? at - i : (held - last * len.step) / len.tail;
+      show(i);
+      if (!reduced) scrub(at);
+      dots[i].style.setProperty("--p", Math.max(0, Math.min(1, through)).toFixed(3));
     }
+    if (!reduced) section.classList.add("scrub");
 
     watch(section, (v) => {
       ctl.visible = v;
@@ -1739,7 +1779,11 @@
         s.classList.toggle("on", s.dataset.scene === sc.id);
         if (s.dataset.scene === sc.id) appName.textContent = s.dataset.app;
       });
-      buttons.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+      buttons.forEach((b, j) => {
+        b.setAttribute("aria-selected", String(j === i));
+        b.tabIndex = j === i ? 0 : -1;
+      });
+      progress(i, sc, instant);
       clear();
       panelEl.hidden = true;
       await d.fresh({ replies: { translate: sc.reply } });
@@ -1777,6 +1821,18 @@
       await d.wait(600);
     }
 
+    // progress fills the scene's bar over about the time it plays: the
+    // capture, the reply arriving, and the moment it stays.
+    function progress(i, sc, instant) {
+      if (ctl.progress) ctl.progress.cancel();
+      ctl.progress = null;
+      const bar = buttons[i].querySelector(".bar");
+      if (instant || reduced) return;
+      const ms = 8600 + Array.from(sc.reply).length * 34;
+      ctl.progress = bar.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: ms, fill: "forwards" });
+      if (!ctl.visible || document.hidden) ctl.progress.pause();
+    }
+
     function playFrom(i) {
       if (ctl.run) ctl.run.cancel();
       const run = (ctl.run = newRun());
@@ -1790,11 +1846,28 @@
       })().catch(quiet);
     }
 
-    buttons.forEach((b, j) => b.addEventListener("click", () => playFrom(j)));
+    buttons.forEach((b, j) => {
+      b.addEventListener("click", () => playFrom(j));
+      b.addEventListener("keydown", (e) => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        const k = (j + step + buttons.length) % buttons.length;
+        buttons[k].focus();
+        playFrom(k);
+      });
+    });
+    const paced = () => {
+      if (!ctl.progress) return;
+      if (ctl.visible && !document.hidden) ctl.progress.play();
+      else ctl.progress.pause();
+    };
+    document.addEventListener("visibilitychange", paced);
     watch(
       wrap,
       (v) => {
         ctl.visible = v;
+        paced();
         if (v && !ctl.started) playFrom(0);
       },
       0.35,
@@ -1802,23 +1875,6 @@
   }
 
   // ---------- Getting Kami ----------
-
-  // What the agent is asked to do before the configuration prompt Kami
-  // itself gives, which follows it as it is.
-  const INSTALL = md(
-    "你好！请帮我在这台 Mac 上安装 Kami，再把它连上一个 AI 模型。Kami 需要 macOS 15.2 或更新版本。",
-    "",
-    "## 先装好 Kami（不用问我）",
-    "",
-    "1. 用 `curl -s https://api.github.com/repos/Umupa/Kami/releases/latest` 找到最新版本，按 `uname -m` 选 DMG：arm64 选名字以 `.arm64.dmg` 结尾的，x86_64 选以 `.amd64.dmg` 结尾的。没有对应的 DMG 就停下，告诉我这台 Mac 暂时还不能用。",
-    "2. 下载到临时目录，用 `hdiutil attach -nobrowse` 挂载，把 Kami.app 复制到 /Applications（已经装过的话，先退出 Kami 再替换），然后卸载 DMG、删掉临时文件。",
-    "3. 用 `open -a Kami` 打开一次。Kami 只在菜单栏显示一只小狐，第一次打开时会写出下面说到的配置文件和字段说明。",
-    "",
-    "装好后，照下面这段说明帮我接上模型。路径里的 ~ 是我的用户目录。",
-    "",
-    "---",
-    "",
-  );
 
   async function copyText(text) {
     try {
@@ -1920,7 +1976,7 @@
   function getting() {
     for (const b of document.querySelectorAll("[data-agent]")) {
       b.addEventListener("click", async () => {
-        const ok = await copyText(INSTALL + (window.KAMI_SETUP_PROMPT || ""));
+        const ok = await copyText(window.KAMI_AGENT_PROMPT || "");
         copied(b, "已复制，粘贴给 Agent", ok);
       });
     }
@@ -1933,6 +1989,93 @@
       });
     }
     downloads();
+  }
+
+  // ---------- The hero: the fox, and the keys that bring it up ----------
+
+  // The hero's keys: the ones Kami answers to, beside its icon, which stays
+  // still. They press when clicked, can be thrown and spring back, and press
+  // when the visitor presses them, or when a demo below uses them.
+  function hero() {
+    const art = document.querySelector(".hero-art");
+    if (!art || getComputedStyle(art).display === "none") return;
+    const caps = Object.fromEntries([...art.querySelectorAll(".cap")].map((c) => [c.dataset.key, c]));
+    const down = (code) => caps[code] && caps[code].classList.add("down");
+    const up = (code) => caps[code] && caps[code].classList.remove("down");
+    let visible = false;
+
+    // A key can be picked up and thrown; it springs back to its place.
+    for (const wrap of art.querySelectorAll(".cap-wrap")) {
+      const code = wrap.querySelector(".cap").dataset.key;
+      const m = { x: 0, y: 0, vx: 0, vy: 0, from: null, moved: false, raf: 0, last: null };
+      const place = () => {
+        wrap.style.setProperty("--dx", m.x.toFixed(1) + "px");
+        wrap.style.setProperty("--dy", m.y.toFixed(1) + "px");
+      };
+      const spring = () => {
+        m.vx = m.vx * 0.84 - m.x * 0.09;
+        m.vy = m.vy * 0.84 - m.y * 0.09;
+        m.x += m.vx;
+        m.y += m.vy;
+        place();
+        if (Math.abs(m.x) + Math.abs(m.y) + Math.abs(m.vx) + Math.abs(m.vy) > 0.3) m.raf = requestAnimationFrame(spring);
+        else {
+          m.x = m.y = m.vx = m.vy = 0;
+          place();
+          m.raf = 0;
+        }
+      };
+      wrap.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        wrap.setPointerCapture(e.pointerId);
+        cancelAnimationFrame(m.raf);
+        m.from = { x: e.clientX - m.x, y: e.clientY - m.y };
+        m.last = { x: e.clientX, y: e.clientY, t: performance.now() };
+        m.moved = false;
+        down(code);
+        wrap.classList.add("dragging");
+      });
+      wrap.addEventListener("pointermove", (e) => {
+        if (!m.from) return;
+        m.x = e.clientX - m.from.x;
+        m.y = e.clientY - m.from.y;
+        const now = performance.now();
+        const dt = Math.max(1, now - m.last.t);
+        m.vx = ((e.clientX - m.last.x) / dt) * 16;
+        m.vy = ((e.clientY - m.last.y) / dt) * 16;
+        m.last = { x: e.clientX, y: e.clientY, t: now };
+        if (!m.moved && Math.hypot(m.x, m.y) > 5) {
+          m.moved = true;
+          up(code);
+        }
+        place();
+      });
+      const release = () => {
+        if (!m.from) return;
+        m.from = null;
+        wrap.classList.remove("dragging");
+        up(code);
+        if (reduced) {
+          m.x = m.y = 0;
+          place();
+        } else m.raf = requestAnimationFrame(spring);
+      };
+      wrap.addEventListener("pointerup", release);
+      wrap.addEventListener("pointercancel", release);
+    }
+
+    const typing = (t) => t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+    addEventListener("keydown", (e) => {
+      if (!visible || e.repeat || e.metaKey || e.ctrlKey || typing(e.target)) return;
+      if (e.key === "Alt") down("Alt");
+      else if (e.altKey && (e.code === "Space" || e.code === "KeyS")) down(e.code);
+    });
+    addEventListener("keyup", (e) => {
+      if (e.key === "Alt") up("Alt");
+      if (e.code === "Space" || e.code === "KeyS") up(e.code);
+    });
+    addEventListener("blur", () => Object.keys(caps).forEach(up));
+    watch(art, (v) => (visible = v), 0.4);
   }
 
   // ---------- The page ----------
@@ -1985,6 +2128,7 @@
   page();
   getting();
   if (!THEMES.length) return;
+  hero();
   for (const section of document.querySelectorAll(".story")) story(section);
   const cap = document.querySelector(".capture");
   if (cap) capture(cap);

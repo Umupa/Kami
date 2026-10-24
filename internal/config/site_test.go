@@ -6,48 +6,91 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 )
 
-var update = flag.Bool("update", false, "rewrite the site's copy of the configuration prompt")
+var update = flag.Bool("update", false, "rewrite the site's and the README's copy of the install prompt")
 
-// sitePrompt is the site's copy of the configuration prompt, which its
-// "交给 Agent 安装" button hands on after the steps that install Kami.
-const sitePrompt = "../../site/prompt.js"
+// The copies of the prompt that installs Kami and connects a model: the
+// site's "交给 Agent 安装" button copies one, the README shows the other.
+const (
+	sitePrompt   = "../../site/prompt.js"
+	readmePath   = "../../README.md"
+	readmeStart  = "<!-- agent-prompt -->\n"
+	readmeEnd    = "<!-- /agent-prompt -->"
+	installSteps = `你好！请帮我在这台 Mac 上安装 Kami，再把它连上一个 AI 模型。Kami 需要 macOS 15.2 或更新版本。
 
-// TestSitePrompt keeps the site's prompt the one the app gives, for a copy
-// installed in /Applications with the default settings; go test
-// ./internal/config -update writes it again.
-func TestSitePrompt(t *testing.T) {
+## 先装好 Kami（不用问我）
+
+1. 用 ` + "`curl -s https://api.github.com/repos/Umupa/Kami/releases/latest`" + ` 找到最新版本，按 ` + "`uname -m`" + ` 选 DMG：arm64 选名字以 ` + "`.arm64.dmg`" + ` 结尾的，x86_64 选以 ` + "`.amd64.dmg`" + ` 结尾的。没有对应的 DMG 就停下，告诉我这台 Mac 暂时还不能用。
+2. 下载到临时目录，用 ` + "`hdiutil attach -nobrowse`" + ` 挂载，把 Kami.app 复制到 /Applications（已经装过的话，先退出 Kami 再替换），然后卸载 DMG、删掉临时文件。
+3. 用 ` + "`open -a Kami`" + ` 打开一次。Kami 只在菜单栏显示一只小狐，第一次打开时会写出下面说到的配置文件和字段说明。
+
+装好后，照下面这段说明帮我接上模型。路径里的 ~ 是我的用户目录。
+
+---
+
+`
+)
+
+// installPrompt is the steps that install Kami, then the configuration
+// prompt the app itself gives, for a copy in /Applications with the default
+// settings.
+func installPrompt(t *testing.T) string {
+	t.Helper()
 	c, err := Decode(fmt.Appendf(nil, `{"version":%d}`, Version))
 	if err != nil {
 		t.Fatal(err)
 	}
-	prompt := AgentPrompt(PromptInput{
+	return installSteps + AgentPrompt(PromptInput{
 		Exe:    "/Applications/Kami.app/Contents/MacOS/Kami",
 		Dir:    "~/Library/Application Support/Kami",
 		Config: c,
 	})
+}
+
+// TestInstallPromptCopies keeps both copies the prompt the app gives; go
+// test ./internal/config -update writes them again.
+func TestInstallPromptCopies(t *testing.T) {
+	prompt := installPrompt(t)
+
 	text, err := json.Marshal(prompt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var b bytes.Buffer
-	b.WriteString("// The configuration prompt Kami gives, for a copy in /Applications with the\n")
-	b.WriteString("// default settings. Written by `go test ./internal/config -update`; do not edit.\n")
-	fmt.Fprintf(&b, "window.KAMI_SETUP_PROMPT = %s;\n", text)
+	var site bytes.Buffer
+	site.WriteString("// The prompt that installs Kami and connects a model, which the site's\n")
+	site.WriteString("// \"交给 Agent 安装\" button copies. Written by `go test ./internal/config\n")
+	site.WriteString("// -update`; do not edit.\n")
+	fmt.Fprintf(&site, "window.KAMI_AGENT_PROMPT = %s;\n", text)
+
+	data, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readme := string(data)
+	i := strings.Index(readme, readmeStart)
+	j := strings.Index(readme, readmeEnd)
+	if i < 0 || j < i {
+		t.Fatalf("README.md has no %q … %q block", strings.TrimSpace(readmeStart), readmeEnd)
+	}
+	block := "````text\n" + strings.TrimRight(prompt, "\n") + "\n````\n"
+	readme = readme[:i+len(readmeStart)] + block + readme[j:]
 
 	if *update {
-		if err := os.WriteFile(sitePrompt, b.Bytes(), 0o644); err != nil {
+		if err := os.WriteFile(sitePrompt, site.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(readmePath, []byte(readme), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		return
 	}
-	got, err := os.ReadFile(sitePrompt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(got, b.Bytes()) {
+	if got, err := os.ReadFile(sitePrompt); err != nil || !bytes.Equal(got, site.Bytes()) {
 		t.Errorf("%s is out of date; run go test ./internal/config -update", sitePrompt)
+	}
+	if readme != string(data) {
+		t.Errorf("the prompt in %s is out of date; run go test ./internal/config -update", readmePath)
 	}
 }
