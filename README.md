@@ -36,8 +36,8 @@
 
 需要 macOS 15.2 或更新版本，以及一个大模型。
 
-1. 从 [Releases](https://github.com/Umupa/Kami/releases/latest) 下载 DMG：Apple Silicon 选 `arm64.dmg`，Intel 选 `amd64.dmg`。
-2. 打开 DMG，把 Kami 拖进「应用程序」。Kami 用自签名证书签名，第一次打开要在 Finder 里右键 Kami 选「打开」，或在「系统设置 → 隐私与安全性」里点「仍要打开」。Kami 只在菜单栏显示一只小狐，不占用 Dock。
+1. 从 [Releases](https://github.com/Umupa/Kami/releases/latest) 下载 DMG：Apple Silicon 选 `arm64.dmg`，Intel 选 `amd64.dmg`。也可以用 Homebrew：`brew install --cask umupa/kami/kami`，它直接装进「应用程序」。
+2. 用 DMG 的话，打开它，把 Kami 拖进「应用程序」。Kami 用自签名证书签名，第一次打开要在 Finder 里右键 Kami 选「打开」，或在「系统设置 → 隐私与安全性」里点「仍要打开」。Kami 只在菜单栏显示一只小狐，不占用 Dock。
 3. 第一次打开时，面板里是一段配置提示词。按 <kbd>Return</kbd> 复制它，交给 Claude Code、Codex 等 Coding Agent。Agent 会一次问你一个问题，帮你接好模型，再运行 `check` 确认能用。
 
 手上是 API Key、Claude / ChatGPT 等订阅，还是本机模型，都能接：支持 OpenAI Chat Completions、Responses 与 Anthropic Messages 三种接口，本机模型不需要 Key，订阅通过 [magpie](https://github.com/yetone/magpie) 网关使用。API Key 不经过对话：Agent 会请你自己复制 Key，再由它写进配置文件。Kami 本身免费，模型调用按服务商的价格计费。

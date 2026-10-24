@@ -1,0 +1,152 @@
+name: release
+
+# A tag v<x.y.z>, which scripts/release.sh pushes, builds Kami for Apple
+# silicon and Intel, signs both with the "Kami Dev" identity, uploads the
+# disk images and the signed updates to the release, publishes it, and
+# points the Homebrew cask at it. Run by hand, it builds and signs without
+# uploading, to try the secrets before a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # The certificate of "Kami Dev". Installed copies keep their system
+  # permissions across an update only while every version is signed with
+  # it (decisions D8, D27).
+  SIGNING_SHA1: 647922cb328eb1c9e4dc65dde90144b4c6eb9bc9
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the version
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$(jq -r .version mygo.json)" != "$version" ]]; then
+            echo "::error::mygo.json says $(jq -r .version mygo.json), the tag says $version."
+            exit 1
+          fi
+          if ! grep -q "^## $version\$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section \"## $version\", the release notes."
+            exit 1
+          fi
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq 'select(.isDraft == false)' 2>/dev/null | grep -q .; then
+            echo "::error::$GITHUB_REF_NAME is published already."
+            exit 1
+          fi
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Check
+        run: scripts/check.sh
+
+      - name: Import the signing identity
+        env:
+          KAMI_SIGNING_IDENTITY: ${{ secrets.KAMI_SIGNING_IDENTITY }}
+          KAMI_SIGNING_PASSWORD: ${{ secrets.KAMI_SIGNING_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -base64 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$KAMI_SIGNING_IDENTITY" | base64 --decode > "$RUNNER_TEMP/kami-dev.p12"
+          security import "$RUNNER_TEMP/kami-dev.p12" -k "$keychain" -P "$KAMI_SIGNING_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/kami-dev.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+          # The identity in the secrets must be the one every version was
+          # signed with.
+          security find-certificate -c "Kami Dev" -p "$keychain" > "$RUNNER_TEMP/kami-dev.pem"
+          sha1=$(openssl x509 -in "$RUNNER_TEMP/kami-dev.pem" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d : | tr '[:upper:]' '[:lower:]')
+          if [[ "$sha1" != "$SIGNING_SHA1" ]]; then
+            echo "::error::The identity in KAMI_SIGNING_IDENTITY is not the \"Kami Dev\" Kami is signed with ($sha1)."
+            exit 1
+          fi
+          # A self-signed certificate signs code once it is trusted for it.
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/kami-dev.pem"
+          security find-identity -v -p codesigning "$keychain" | grep -q '"Kami Dev"'
+
+      - name: Build and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          upload=()
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then upload=(-upload); fi
+          go tool mygo build -platform darwin/arm64,darwin/amd64 -sign "Kami Dev" "${upload[@]}"
+
+      - name: Check the signatures
+        run: |
+          for arch in arm64 amd64; do
+            app="build/darwin-$arch/Kami.app"
+            codesign --verify --deep --strict "$app"
+            requirement=$(codesign -dr - "$app" 2>&1)
+            if ! grep -q "certificate leaf = H\"$SIGNING_SHA1\"" <<< "$requirement"; then
+              echo "::error::$app is not signed with \"Kami Dev\": $requirement"
+              exit 1
+            fi
+          done
+
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+
+      - name: Keep the disk images
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Kami
+          path: build/*/*.dmg
+
+      - name: Remove the keychain
+        if: always()
+        run: |
+          if [[ -n "${KEYCHAIN:-}" ]]; then security delete-keychain "$KEYCHAIN"; fi
+
+  homebrew:
+    needs: release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: Umupa/homebrew-kami
+          ssh-key: ${{ secrets.HOMEBREW_TAP_KEY }}
+          path: tap
+
+      - name: Update the cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          scripts/cask.sh "$version" > tap/Casks/kami.rb
+          cd tap
+          git add Casks/kami.rb
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "kami $version"
+          git push

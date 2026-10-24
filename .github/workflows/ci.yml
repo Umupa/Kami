@@ -1,7 +1,7 @@
 name: ci
 
-# Manual only: macOS runners are billed by the minute. Every change is
-# checked locally first, as AGENTS.md requires.
+# Manual only: every change is checked locally first, as AGENTS.md
+# requires. Releases have a workflow of their own, release.yml.
 on:
   workflow_dispatch:
 
@@ -9,8 +9,8 @@ jobs:
   check:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: check

@@ -300,8 +300,8 @@ MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size conten
 
 - `app/update.go`：启动 5 秒后、之后每 6 小时调用 `mygo.Updater.Check`（30 秒超时，`Updater.Enabled()` 为假的构建不检查）；`Install` 在后台调用 `Update.Install`（10 分钟超时），按进度更新状态。状态在锁里，检查与下载的 goroutine 写，面板与菜单在主线程读，变化后经 `RunOnMain` 刷新菜单。`offered` 与 `updateLabel` 是纯函数；「稍后」只在内存里，跳过的版本在用户默认设置 `skippedUpdate`。
 - `panel/update.go`：`updating` 为真时面板只画更新界面，不动用户的会话。`Show` 时 `offerUpdate`（首次使用与授权步骤期间不提示）；菜单项调用 `ShowUpdate`。确认安装后 `updateConfirmed` 为真，面板可见、状态变成已安装且没有请求进行中时调用 `Restart`；`Show` 会清掉它，所以离开面板后不会自动重启。
-- 签名：所有构建都用本机的自签名身份「Kami Dev」（`scripts/dev-cert.sh` 创建，D8）；`mygo dev` 的应用是另一个应用 `Kami Dev`（`dev.umupa.kami.dev`），授权与数据目录分开。
-- 发布：`mygo.json` 的 `updates` 写着公钥与 `Umupa/Kami`，构建把清单地址与公钥写进二进制；没有私钥的日常构建照常进行，只是不生成更新包。`scripts/update-key.sh` 一次性生成密钥并把私钥存进钥匙串；`scripts/release.sh <版本>` 检查、改版本号、打 tag、推送、`mygo build -platform darwin/arm64,darwin/amd64 -sign "Kami Dev" -upload` 上传两种架构的 DMG 与更新包、发布 Release。每份构建把自己架构的清单地址（`update-darwin-<arch>.json`）写进二进制，所以两种架构分别发布，不出 universal 包：清单名一变，已安装的版本就收不到更新。日常的 `build.sh`、`dev.sh` 只构建本机架构。
+- 签名：所有构建都用自签名身份「Kami Dev」（`scripts/dev-cert.sh` 创建，D8）：本机的在登录钥匙串里，发布工作流用 Actions secrets 里导出的同一个身份；`mygo dev` 的应用是另一个应用 `Kami Dev`（`dev.umupa.kami.dev`），授权与数据目录分开。
+- 发布：`mygo.json` 的 `updates` 写着公钥与 `Umupa/Kami`，构建把清单地址与公钥写进二进制；没有私钥的日常构建照常进行，只是不生成更新包。`scripts/update-key.sh` 一次性生成密钥并把私钥存进钥匙串，`scripts/ci-secrets.sh` 再把它和「Kami Dev」写进 Actions secrets。`scripts/release.sh <版本>` 在本机检查、改版本号、打 tag、推送，然后跟着 `.github/workflows/release.yml` 到结束：macOS 运行器上检查版本与 CHANGELOG、运行 `scripts/check.sh`，把身份导入临时钥匙串并核对证书的 SHA-1，`mygo build -platform darwin/arm64,darwin/amd64 -sign "Kami Dev" -upload` 上传两种架构的 DMG 与更新包，核对两份应用的指定要求仍是同一张证书，然后发布 Release；手动运行时只构建、签名，DMG 留作工作流的产物。每份构建把自己架构的清单地址（`update-darwin-<arch>.json`）写进二进制，所以两种架构分别发布，不出 universal 包：清单名一变，已安装的版本就收不到更新。发布后，工作流的第二个任务用 `scripts/cask.sh <版本>` 按 Release 里 DMG 的 sha256 生成 cask，经 tap 的部署密钥（secret `HOMEBREW_TAP_KEY`）提交到 `Umupa/homebrew-kami` 的 `Casks/kami.rb`（D29）。日常的 `build.sh`、`dev.sh` 只构建本机架构。
 
 ## 十四、测试
 
