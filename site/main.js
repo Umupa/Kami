@@ -670,6 +670,7 @@
           { key: "/theme", title: "主题", desc: "" },
           ...S.modes.map((m) => ({ key: "/" + m.id, title: m.name, desc: m.desc })),
           { key: "/note", title: "笔记", desc: "" },
+          { key: "/update", title: "检查更新", desc: "" },
         ];
         items = filter(all, src);
       } else {

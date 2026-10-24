@@ -90,6 +90,10 @@ func (p *Panel) commandItems(query string, pal *design.Palette) []item {
 	}
 	all = append(all, item{key: "/note", title: "笔记",
 		take: func(p *Panel, set func(string)) { set(""); p.setMode(len(p.modes)) }})
+	if p.deps.Updates.Check != nil {
+		all = append(all, item{key: "/update", title: "检查更新", desc: "当前 " + p.deps.Updates.Version,
+			take: func(p *Panel, set func(string)) { set(""); p.checkUpdate() }})
+	}
 	return filter(all, "/"+query)
 }
 

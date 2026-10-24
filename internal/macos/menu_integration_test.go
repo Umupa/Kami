@@ -78,6 +78,38 @@ func TestDockActionMenuSymbol(t *testing.T) {
 	})
 }
 
+func TestMenuItemBadge(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	const title = "检查更新…"
+	cleanup, err := InstallMenuItemBadge(title, "0.1.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	withPool(func() {
+		for range 2 { // The badge must also survive a rebuilt tray menu.
+			menu := send(send(class("NSMenu"), "alloc"), "initWithTitle:", nsString("Kami"))
+			defer send(menu, "release")
+			for _, label := range []string{"显示面板", title} {
+				item := send(send(class("NSMenuItem"), "alloc"), "initWithTitle:action:keyEquivalent:", nsString(label), 0, nsString(""))
+				send(menu, "addItem:", item)
+				send(item, "release")
+				badge := send(item, "badge")
+				if label != title {
+					if badge != 0 {
+						t.Errorf("unexpected badge on %q", label)
+					}
+					continue
+				}
+				if badge == 0 || goString(send(badge, "stringValue")) != "0.1.2" {
+					t.Fatal("check item does not show the version")
+				}
+			}
+		}
+	})
+}
+
 func TestStatusMenuItem(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

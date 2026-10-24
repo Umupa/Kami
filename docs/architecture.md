@@ -86,7 +86,7 @@ Kami/
 
 **图标**（F11.1、F2.7）：`swift scripts/icon.swift` 从 `assets/icon-fox.png` 取出中央的深色标记（检查轮廓没有碰到搜索边界），把亮度转为透明度以保留抗锯齿与镂空，等比居中生成 1024×1024、浅色满版底的 `resources/icon.png`，原子写入并随仓库提交；只在换图稿时运行，普通构建不需要 Swift。MyGo 把它转换为 `.icns`。菜单栏图标不来自原图：`app.trayIcon` 绘制 18pt 模板（36px，4×4 子像素抗锯齿，透明眼部），系统负责着色；忙碌模板带圆点；离屏预览在 `internal/app/testdata/tray-icons.png`。
 
-**菜单项图标**：MyGo 不提供菜单项图片。`macos.InstallMenuItemSymbol` 在创建托盘前订阅本进程的 `NSMenuDidAddItemNotification`，为标题匹配的项设置 SF Symbol 模板图像（复制提示词 `doc.on.clipboard`、重启 `arrow.clockwise`、Dock 开关的两种标题都用 `dock.rectangle`），菜单重建时仍生效；退出时移除观察者并释放图像。加载失败只记日志。
+**菜单项图标**：MyGo 不提供菜单项图片。`macos.InstallMenuItemSymbol` 在创建托盘前订阅本进程的 `NSMenuDidAddItemNotification`，为标题匹配的项设置 SF Symbol 模板图像（复制提示词 `doc.on.clipboard`、检查更新 `arrow.down.circle`、重启 `arrow.clockwise`、Dock 开关的两种标题都用 `dock.rectangle`），菜单重建时仍生效；退出时移除观察者并释放图像。`macos.InstallMenuItemBadge` 用同样的方式给「检查更新…」设置 `NSMenuItemBadge`，在行尾以次要颜色显示当前版本。加载失败只记日志。
 
 **Dock**（F11.1）：启动保留 `LSUIElement=true` 与 accessory 策略，避免 MyGo 启动时激活应用；`ready` 之后才按 `showInDock` 切换 regular / accessory。`applyDock` 同步菜单的动作文字，只在值改变时调用原生策略，不调用 Focus、不打开面板。开关复用 `ApplyOps` 的保存与热加载，失败时保持原状。Dock 点击经 `App.OnActivate` 进入 `showPanel`，同样遵守截图门禁。
 
@@ -299,7 +299,7 @@ MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size conten
 
 ## 十三、更新与发布
 
-- `app/update.go`：启动 5 秒后、之后每 6 小时调用 `mygo.Updater.Check`（30 秒超时，`Updater.Enabled()` 为假的构建不检查）；`Install` 在后台调用 `Update.Install`（10 分钟超时），按进度更新状态。状态在锁里，检查与下载的 goroutine 写，面板与菜单在主线程读，变化后经 `RunOnMain` 刷新菜单。`offered` 与 `updateLabel` 是纯函数；「稍后」只在内存里，跳过的版本在用户默认设置 `skippedUpdate`。
+- `app/update.go`：启动 5 秒后、之后每 6 小时调用 `mygo.Updater.Check`（30 秒超时，`Updater.Enabled()` 为假的构建不检查）；`Install` 在后台调用 `Update.Install`（10 分钟超时），按进度更新状态。状态在锁里，检查与下载的 goroutine 写，面板与菜单在主线程读，变化后经 `RunOnMain` 刷新菜单。`offered` 与 `updateLabel` 是纯函数；「稍后」只在内存里，跳过的版本在用户默认设置 `skippedUpdate`。菜单与 `/update` 调用 `Check`：后台立即检查，`asked` 记录这次检查的阶段（检查中、已是最新、失败、开发版不检查），`shown` 在没有新版本时把它交给面板的更新界面显示，找到新版本时让位给它；「好」「关闭」与 Esc 经 `Later` 清除。
 - `panel/update.go`：`updating` 为真时面板只画更新界面，不动用户的会话。`Show` 时 `offerUpdate`（首次使用与授权步骤期间不提示）；菜单项调用 `ShowUpdate`。确认安装后 `updateConfirmed` 为真，面板可见、状态变成已安装且没有请求进行中时调用 `Restart`；`Show` 会清掉它，所以离开面板后不会自动重启。
 - 签名：所有构建都用自签名身份「Kami Dev」（`scripts/dev-cert.sh` 创建，D8）：本机的在登录钥匙串里，发布工作流用 Actions secrets 里导出的同一个身份；`mygo dev` 的应用是另一个应用 `Kami Dev`（`dev.umupa.kami.dev`），授权与数据目录分开。
 - 发布：`mygo.json` 的 `updates` 写着公钥与 `Umupa/Kami`，构建把清单地址与公钥写进二进制；没有私钥的日常构建照常进行，只是不生成更新包。`scripts/update-key.sh` 一次性生成密钥并把私钥存进钥匙串，`scripts/ci-secrets.sh` 再把它和「Kami Dev」写进 Actions secrets。`scripts/release.sh <版本>` 在本机检查、改版本号、打 tag、推送，然后跟着 `.github/workflows/release.yml` 到结束：macOS 运行器上检查版本与 CHANGELOG、运行 `scripts/check.sh`，把身份导入临时钥匙串并核对证书的 SHA-1，`mygo build -platform darwin/arm64,darwin/amd64 -sign "Kami Dev" -upload` 上传两种架构的 DMG 与更新包，核对两份应用的指定要求仍是同一张证书，然后发布 Release；手动运行时只构建、签名，DMG 留作工作流的产物。每份构建把自己架构的清单地址（`update-darwin-<arch>.json`）写进二进制，所以两种架构分别发布，不出 universal 包：清单名一变，已安装的版本就收不到更新。发布后，工作流的第二个任务用 `scripts/cask.sh <版本>` 按 Release 里 DMG 的 sha256 生成 cask，经 tap 的部署密钥（secret `HOMEBREW_TAP_KEY`）提交到 `Umupa/homebrew-kami` 的 `Casks/kami.rb`（D29）。日常的 `build.sh`、`dev.sh` 只构建本机架构。

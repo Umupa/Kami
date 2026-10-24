@@ -13,7 +13,8 @@ import (
 // A newer version of Kami takes the panel over as it opens
 // (requirements F14): its version, a choice on the control bar, and its
 // notes. The user's own session stays underneath and comes back with any
-// choice but a restart.
+// choice but a restart. A check the user asks for shows on the same screen
+// until it finds a newer version or says there is none.
 
 // UpdatePhase is where a newer version is.
 type UpdatePhase int
@@ -24,7 +25,17 @@ const (
 	// UpdateReady: installed, in effect once Kami restarts.
 	UpdateReady
 	UpdateFailed
+	// The phases of a check the user asked for, before it found a newer
+	// version. UpdateUnsupported: a build that does not update, as `mygo dev`.
+	UpdateChecking
+	UpdateLatest
+	UpdateCheckFailed
+	UpdateUnsupported
 )
+
+// checked reports whether s is the outcome of a check rather than a newer
+// version: no notes, nothing to install.
+func (s UpdateState) checked() bool { return s.Phase >= UpdateChecking }
 
 // UpdateState is a newer version as the panel shows it.
 type UpdateState struct {
@@ -48,6 +59,10 @@ type Updates struct {
 	// restart. Later puts the update off for this run; Skip for good.
 	Install, Later, Skip func()
 	Restart              func()
+	// Check looks for a newer version now, as /update and the menu do.
+	Check func()
+	// Version is the running version.
+	Version string
 }
 
 // updateChoice is an item of the update screen's control bar.
@@ -88,13 +103,29 @@ func (p *Panel) closeUpdate() {
 	p.sourceIn.Focus()
 }
 
+// checkUpdate checks now and shows the outcome.
+func (p *Panel) checkUpdate() {
+	if p.deps.Updates.Check == nil {
+		return
+	}
+	p.deps.Updates.Check()
+	p.ShowUpdate()
+}
+
 // updateChoices are what the control bar offers in a phase. The first is
-// the default, the second puts the update off.
+// the default; the second, or the only one, puts the update off or closes
+// the screen.
 func updateChoices(s UpdateState) []updateChoice {
 	later := updateChoice{"稍后", func(p *Panel) {
 		p.deps.Updates.Later()
 		p.closeUpdate()
 	}}
+	closing := func(label string) updateChoice {
+		return updateChoice{label, func(p *Panel) {
+			p.deps.Updates.Later()
+			p.closeUpdate()
+		}}
+	}
 	skip := updateChoice{"跳过这个版本", func(p *Panel) {
 		p.deps.Updates.Skip()
 		p.closeUpdate()
@@ -118,6 +149,12 @@ func updateChoices(s UpdateState) []updateChoice {
 		return []updateChoice{{"立即重启", func(p *Panel) { p.updateConfirmed = true }}, later}
 	case UpdateFailed:
 		return []updateChoice{install("重试"), later, skip}
+	case UpdateChecking:
+		return []updateChoice{{"检查中…", func(*Panel) {}}, closing("关闭")}
+	case UpdateCheckFailed:
+		return []updateChoice{{"重试", func(p *Panel) { p.checkUpdate() }}, closing("关闭")}
+	case UpdateLatest, UpdateUnsupported:
+		return []updateChoice{closing("好")}
 	}
 	return []updateChoice{install("安装并重启"), later, skip}
 }
@@ -129,6 +166,14 @@ func updateTitle(s UpdateState) (string, string) {
 		return fmt.Sprintf("Kami %s 已安装", s.Version), " · 重启后生效"
 	case UpdateFailed:
 		return fmt.Sprintf("Kami %s 安装失败", s.Version), " · 当前 " + s.Current + "，可以重试"
+	case UpdateChecking:
+		return "正在检查更新", " · 当前 " + s.Current
+	case UpdateLatest:
+		return fmt.Sprintf("Kami %s 已是最新版本", s.Current), ""
+	case UpdateCheckFailed:
+		return "检查更新失败", " · 当前 " + s.Current + "，可以重试"
+	case UpdateUnsupported:
+		return fmt.Sprintf("Kami %s", s.Current), " · 开发版不检查更新"
 	}
 	return fmt.Sprintf("Kami %s 可以安装", s.Version), " · 当前 " + s.Current
 }
@@ -156,8 +201,8 @@ func (p *Panel) updateView(c *ui.Context, pal *design.Palette) {
 		OnShortcut(0, ui.KeyTab, func() { step(1) }).
 		OnShortcut(ui.Shift, ui.KeyTab, func() { step(-1) }).
 		OnShortcut(0, ui.KeyEnter, func() { choices[p.updateIdx].do(p) }).
-		// Escape puts it off, the second choice in every phase.
-		OnShortcut(0, ui.KeyEscape, func() { choices[1].do(p) })
+		// Escape puts it off or closes: the second choice, or the only one.
+		OnShortcut(0, ui.KeyEscape, func() { choices[min(1, len(choices)-1)].do(p) })
 	bar.Children(func() {
 		for i, ch := range choices {
 			chip := ui.Box(c.Key("update-" + ch.label)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
@@ -181,7 +226,9 @@ func (p *Panel) updateView(c *ui.Context, pal *design.Palette) {
 			}
 		}
 		ui.Spacer(c)
-		p.kbd(c, pal, "tab", "切换")
+		if len(choices) > 1 {
+			p.kbd(c, pal, "tab", "切换")
+		}
 	})
 	if p.focusUpdate {
 		bar.Focus()
@@ -189,6 +236,13 @@ func (p *Panel) updateView(c *ui.Context, pal *design.Palette) {
 	}
 	ui.Divider(c).Background(pal.Border)
 
+	if s.checked() {
+		p.filler(c)
+		if s.Phase == UpdateChecking {
+			c.After(150 * time.Millisecond)
+		}
+		return
+	}
 	ui.Scroll(c.Key("update-notes")).Grow(1).Shrink(1).MinHeight(0).Children(func() {
 		ui.Column(c).PaddingX(design.SpaceX).PaddingY(14).Gap(8).Children(func() {
 			ui.Text(c, "更新内容").FontSize(p.sz.Caption).TextColor(pal.Faint)

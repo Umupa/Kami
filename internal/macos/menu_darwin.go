@@ -14,19 +14,55 @@ func InstallMenuItemSymbol(title, symbol string) (func(), error) {
 	if err := openFrameworks(); err != nil {
 		return nil, err
 	}
-	var observer, image objc.ID
+	var image objc.ID
 	withPool(func() {
 		image = send(class("NSImage"), "imageWithSystemSymbolName:accessibilityDescription:", nsString(symbol), 0)
-		if image == 0 {
-			return
+		if image != 0 {
+			send(image, "retain")
+			send(image, "setTemplate:", true)
 		}
-		send(image, "retain")
-		send(image, "setTemplate:", true)
+	})
+	if image == 0 {
+		return nil, fmt.Errorf("menu symbol %q is unavailable", symbol)
+	}
+	stop := onMenuItemAdded(title, func(item objc.ID) { send(item, "setImage:", image) })
+	return func() {
+		stop()
+		withPool(func() { send(image, "release") })
+	}, nil
+}
+
+// InstallMenuItemBadge shows text at the trailing edge of newly created
+// native menu items with title, in the secondary color, as a version
+// beside its item. Same threading as InstallMenuItemSymbol.
+func InstallMenuItemBadge(title, text string) (func(), error) {
+	if err := openFrameworks(); err != nil {
+		return nil, err
+	}
+	var badge objc.ID
+	withPool(func() {
+		badge = send(send(class("NSMenuItemBadge"), "alloc"), "initWithString:", nsString(text))
+	})
+	if badge == 0 {
+		return nil, fmt.Errorf("menu badges are unavailable")
+	}
+	stop := onMenuItemAdded(title, func(item objc.ID) { send(item, "setBadge:", badge) })
+	return func() {
+		stop()
+		withPool(func() { send(badge, "release") })
+	}, nil
+}
+
+// onMenuItemAdded calls apply with each native item titled title as a menu
+// adds it, and returns what stops it.
+func onMenuItemAdded(title string, apply func(item objc.ID)) func() {
+	var observer objc.ID
+	withPool(func() {
 		block := objc.NewBlock(func(_ objc.Block, notification objc.ID) {
 			menu := send(notification, "object")
 			item := send(menu, "itemWithTitle:", nsString(title))
 			if item != 0 {
-				send(item, "setImage:", image)
+				apply(item)
 			}
 		})
 		defer block.Release()
@@ -34,16 +70,12 @@ func InstallMenuItemSymbol(title, symbol string) (func(), error) {
 			"addObserverForName:object:queue:usingBlock:", nsString("NSMenuDidAddItemNotification"), 0, 0, block)
 		send(observer, "retain")
 	})
-	if image == 0 {
-		return nil, fmt.Errorf("menu symbol %q is unavailable", symbol)
-	}
 	return func() {
 		withPool(func() {
 			send(send(class("NSNotificationCenter"), "defaultCenter"), "removeObserver:", observer)
 			send(observer, "release")
-			send(image, "release")
 		})
-	}, nil
+	}
 }
 
 // Tint is the color of a status symbol in a menu.

@@ -3,6 +3,7 @@ package panel
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -129,5 +130,89 @@ func TestUpdateNotOfferedDuringSetup(t *testing.T) {
 	uh.p.offerUpdate()
 	if uh.p.updating {
 		t.Error("the update screen took over the permission step")
+	}
+}
+
+// checkHarness is a panel whose /update check the test answers.
+func newCheckHarness(t *testing.T) *updateHarness {
+	uh := newUpdateHarness(t)
+	uh.state = UpdateState{}
+	uh.p.deps.Updates.State = func() (UpdateState, bool) { return uh.state, uh.state.Phase != 0 }
+	uh.p.deps.Updates.Later = func() { uh.calls = append(uh.calls, "later"); uh.state = UpdateState{} }
+	uh.p.deps.Updates.Check = func() {
+		uh.calls = append(uh.calls, "check")
+		uh.state = UpdateState{Phase: UpdateChecking, Current: "0.1.0"}
+	}
+	uh.p.deps.Updates.Version = "0.1.0"
+	return uh
+}
+
+func TestUpdateCommandChecksAndShowsTheVersion(t *testing.T) {
+	uh := newCheckHarness(t)
+	uh.tt.Click("原文")
+	uh.tt.Type("/upd")
+	waitForOperatorMenu(t, uh.harness, "/update", "检查更新", "当前 0.1.0")
+	uh.snapshotNow("update-command")
+	uh.tt.Key(0, ui.KeyEnter)
+	uh.tt.Frame()
+	if strings.Join(uh.calls, ",") != "check" || !uh.p.updating || uh.p.source != "" {
+		t.Fatalf("calls %q, updating %v, source %q: want a check on its screen", uh.calls, uh.p.updating, uh.p.source)
+	}
+	for _, want := range []string{"正在检查更新", " · 当前 0.1.0", "检查中…", "关闭"} {
+		if !uh.tt.HasText(want) {
+			t.Fatalf("texts %q lack %q", uh.tt.Texts(), want)
+		}
+	}
+	if uh.tt.HasText("更新内容") {
+		t.Error("a check shows release notes")
+	}
+
+	uh.state.Phase = UpdateLatest
+	uh.tt.Advance(200 * time.Millisecond)
+	if !uh.tt.HasText("Kami 0.1.0 已是最新版本") || !uh.tt.HasText("好") {
+		t.Fatalf("texts %q: want the latest version confirmed", uh.tt.Texts())
+	}
+	if uh.tt.HasText("切换") {
+		t.Error("a single choice offers Tab")
+	}
+	uh.snapshot("update-latest")
+	uh.tt.Key(0, ui.KeyEscape)
+	uh.tt.Frame()
+	if strings.Join(uh.calls, ",") != "check,later" || uh.p.updating || !uh.tt.HasText("执行") {
+		t.Errorf("calls %q, updating %v: want Escape to close the check", uh.calls, uh.p.updating)
+	}
+}
+
+func TestUpdateCheckFailureRetries(t *testing.T) {
+	uh := newCheckHarness(t)
+	uh.state = UpdateState{Phase: UpdateCheckFailed, Current: "0.1.0"}
+	uh.p.ShowUpdate()
+	uh.tt.Frame()
+	if !uh.tt.HasText("检查更新失败") || !uh.tt.HasText("重试") {
+		t.Fatalf("texts %q: want the failure and a retry", uh.tt.Texts())
+	}
+	uh.tt.Key(0, ui.KeyEnter)
+	uh.tt.Frame()
+	if strings.Join(uh.calls, ",") != "check" || !uh.p.updating || !uh.tt.HasText("正在检查更新") {
+		t.Errorf("calls %q, texts %q: want the check again", uh.calls, uh.tt.Texts())
+	}
+	// A newer version found by the check takes the screen over.
+	uh.state = UpdateState{Phase: UpdateAvailable, Current: "0.1.0", Version: "0.2.0", Notes: "- 新功能"}
+	uh.tt.Advance(200 * time.Millisecond)
+	if !uh.tt.HasText("Kami 0.2.0 可以安装") || !uh.tt.HasText("安装并重启") {
+		t.Errorf("texts %q: want the newer version offered", uh.tt.Texts())
+	}
+}
+
+func TestUpdateCommandNeedsAChecker(t *testing.T) {
+	h := newHarnessWith(t, script{pieces: []string{"Bonjour"}}, testConfig)
+	h.tt.Frame()
+	h.tt.Click("原文")
+	h.tt.Type("/upd")
+	for range operatorMenuFrames {
+		h.tt.Frame()
+	}
+	if h.tt.HasText("检查更新") {
+		t.Error("/update shows without a way to check")
 	}
 }

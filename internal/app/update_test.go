@@ -50,3 +50,21 @@ func TestUpdateLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateShown(t *testing.T) {
+	available := panel.UpdateState{Phase: panel.UpdateAvailable, Version: "0.2.0"}
+	if s, ok := shown(panel.UpdateState{}, 0, "0.1.0"); ok || s.Phase != 0 {
+		t.Error("nothing known or asked shows a screen")
+	}
+	if s, ok := shown(panel.UpdateState{}, panel.UpdateLatest, "0.1.0"); !ok || s.Phase != panel.UpdateLatest || s.Current != "0.1.0" {
+		t.Errorf("a check shows its outcome with the running version: %+v", s)
+	}
+	if s, ok := shown(available, panel.UpdateLatest, "0.1.0"); !ok || s.Version != "0.2.0" {
+		t.Errorf("a newer version wins over the check: %+v", s)
+	}
+	for _, phase := range []panel.UpdatePhase{panel.UpdateChecking, panel.UpdateLatest, panel.UpdateCheckFailed, panel.UpdateUnsupported} {
+		if updateLabel(panel.UpdateState{Phase: phase}, "") != "" {
+			t.Errorf("phase %d shows a menu line", phase)
+		}
+	}
+}

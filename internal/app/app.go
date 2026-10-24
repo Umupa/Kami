@@ -154,6 +154,8 @@ func (a *app) ready(ctx context.Context) {
 			Later:   a.updates.Later,
 			Skip:    a.updates.Skip,
 			Restart: mygo.App.Relaunch,
+			Check:   a.updates.Check,
+			Version: mygo.App.Version(),
 		},
 		OnBusy: func(busy bool) {
 			if a.tray != nil {
@@ -168,9 +170,9 @@ func (a *app) ready(ctx context.Context) {
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.capturer.Close() })
 
 	// The menu keeps entry points and the local Dock preference.
-	const agentLabel, restartLabel = "复制提示词", "重新启动 Kami"
+	const agentLabel, checkLabel, restartLabel = "复制提示词", "检查更新…", "重新启动 Kami"
 	for label, symbol := range map[string]string{
-		agentLabel: "doc.on.clipboard", restartLabel: "arrow.clockwise",
+		agentLabel: "doc.on.clipboard", checkLabel: "arrow.down.circle", restartLabel: "arrow.clockwise",
 		showDockLabel: "dock.rectangle", hideDockLabel: "dock.rectangle",
 	} {
 		if cleanup, err := macos.InstallMenuItemSymbol(label, symbol); err != nil {
@@ -178,6 +180,12 @@ func (a *app) ready(ctx context.Context) {
 		} else {
 			mygo.App.OnQuit(cleanup)
 		}
+	}
+	// The running version shows beside the item that looks for a newer one.
+	if cleanup, err := macos.InstallMenuItemBadge(checkLabel, mygo.App.Version()); err != nil {
+		a.log.Error("menu version", "err", err)
+	} else {
+		mygo.App.OnQuit(cleanup)
 	}
 	// The status lines are found by the titles they are created with.
 	const statusTitle, brokenTitle, updateTitle = "Kami 状态", "Kami 配置", "Kami 更新"
@@ -209,6 +217,11 @@ func (a *app) ready(ctx context.Context) {
 		mygo.Separator(),
 		// Input Monitoring and Screen Recording grants apply from the next
 		// launch.
+		{Label: checkLabel, Click: func(*mygo.MenuItem, *mygo.Window) {
+			a.updates.Check()
+			a.panel.ShowUpdate()
+			a.showPanel()
+		}},
 		{Label: restartLabel, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Relaunch() }},
 		{Label: "退出 Kami", Role: mygo.RoleQuit},
 	})
