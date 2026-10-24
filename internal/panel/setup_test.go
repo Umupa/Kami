@@ -307,7 +307,7 @@ func TestPermissionStepResumesAfterRestart(t *testing.T) {
 	}
 	done.drain()
 	reply = done.p.sess.Last().Reply
-	for _, want := range []string{"🎉 **Kami 已准备就绪**，正在使用 deepseek-chat（api.deepseek.com）。常用操作：", "| `⌥Space` | 打开面板 |", "| 双击 `⌥` | 带入选中的文字，立即翻译 |", "| `⌥S` | 截图识别文字，立即翻译 |", "| `Tab` | 切换模式：翻译、润色、提示词、问答、笔记 |", "输入或粘贴一段文字，按 ⏎ 试一次。"} {
+	for _, want := range []string{"🎉 **Kami 已准备就绪**，正在使用 deepseek-chat（api.deepseek.com）。常用操作：", "| `⌥Space` | 打开面板 |", "| 双击 `⌥` | 带入选中的文字，立即翻译 |", "| `⌥S` | 截图识别文字，立即翻译 |", "| `Tab` | 切换模式：翻译、润色、问答、笔记 |", "输入或粘贴一段文字，按 ⏎ 试一次。"} {
 		if !strings.Contains(reply, want) {
 			t.Errorf("ready reply lacks %q:\n%s", want, reply)
 		}

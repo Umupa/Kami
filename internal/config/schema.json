@@ -61,7 +61,7 @@
       ]
     },
     "modes": {
-      "description": "控制条上的模式，按顺序显示，第一项是默认模式。省略时是全部内置模式：translate（翻译）、improve（润色，杂乱时也整理）、prompt（提示词梳理）、ask（问答）。写了这个列表就以它为准：不列出的内置模式不显示。内置模式的条目只覆盖写出的字段，删掉 prompt 即恢复默认提示词；其他 id 是自定义模式，必须写 name 和 prompt。",
+      "description": "控制条上的模式，按顺序显示，第一项是默认模式。省略时是全部内置模式：translate（翻译）、improve（润色，杂乱时也整理）、ask（问答）。写了这个列表就以它为准：不列出的内置模式不显示。内置模式的条目只覆盖写出的字段，删掉 prompt 即恢复默认提示词；其他 id 是自定义模式，必须写 name 和 prompt。",
       "type": "array",
       "items": {
         "$ref": "#/$defs/mode"
@@ -419,7 +419,7 @@
       ],
       "properties": {
         "id": {
-          "description": "模式的标识，小写字母、数字和连字符。内置模式的 id 是 translate、improve、prompt、ask（旧的 organize 并入了 improve）。",
+          "description": "模式的标识，小写字母、数字和连字符。内置模式的 id 是 translate、improve、ask（旧的 organize 并入了 improve；已移除的 prompt 只写 id 时忽略）。",
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]*$"
         },

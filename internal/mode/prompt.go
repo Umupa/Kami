@@ -20,10 +20,6 @@ Keep code, file paths, commands, identifiers, brand names and error messages exa
 When the text is disorganized, such as notes, chat logs or text copied from a web page or PDF, organize it into clear Markdown with headings, lists and tables where they help. Do not add facts that are not in the text or drop ones that are.
 Otherwise keep its formatting. Return only the result.`
 
-	promptPrompt = `Turn the requirement into a structured prompt for an AI assistant in the language of the text.
-Use clear Markdown headings: ## Background, ## Goal, ## Constraints, and ## Acceptance criteria.
-Do not invent requirements: list missing details as ## Open questions at the end.`
-
 	askPrompt = `Answer the question directly: the conclusion first, then only the details that matter. Say so when you are not sure. Return no polite filler. Answer in the language of the question.`
 )
 

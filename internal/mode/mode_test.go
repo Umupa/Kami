@@ -22,7 +22,6 @@ func TestResolveBuiltins(t *testing.T) {
 	}{
 		{"translate", "翻译", config.InputMaterial, config.OutputAuto},
 		{"improve", "润色", config.InputMaterial, config.OutputAuto},
-		{"prompt", "提示词", config.InputMaterial, config.OutputMarkdown},
 		{"ask", "问答", config.InputInstruction, config.OutputMarkdown},
 	}
 	if len(modes) != len(want) {
@@ -50,12 +49,12 @@ func TestResolveBuiltins(t *testing.T) {
 
 func TestResolveBuiltinOverrides(t *testing.T) {
 	base := Mode{
-		ID:     "prompt",
-		Name:   "提示词",
-		Desc:   "把模糊的需求梳理成结构化的提示词",
-		Prompt: promptPrompt,
+		ID:     "improve",
+		Name:   "润色",
+		Desc:   "改得通顺准确；内容杂乱时整理成标题、列表和表格",
+		Prompt: improvePrompt,
 		Input:  config.InputMaterial,
-		Output: config.OutputMarkdown,
+		Output: config.OutputAuto,
 	}
 	cases := []struct {
 		name  string
@@ -64,7 +63,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 	}{
 		{
 			name:  "name",
-			entry: config.Mode{ID: "prompt", Name: "自定义名字"},
+			entry: config.Mode{ID: "improve", Name: "自定义名字"},
 			want: func() Mode {
 				m := base
 				m.Name = "自定义名字"
@@ -73,7 +72,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 		},
 		{
 			name:  "prompt",
-			entry: config.Mode{ID: "prompt", Prompt: "自定义提示词"},
+			entry: config.Mode{ID: "improve", Prompt: "自定义提示词"},
 			want: func() Mode {
 				m := base
 				m.Prompt = "自定义提示词"
@@ -82,7 +81,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 		},
 		{
 			name:  "input",
-			entry: config.Mode{ID: "prompt", Input: config.InputInstruction},
+			entry: config.Mode{ID: "improve", Input: config.InputInstruction},
 			want: func() Mode {
 				m := base
 				m.Input = config.InputInstruction
@@ -91,7 +90,7 @@ func TestResolveBuiltinOverrides(t *testing.T) {
 		},
 		{
 			name:  "output",
-			entry: config.Mode{ID: "prompt", Output: config.OutputPlain},
+			entry: config.Mode{ID: "improve", Output: config.OutputPlain},
 			want: func() Mode {
 				m := base
 				m.Output = config.OutputPlain
@@ -195,13 +194,13 @@ func TestResolveListedSubset(t *testing.T) {
 	cfg := &config.Config{Modes: []config.Mode{
 		{ID: "ask"},
 		{ID: "translate"},
-		{ID: "prompt"},
+		{ID: "improve"},
 	}}
 	modes, err := Resolve(cfg)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	wantIDs := []string{"ask", "translate", "prompt"}
+	wantIDs := []string{"ask", "translate", "improve"}
 	if len(modes) != len(wantIDs) {
 		t.Fatalf("len(Resolve) = %d, want %d", len(modes), len(wantIDs))
 	}
@@ -225,5 +224,27 @@ func TestOrganizeMergedIntoImprove(t *testing.T) {
 	}
 	if len(modes) != 2 || modes[0].ID != "improve" || modes[1].ID != "ask" {
 		t.Errorf("modes = %+v", modes)
+	}
+}
+
+func TestResolveRemovedPrompt(t *testing.T) {
+	modes, err := Resolve(&config.Config{Modes: []config.Mode{{ID: "translate"}, {ID: "prompt"}, {ID: "ask"}}})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	var ids []string
+	for _, m := range modes {
+		ids = append(ids, m.ID)
+	}
+	if want := []string{"translate", "ask"}; !slices.Equal(ids, want) {
+		t.Errorf("modes = %v, want %v: the gone built-in left out", ids, want)
+	}
+
+	modes, err = Resolve(&config.Config{Modes: []config.Mode{{ID: "prompt", Name: "梳理", Prompt: "整理成提示词"}}})
+	if err != nil {
+		t.Fatalf("Resolve with its own prompt: %v", err)
+	}
+	if len(modes) != 1 || modes[0].Name != "梳理" || modes[0].Prompt != "整理成提示词" {
+		t.Errorf("modes = %+v, want a custom mode with its own name and prompt", modes)
 	}
 }

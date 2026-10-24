@@ -25,7 +25,6 @@ type Mode struct {
 var builtins = []Mode{
 	{ID: "translate", Name: "翻译", Desc: "外文译成我的语言，我的语言译成外语", Input: config.InputMaterial, Output: config.OutputAuto, Prompt: translatePrompt},
 	{ID: "improve", Name: "润色", Desc: "改得通顺准确；内容杂乱时整理成标题、列表和表格", Input: config.InputMaterial, Output: config.OutputAuto, Prompt: improvePrompt},
-	{ID: "prompt", Name: "提示词", Desc: "把模糊的需求梳理成结构化的提示词", Input: config.InputMaterial, Output: config.OutputMarkdown, Prompt: promptPrompt},
 	{ID: "ask", Name: "问答", Desc: "直接回答问题，先给结论", Input: config.InputInstruction, Output: config.OutputMarkdown, Prompt: askPrompt},
 }
 
@@ -55,6 +54,11 @@ func Resolve(c *config.Config) ([]Mode, error) {
 		if e.ID == "organize" {
 			// Organizing was merged into improving.
 			e.ID = "improve"
+		}
+		if e.ID == "prompt" && e.Prompt == "" {
+			// "prompt" named a built-in mode that is gone: an entry with no
+			// prompt of its own has nothing to run, and is left out.
+			continue
 		}
 		if seen[e.ID] {
 			continue

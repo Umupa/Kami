@@ -151,7 +151,7 @@ func (p *Panel) setupText() string {
 		b.WriteString("\n🛠️ 按 ⏎ 复制提示词，交给 Claude Code、Codex 等 Coding Agent 修复。\n\n")
 	} else {
 		b.WriteString("👋 **欢迎使用 Kami。**\n\n")
-		b.WriteString("✨ 这是常驻在 Mac 上的 AI 文字助手，随时通过快捷键帮你翻译外文、润色表达、梳理提示词与即时问答。\n\n")
+		b.WriteString("✨ 这是常驻在 Mac 上的 AI 文字助手，随时通过快捷键帮你翻译外文、润色表达与即时问答。\n\n")
 		b.WriteString("🔌 Kami 由你自己的模型提供动力（支持 Claude、OpenAI、DeepSeek、本地 Ollama 等）。\n\n")
 		b.WriteString("📋 按 **⏎** 复制下面的配置提示词给 **Claude Code**、**Codex** 等 Coding Agent，它会协助你完成接入并自动检查。配置完成后这里会接着显示，随时可以开始。\n\n")
 	}
