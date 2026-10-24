@@ -11,107 +11,32 @@
 <p align="center">
   <a href="https://github.com/Umupa/Kami/releases/latest"><b>下载 Kami</b></a>
   &nbsp;·&nbsp;
-  <a href="#把文字交给-kami">交给 Agent 安装</a>
+  <a href="#交给-agent-安装">交给 Agent 安装</a>
   &nbsp;·&nbsp;
   <code>brew install --cask umupa/kami/kami</code>
 </p>
 
 <p align="center">需要 macOS 15.2 或更新版本</p>
 
-<table align="center">
-  <tr>
-    <td align="center"><kbd>⌥</kbd> <kbd>Space</kbd><br><sub>打开面板</sub></td>
-    <td align="center">双击 <kbd>⌥</kbd><br><sub>翻译选中的文字</sub></td>
-    <td align="center"><kbd>⌥</kbd> <kbd>S</kbd><br><sub>截屏翻译</sub></td>
-  </tr>
-</table>
+## 功能
 
-## 选中文字，双击 ⌥
+| 功能 | 怎么用 | 演示 |
+| --- | --- | --- |
+| 划词翻译 | 选中文字，双击 ⌥；外文译成中文，中文译成英文，还能接着追问 | [查看](docs/media/translate.gif) |
+| 润色整理 | 把文字改通顺，整理成标题、列表和表格 | [查看](docs/media/improve.gif) |
+| 随时问答 | ⌥Space 打开面板，输入问题，回车就有回答 | [查看](docs/media/chat.gif) |
+| 随手记 | 多条笔记，停下就自动保存成 Markdown | [查看](docs/media/notes.gif) |
+| 截屏翻译 | ⌥S 框选，本机识别系统界面、视频字幕和图片里的文字 | [界面](docs/media/capture.gif) · [字幕](docs/media/capture-video.gif) · [图片](docs/media/capture-image.gif) |
+| 自定义模式 | 输入 `/operator`，用一句话添加自己的模式 | [查看](docs/media/custom-mode.gif) |
+| 自定义配色 | 基于内置主题调整颜色，⌘Z 随时撤销 | [查看](docs/media/custom-theme.gif) |
+| 内置主题 | 18 套配色，`/theme` 边选边预览 | [查看](docs/media/themes.gif) |
+| Agent 配置 | 把提示词交给 Claude Code 或 Codex，接好自己的模型 | [查看](docs/media/agent.png) |
+| 一键更新 | 面板里查看更新内容，确认后安装并重启 | [查看](docs/media/update.png) |
 
-不用复制，也不用切换应用：译文立刻出现，外文译成中文，中文译成英文。
-
-<img src="docs/media/translate.gif" width="733" alt="双击 ⌥ 带入终端里的一段英文，译文逐字出现，再追问「再短一点」">
-
-## 杂乱的文字，一键理清
-
-改通顺，顺带整理成标题、列表和表格。
-
-<img src="docs/media/improve.gif" width="733" alt="粘贴一段聊天记录，按 Tab 切到润色，整理成标题和表格">
-
-## AI Chat
-
-简单的问题，随时问随时答：<kbd>⌥</kbd> <kbd>Space</kbd> 唤起，<kbd>⏎</kbd> 就有回答，不用另开聊天窗口。
-
-<img src="docs/media/chat.gif" width="733" alt="问 Go 里多个 defer 的执行顺序，先给结论，再给代码">
-
-## 随手记一笔
-
-功能类似 Raycast Notes，但不限条数；停下就自动保存成 Markdown。
-
-<img src="docs/media/notes.gif" width="733" alt="切到笔记，写下一段 Markdown，标题、列表和链接按样式着色">
-
-## 在 Mac 的任何地方，翻译和润色文字
-
-按 <kbd>⌥</kbd> <kbd>S</kbd> 框选任意一块，在本机识别后直接翻译。
-
-<img src="docs/media/capture.gif" width="960" alt="系统设置里弹出磁盘将满的提示，按 ⌥S 框选提示文字，面板出现并译成中文">
-
-<table>
-  <tr>
-    <td><img src="docs/media/capture-video.gif" alt="框选视频里的英文字幕并翻译"></td>
-    <td><img src="docs/media/capture-image.gif" alt="框选一张幻灯片图片里的说明文字并翻译"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>视频字幕</sub></td>
-    <td align="center"><sub>图片</sub></td>
-  </tr>
-</table>
-
-## 加一个自己的模式
-
-输入 `/operator`，说一句话，配置就改好了。
-
-<img src="docs/media/custom-mode.gif" width="733" alt="输入 /operator 加一个把改动写成 commit message 的模式，回复列出改动，模式条多了「提交信息」">
-
-## 调一套自己的配色
-
-基于任意一套内置主题，只改想改的颜色；<kbd>⌘</kbd> <kbd>Z</kbd> 随时撤销。
-
-<img src="docs/media/custom-theme.gif" width="733" alt="输入 /operator 把强调色改成橙色，整个面板换成橙色强调色">
-
-## 内置多种主题
-
-18 套配色，`/theme` 边选边预览。
-
-<img src="docs/media/themes.gif" width="733" alt="打开 /theme 主题列表，逐个预览，面板跟着换色">
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>配置交给 Agent</h3>
-      <p>第一次打开，把面板里的提示词交给 Claude Code 或 Codex，它帮你接好模型。</p>
-      <img src="docs/media/agent.png" alt="第一次打开时，面板里是欢迎语和配置提示词">
-    </td>
-    <td width="50%" valign="top">
-      <h3>一键更新</h3>
-      <p>有新版本时，打开面板就能看到这一版改了什么，确认一次即可安装并重启。</p>
-      <img src="docs/media/update.png" alt="有新版本时，面板显示安装并重启、稍后、跳过这个版本，以及更新内容">
-    </td>
-  </tr>
-</table>
-
-## 把文字交给 Kami
-
-<p>
-  <a href="https://github.com/Umupa/Kami/releases/latest"><b>下载 Kami</b></a>
-</p>
-
-```sh
-brew install --cask umupa/kami/kami
-```
+## 交给 Agent 安装
 
 <details>
-<summary><b>交给 Agent 安装</b></summary>
+<summary>展开提示词，复制给 Claude Code 或 Codex</summary>
 
 <!-- agent-prompt -->
 ````text
@@ -182,7 +107,6 @@ Kami 的请求多而短，价格和速度比能力重要。优先选便宜、快
 
 </details>
 
-需要 macOS 15.2 或更新版本
 
 <p align="center">
   <sub>Kami 是日语里的「纸」。 · <a href="https://github.com/Umupa/Kami/blob/main/CHANGELOG.md">更新记录</a> · <a href="LICENSE">Apache-2.0</a> · 用 Go 和 <a href="https://github.com/egoist/mygo">MyGo</a> 编写</sub>
