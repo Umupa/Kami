@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kami：桌面 AI 工具箱</title>
+    <meta name="description" content="常驻 Mac 菜单栏的桌面 AI 工具箱。一个快捷键，把手头的文字交给你选的大模型：翻译、润色、问答，截屏翻译屏幕上的任何文字。">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#ffffff">
+    <meta property="og:title" content="Kami：桌面 AI 工具箱">
+    <meta property="og:description" content="GPU 实时绘制 · 9 MB 安装包 · 流畅体验。一个快捷键，把手头的文字交给你选的大模型。">
+    <meta property="og:image" content="apple-touch-icon.png">
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="preload" href="fonts/caskaydia-cove-regular.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <script>document.documentElement.classList.add("js")</script>
+    <script src="themes.js" defer></script>
+    <script src="prompt.js" defer></script>
+    <script src="main.js" defer></script>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="top">
+        <a class="brand" href="./" aria-label="Kami 首页">
+          <img src="icon.png" alt="" width="26" height="26">
+          <span>Kami</span>
+        </a>
+        <nav aria-label="站点">
+          <a href="https://github.com/Umupa/Kami">GitHub</a>
+          <a class="nav-download" data-download href="https://github.com/Umupa/Kami/releases/latest">下载</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="title">
+          <div class="hero-text">
+            <p class="tagline">GPU 实时绘制 · 9 MB 安装包 · 流畅体验</p>
+            <h1 id="title">Kami</h1>
+            <p class="sub"><span>一个快捷键，</span><span>把手头的文字交给你选的大模型。</span></p>
+            <div class="get">
+              <a class="button" data-download href="https://github.com/Umupa/Kami/releases/latest">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>
+                <span>下载 Kami</span>
+              </a>
+              <button class="button ghost" type="button" data-agent title="复制提示词，交给 Claude Code、Codex 等 Coding Agent：它会下载、安装 Kami，再帮你接好模型">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 6.2l7.3 2.6-3.1 1.1-1.1 3.1z"/><path d="M3 1.5v2M1.5 3h2M6.5 2.2l-.8.8M2.2 6.5l.8-.8"/></svg>
+                <span>交给 Agent 安装</span>
+              </button>
+              <div class="brew">
+                <span class="dollar" aria-hidden="true">$</span>
+                <code>brew install --cask umupa/kami/kami</code>
+                <button type="button" data-copy="brew install --cask umupa/kami/kami" aria-label="复制命令" title="复制命令"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.6V3.2A1.7 1.7 0 0 0 8.8 1.5H4.2A1.7 1.7 0 0 0 2.5 3.2v4.6a1.7 1.7 0 0 0 1.7 1.7h.4"/></svg></button>
+              </div>
+            </div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="disc"></div>
+            <img class="mark" src="icon-512.png" alt="" width="512" height="512">
+            <kbd class="cap c-opt" data-keys="panel selection capture">⌥</kbd>
+            <kbd class="cap c-s" data-keys="capture">S</kbd>
+            <kbd class="cap c-space" data-keys="panel">Space</kbd>
+            <span class="spark s1"><svg viewBox="-1 -1 2 2" aria-hidden="true"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
+            <span class="spark s2"><svg viewBox="-1 -1 2 2" aria-hidden="true"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
+            <span class="spark s3"><svg viewBox="-1 -1 2 2" aria-hidden="true"><path d="M0 -1Q0 0 1 0Q0 0 0 1Q0 0 -1 0Q0 0 0 -1Z" fill="currentColor"/></svg></span>
+          </div>
+        </section>
+
+        <ul class="keystrip" aria-label="快捷键">
+          <li data-shortcut="panel"><span class="keys"><kbd>⌥</kbd><kbd>Space</kbd></span><span class="label">打开面板</span></li>
+          <li data-shortcut="selection"><span class="keys"><em>双击</em><kbd>⌥</kbd></span><span class="label">翻译选中的文字</span></li>
+          <li data-shortcut="capture"><span class="keys"><kbd>⌥</kbd><kbd>S</kbd></span><span class="label">截屏翻译</span></li>
+        </ul>
+
+        <section class="story" data-story="modes" aria-label="模式" style="--n: 4">
+          <div class="story-stage">
+            <div class="story-text">
+              <div class="story-dots" role="tablist" aria-label="模式"></div>
+              <div class="story-steps">
+                <article class="step">
+                  <h2>选中文字，双击 <span class="sym">⌥</span></h2>
+                  <p>带进来就译好；代码、路径原样保留。</p>
+                </article>
+                <article class="step">
+                  <h2>杂乱的文字，一键理清</h2>
+                  <p>改通顺，顺带整理成标题、列表和表格。</p>
+                </article>
+                <article class="step">
+                  <h2>AI Chat</h2>
+                  <p>问一句，先给结论；不满意就接着追问。</p>
+                </article>
+                <article class="step">
+                  <h2>随手记一笔</h2>
+                  <p>Raycast Notes 的平替：不接模型，停下就自动保存成 Markdown。</p>
+                </article>
+              </div>
+            </div>
+            <div class="story-pin">
+              <div class="keyhint" aria-hidden="true"></div>
+              <div class="kami" tabindex="0" role="group" aria-roledescription="演示面板" aria-label="Kami 面板：Tab 切换模式，回车执行，Esc 离开"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="capture" aria-labelledby="capture-title">
+          <h2 id="capture-title" data-reveal><span>屏幕上的字，</span><span>框出来就能翻译</span></h2>
+          <p class="capture-sub" data-reveal>按 <kbd>⌥</kbd><kbd>S</kbd> 框选任意一块，在本机识别后直接翻译。</p>
+          <div class="screen-wrap" data-reveal>
+            <div class="device" aria-hidden="true">
+              <div class="screen">
+                <svg class="wallpaper" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid slice">
+                  <defs>
+                    <linearGradient id="wp0" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc58f"/><stop offset=".45" stop-color="#e9758a"/><stop offset="1" stop-color="#3b3aa8"/></linearGradient>
+                    <linearGradient id="wp1" x1="0" y1="0" x2="1" y2=".4"><stop offset="0" stop-color="#ffd9a8"/><stop offset=".6" stop-color="#f39a6b"/><stop offset="1" stop-color="#d9607e"/></linearGradient>
+                    <linearGradient id="wp2" x1="0" y1="0" x2="1" y2=".6"><stop offset="0" stop-color="#c2549a"/><stop offset=".55" stop-color="#7a4fcf"/><stop offset="1" stop-color="#4b56d8"/></linearGradient>
+                    <linearGradient id="wp3" x1="0" y1="0" x2="1" y2=".3"><stop offset="0" stop-color="#2b47c9"/><stop offset=".6" stop-color="#2a3aa0"/><stop offset="1" stop-color="#18205f"/></linearGradient>
+                    <filter id="wps"><feGaussianBlur stdDeviation="1.2"/></filter>
+                  </defs>
+                  <rect width="960" height="600" fill="url(#wp0)"/>
+                  <g filter="url(#wps)">
+                    <path d="M-20 330 C 150 230 330 300 480 210 S 770 40 980 100 L980 -20 L-20 -20Z" fill="url(#wp1)" opacity=".92"/>
+                    <path d="M-20 450 C 190 320 380 410 570 290 S 830 150 980 220 L980 620 L-20 620Z" fill="url(#wp2)" opacity=".95"/>
+                    <path d="M-20 550 C 230 430 440 520 650 410 S 890 320 980 370 L980 620 L-20 620Z" fill="url(#wp3)"/>
+                    <path d="M-20 300 C 170 205 340 262 505 172 S 800 30 980 64" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2"/>
+                    <path d="M-20 430 C 200 300 390 392 580 276 S 840 138 980 206" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1.5"/>
+                  </g>
+                </svg>
+                <div class="menubar">
+                  <span class="apple"><svg viewBox="0 0 14 17"><path fill="currentColor" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.7-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C2.9 4.2 1.6 5 .9 6.3c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4 0 0-2-.8-2-3.5ZM9.5 2.8C10.1 2.1 10.5 1.1 10.4 0c-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.7-.9 2.7 1 .1 2-.5 2.6-1.2Z"/></svg></span>
+                  <b class="menubar-app">System Settings</b>
+                  <span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+                  <span class="menubar-right">
+                    <img class="tray" src="tray.png" alt="" width="18" height="18">
+                    <svg viewBox="0 0 22 12"><rect x=".5" y=".5" width="18" height="11" rx="3" fill="none" stroke="currentColor" stroke-opacity=".6"/><rect x="2.2" y="2.2" width="12" height="7.6" rx="1.6" fill="currentColor"/><rect x="19.8" y="4" width="1.6" height="4" rx=".8" fill="currentColor" fill-opacity=".6"/></svg>
+                    <svg viewBox="0 0 16 12"><path d="M8 11.2 5.6 8.6a3.4 3.4 0 0 1 4.8 0L8 11.2Zm-4-4.3a5.8 5.8 0 0 1 8 0l1.3-1.4a7.7 7.7 0 0 0-10.6 0L4 6.9ZM1.4 4.1a9.6 9.6 0 0 1 13.2 0L16 2.7a11.6 11.6 0 0 0-16 0l1.4 1.4Z" fill="currentColor"/></svg>
+                    <svg viewBox="0 0 14 14"><circle cx="6" cy="6" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m9.2 9.2 3.6 3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                    <span>周六 10:24</span>
+                  </span>
+                </div>
+
+                <div class="scene on" data-scene="dialog" data-app="System Settings">
+                  <div class="window settings-window">
+                    <div class="settings-side">
+                      <span class="lights"><i></i><i></i><i></i></span>
+                      <div class="search">Search</div>
+                      <ul>
+                        <li><i style="--c:#0a84ff"></i>Wi‑Fi</li>
+                        <li><i style="--c:#0a84ff"></i>Bluetooth</li>
+                        <li><i style="--c:#0a84ff"></i>Network</li>
+                        <li class="gap"></li>
+                        <li class="on"><i style="--c:#8e8e93"></i>General</li>
+                        <li><i style="--c:#30b0c7"></i>Appearance</li>
+                        <li><i style="--c:#ff453a"></i>Notifications</li>
+                        <li><i style="--c:#5e5ce6"></i>Focus</li>
+                        <li><i style="--c:#30d158"></i>Battery</li>
+                      </ul>
+                    </div>
+                    <div class="settings-main">
+                      <div class="settings-head"><span>‹</span><span>›</span><b>Storage</b></div>
+                      <div class="group disk">
+                        <div class="disk-top"><b>Macintosh HD</b><span>486.3 GB of 494.4 GB used</span></div>
+                        <div class="disk-bar"><i style="--w:31%;--c:#ff9f0a"></i><i style="--w:24%;--c:#ff453a"></i><i style="--w:28%;--c:#bf5af2"></i><i style="--w:15%;--c:#8e8e93"></i></div>
+                        <div class="disk-legend"><span style="--c:#ff9f0a">Applications</span><span style="--c:#ff453a">Documents</span><span style="--c:#bf5af2">System Data</span><span style="--c:#8e8e93">macOS</span></div>
+                      </div>
+                      <p class="group-title">Recommendations</p>
+                      <div class="group rows">
+                        <div class="row"><b>Store in iCloud</b><span class="btn">Store in iCloud…</span></div>
+                        <div class="row"><b>Optimize Storage</b><span class="btn">Optimize…</span></div>
+                        <div class="row"><b>Empty Trash Automatically</b><span class="btn">Turn On…</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="alert">
+                    <div class="alert-icon"><svg viewBox="0 0 40 40"><rect x="4" y="9" width="32" height="22" rx="4" fill="#d9d9dc"/><rect x="4" y="9" width="32" height="22" rx="4" fill="none" stroke="#b5b5ba"/><rect x="8" y="24" width="24" height="3" rx="1.5" fill="#ff453a"/><circle cx="31" cy="15" r="2" fill="#8e8e93"/></svg></div>
+                    <p class="alert-title">Your startup disk is almost full.</p>
+                    <p class="alert-body">To make more space available, delete files you no longer need.</p>
+                    <div class="alert-buttons"><span>Manage…</span><span class="primary">OK</span></div>
+                  </div>
+                </div>
+
+                <div class="scene" data-scene="video" data-app="QuickTime Player">
+                  <div class="window video-window">
+                    <div class="titlebar dark"><span class="lights"><i></i><i></i><i></i></span><span class="title">keynote-2026.mp4</span></div>
+                    <div class="video">
+                      <div class="video-art"></div>
+                      <p class="subtitle">The best interface is the one you never have to look for.</p>
+                      <div class="video-bar"><span></span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="scene" data-scene="article" data-app="Preview">
+                  <div class="window article-window">
+                    <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="title">storage-engine.png</span></div>
+                    <div class="article">
+                      <h3>Storage engine</h3>
+                      <p>The new storage engine keeps every write in an append-only log and compacts it in the background, so reads never wait for a merge.</p>
+                      <p>Snapshots are taken without pausing writers. Each one records the log position it saw, and recovery replays the log from there.</p>
+                      <p>Benchmarks on a four-core machine show three times the real throughput of the previous engine while data stays consistent.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="veil"></div>
+                <div class="selection"></div>
+                <div class="hint">Kami  │  拖动框选文字 · Esc 取消</div>
+                <svg class="crosshair" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1v18M1 10h18" stroke="#111" stroke-width="1.4"/><path d="M10 1v18M1 10h18" stroke="#fff" stroke-width="0.5"/></svg>
+                <div class="press"><kbd>⌥</kbd><kbd>S</kbd></div>
+              </div>
+            </div>
+            <div class="kami shot-panel" aria-hidden="true"></div>
+          </div>
+          <ul class="scenes" aria-label="场景">
+            <li><button type="button" aria-pressed="true">系统界面</button></li>
+            <li><button type="button" aria-pressed="false">视频字幕</button></li>
+            <li><button type="button" aria-pressed="false">图片</button></li>
+          </ul>
+        </section>
+
+        <section class="story" data-story="custom" aria-label="自定义" style="--n: 3">
+          <div class="story-stage">
+            <div class="story-text">
+              <div class="story-dots" role="tablist" aria-label="自定义"></div>
+              <div class="story-steps">
+                <article class="step">
+                  <h2>加一个自己的模式</h2>
+                  <p>输入 <code>/operator</code>，说一句话，配置就改好了。</p>
+                </article>
+                <article class="step">
+                  <h2>调一套自己的配色</h2>
+                  <p>基于任意一套内置主题，只改想改的颜色；⌘Z 随时撤销。</p>
+                </article>
+                <article class="step">
+                  <h2>内置多种主题</h2>
+                  <p>18 套配色，<code>/theme</code> 边选边预览。</p>
+                </article>
+              </div>
+            </div>
+            <div class="story-pin">
+              <div class="keyhint" aria-hidden="true"></div>
+              <div class="kami" tabindex="0" role="group" aria-roledescription="演示面板" aria-label="Kami 面板：Tab 切换模式，回车执行，Esc 离开"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="agent" aria-label="配置与更新">
+          <div class="agent-item" data-reveal>
+            <h2>配置交给 <span class="lt">Agent</span></h2>
+            <p>第一次打开，把面板里的提示词交给 Claude Code 或 Codex，它帮你接好模型。</p>
+            <div class="kami mini greeting" aria-hidden="true">
+              <div class="k-source"><span class="k-placeholder">输入或粘贴，/ 查看命令</span></div>
+              <div class="k-rule"></div>
+              <div class="k-bar">
+                <div class="k-modes"><span class="k-chip on">翻译</span><span class="k-chip">润色</span><span class="k-chip">问答</span><span class="k-chip notes">笔记</span></div>
+                <span class="k-spacer"></span>
+                <span class="k-kbd"><span>tab</span><span>模式</span></span>
+              </div>
+              <div class="k-rule"></div>
+              <div class="k-result">
+                <div class="md clip">
+                  <p>👋 <strong>欢迎使用 Kami。</strong></p>
+                  <p>🔌 Kami 由你自己的模型提供动力（支持 Claude、OpenAI、DeepSeek、本地 Ollama 等）。</p>
+                  <p>📋 按 <strong>⏎</strong> 复制下面的配置提示词给 <strong>Claude Code</strong>、<strong>Codex</strong> 等 Coding Agent，它会协助你完成接入并自动检查。</p>
+                  <div class="k-code wrap">
+                    <div class="k-code-head"><span>text</span><span>复制</span></div>
+                    <pre><code>你好！请帮我把 Kami 连上一个 AI 模型。Kami 是我 Mac 菜单栏里的翻译、润色和问答小工具，只需要一个又快又便宜的模型。
+
+和我说话时请用大白话，一次只问一个问题，给编号选项让我回数字。</code></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="agent-item" data-reveal>
+            <h2>新版本写在面板里</h2>
+            <p>有更新时打开面板就能看到更新内容，确认一次即可安装。</p>
+            <div class="kami mini update" aria-hidden="true">
+              <div class="k-head">Kami 0.1.0 可以安装</div>
+              <div class="k-rule"></div>
+              <div class="k-bar">
+                <div class="k-modes"><span class="k-chip on">安装并重启</span><span class="k-chip">稍后</span><span class="k-chip">跳过这个版本</span></div>
+                <span class="k-spacer"></span>
+                <span class="k-kbd"><span>tab</span><span>切换</span></span>
+              </div>
+              <div class="k-rule"></div>
+              <div class="k-result">
+                <p class="k-caption">更新内容</p>
+                <div class="md">
+                  <ul>
+                    <li>首个版本：⌥空格打开面板，双击 ⌥ 带入选中的文字，⌥S 截图识别文字。</li>
+                    <li>结果按 Markdown 流式显示，可以接着追问。</li>
+                    <li>首次打开时引导你把配置提示词交给 Coding Agent 连接模型；连上后逐项授权。</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="end" aria-labelledby="end-title">
+          <img src="icon.png" alt="" width="64" height="64" data-reveal>
+          <h2 id="end-title" data-reveal>把文字交给 <span class="lt">Kami</span></h2>
+          <div class="get" data-reveal>
+            <a class="button" data-download href="https://github.com/Umupa/Kami/releases/latest">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>
+              <span>下载 Kami</span>
+            </a>
+            <button class="button ghost" type="button" data-agent title="复制提示词，交给 Claude Code、Codex 等 Coding Agent：它会下载、安装 Kami，再帮你接好模型">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 6.2l7.3 2.6-3.1 1.1-1.1 3.1z"/><path d="M3 1.5v2M1.5 3h2M6.5 2.2l-.8.8M2.2 6.5l.8-.8"/></svg>
+              <span>交给 Agent 安装</span>
+            </button>
+            <div class="brew">
+              <span class="dollar" aria-hidden="true">$</span>
+              <code>brew install --cask umupa/kami/kami</code>
+              <button type="button" data-copy="brew install --cask umupa/kami/kami" aria-label="复制命令" title="复制命令"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.6V3.2A1.7 1.7 0 0 0 8.8 1.5H4.2A1.7 1.7 0 0 0 2.5 3.2v4.6a1.7 1.7 0 0 0 1.7 1.7h.4"/></svg></button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="foot">
+        <span>Kami 是日语里的「纸」。</span>
+        <nav aria-label="页脚">
+          <a href="https://github.com/Umupa/Kami">GitHub</a>
+          <a href="https://github.com/Umupa/Kami/blob/main/CHANGELOG.md">更新记录</a>
+          <a href="https://github.com/Umupa/Kami/blob/main/LICENSE">Apache-2.0</a>
+          <a href="https://github.com/egoist/mygo">用 Go 和 MyGo 编写</a>
+        </nav>
+      </footer>
+    </div>
+  </body>
+</html>

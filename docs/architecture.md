@@ -76,7 +76,8 @@ Kami/
 │   └── macos/              purego 绑定，按框架分文件
 ├── assets/icon-fox.png     Dock 图标的原图
 ├── resources/icon.png      由原图生成的应用图标
-└── scripts/                构建、开发、检查、发布脚本
+├── scripts/                构建、开发、检查、发布脚本
+└── site/                   官网：静态页面，演示面板在网页里重绘（D28）
 ```
 
 依赖方向：`app` → `panel` / `capture` / `hotkey` → `session` / `mode` / `selection` → `llm` / `config` → `macos`。`session`、`mode`、`llm`、`config` 不依赖 UI，全部可以无窗口测试。

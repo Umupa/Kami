@@ -1,0 +1,2806 @@
+/* Kami's site: a white sheet framed by hatched rails. The panel is redrawn
+   from internal/design, its sizes in em of its body size, 13.5px, so a
+   smaller panel scales as a whole; the capture is drawn on a 960×600
+   screen scaled to fit. */
+
+@font-face {
+  font-family: "Kami Mono";
+  src: url("fonts/caskaydia-cove-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Kami Mono";
+  src: url("fonts/caskaydia-cove-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+
+  --page: #ffffff;
+  --ink: #141413;
+  --ink-2: #4a4945;
+  --ink-3: #7a7974;
+  --rule: #ecebe8;
+  --rule-2: #e3e2de;
+  --hatch: #e9e8e4;
+
+  --serif: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "Noto Serif SC", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --mono: "Kami Mono", ui-monospace, "SF Mono", Menlo, "PingFang SC", monospace;
+
+  --sheet: 1240px;
+  --rail: 20px;
+  --gutter: 56px;
+  --header: 60px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  display: block;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 1.85em;
+  height: 1.85em;
+  padding: 0 0.45em;
+  border: 1px solid var(--rule-2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.82em;
+  font-weight: 500;
+  line-height: 1;
+  vertical-align: 0.05em;
+}
+
+/* Latin inside a serif heading sits high against the Chinese around it;
+   Songti lacks ⌥, which takes the system face. */
+.lt {
+  position: relative;
+  top: 0.05em;
+  letter-spacing: 0;
+}
+
+.sym {
+  font-family: var(--sans);
+  font-weight: 400;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* The sheet, with a hatched rail on either side. */
+
+.sheet {
+  position: relative;
+  width: min(var(--sheet), calc(100% - 2 * (var(--rail) + 24px)));
+  margin: 0 auto;
+  border-inline: 1px solid var(--rule);
+}
+
+.sheet::before,
+.sheet::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--rail);
+  background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1px, transparent 1px 6px);
+  pointer-events: none;
+}
+
+.sheet::before {
+  right: 100%;
+  border-left: 1px solid var(--rule);
+}
+
+.sheet::after {
+  left: 100%;
+  border-right: 1px solid var(--rule);
+}
+
+/* Header */
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+  backdrop-filter: saturate(1.6) blur(14px);
+  transition: border-color 0.2s;
+}
+
+.top.scrolled {
+  border-bottom-color: var(--rule);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand img {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px rgba(20, 20, 19, 0.08);
+}
+
+.top nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  font-size: 14px;
+}
+
+.top nav a {
+  color: var(--ink-3);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.top nav a:hover {
+  color: var(--ink);
+}
+
+.top nav .nav-download {
+  padding: 4px 13px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--page);
+}
+
+.top nav .nav-download:hover {
+  color: var(--page);
+  background: #34332f;
+}
+
+/* Hero */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 40px;
+  align-items: center;
+  padding: 72px var(--gutter) 64px;
+}
+
+.tagline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.tagline::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #205ea6;
+}
+
+.hero h1 {
+  margin: 22px 0 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: clamp(72px, 9vw, 120px);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+}
+
+.sub {
+  margin: 24px 0 0;
+  color: var(--ink-3);
+  font-family: var(--serif);
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+
+/* Three ways in: the disk image, an agent, Homebrew. */
+
+.get {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  gap: 12px;
+  width: max-content;
+  max-width: 100%;
+  margin-top: 36px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  margin: 0;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--page);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.button:hover {
+  background: #34332f;
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.button.ghost {
+  background: var(--page);
+  box-shadow: inset 0 0 0 1px var(--rule-2);
+  color: var(--ink);
+}
+
+.button.ghost:hover {
+  background: #f7f6f3;
+  box-shadow: inset 0 0 0 1px #d3d1cb;
+}
+
+.button.ghost svg {
+  color: #24837b;
+}
+
+.button.ghost.done svg,
+.brew button.done {
+  color: #24837b;
+}
+
+.brew {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  height: 48px;
+  padding: 0 6px 0 16px;
+  border-radius: 12px;
+  background: #fafaf8;
+  box-shadow: inset 0 0 0 1px var(--rule-2);
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+.brew .dollar {
+  color: #205ea6;
+}
+
+.brew code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  color: var(--ink);
+  font-size: 1em;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.brew code::-webkit-scrollbar {
+  display: none;
+}
+
+.brew button {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.brew button:hover {
+  background: #efeee9;
+  color: var(--ink);
+}
+
+.brew button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sub span {
+  display: inline-block;
+}
+
+/* The mark, with the keys it answers to floating round it. */
+
+.hero-art {
+  position: relative;
+  justify-self: center;
+  width: min(100%, 400px);
+  aspect-ratio: 1;
+}
+
+.hero-art .disc {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #fbf9f3 0%, #f1eee5 62%, #ebe7dc 100%);
+}
+
+.hero-art .mark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46%;
+  height: auto;
+  border-radius: 23%;
+  box-shadow: 0 0 0 1px rgba(20, 20, 19, 0.06), 0 2px 4px rgba(20, 20, 19, 0.06), 0 32px 60px -22px rgba(20, 20, 19, 0.38);
+  transform: translate(-50%, -50%) rotate(-6deg);
+  animation: bob 7s ease-in-out infinite;
+}
+
+.hero-art .cap {
+  position: absolute;
+  min-width: 2.1em;
+  height: 2.1em;
+  border-radius: 11px;
+  border-bottom-width: 3px;
+  background: #fff;
+  box-shadow: 0 14px 28px -14px rgba(20, 20, 19, 0.35);
+  font-size: 22px;
+  animation: drift 6s ease-in-out infinite;
+}
+
+.hero-art .c-opt {
+  top: 12%;
+  left: 6%;
+  --r: -9deg;
+}
+
+.hero-art .c-s {
+  top: 30%;
+  right: 2%;
+  --r: 8deg;
+  animation-delay: -2s;
+}
+
+.hero-art .c-space {
+  bottom: 10%;
+  left: 16%;
+  padding: 0 0.8em;
+  font-size: 18px;
+  --r: -4deg;
+  animation-delay: -4s;
+}
+
+.hero-art .cap.pulse {
+  animation: drift 6s ease-in-out infinite, press 0.62s var(--ease);
+}
+
+.hero-art .spark {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  animation: twinkle 3.2s ease-in-out infinite;
+}
+
+.hero-art .spark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-art .s1 {
+  top: 6%;
+  right: 22%;
+  color: #d0a215;
+}
+
+.hero-art .s2 {
+  right: 14%;
+  bottom: 22%;
+  width: 11px;
+  height: 11px;
+  color: #3aa99f;
+  animation-delay: -1.1s;
+}
+
+.hero-art .s3 {
+  bottom: 30%;
+  left: 2%;
+  width: 9px;
+  height: 9px;
+  color: #ce5d97;
+  animation-delay: -2.2s;
+}
+
+/* The shortcuts, a strip of keys under the hero. */
+
+.keystrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+  list-style: none;
+}
+
+.keystrip li {
+  padding: 30px 32px 32px;
+}
+
+.keystrip li:first-child {
+  padding-left: var(--gutter);
+}
+
+.keystrip li + li {
+  border-left: 1px solid var(--rule);
+}
+
+.keystrip .keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+}
+
+.keystrip em {
+  margin-right: 4px;
+  color: var(--ink-3);
+  font-size: 15px;
+  font-style: normal;
+}
+
+.keystrip kbd {
+  min-width: 2.1em;
+  height: 2.1em;
+  border-radius: 8px;
+  border-bottom-width: 3px;
+  font-size: 19px;
+  vertical-align: 0;
+  transition: transform 0.12s, border-color 0.12s, background-color 0.12s;
+}
+
+.keystrip .label {
+  display: block;
+  margin-top: 14px;
+  color: var(--ink-3);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+}
+
+.keystrip li.pulse kbd {
+  animation: press 0.62s var(--ease);
+}
+
+/* Stories: the stage stays while the page scrolls; how far it has
+   scrolled picks the step, which the text and the panel then play. */
+
+.story {
+  --step: 72vh;
+  --stage-top: clamp(40px, 12vh, 140px);
+  position: relative;
+  height: calc(100vh - var(--header) + (var(--n) - 1) * var(--step) + 24vh);
+  border-top: 1px dashed var(--rule-2);
+}
+
+.story-stage {
+  position: sticky;
+  top: var(--header);
+  display: grid;
+  grid-template-columns: minmax(0, 330px) minmax(0, 1fr);
+  gap: 0 56px;
+  align-items: start;
+  height: calc(100vh - var(--header));
+  padding: var(--stage-top) var(--gutter) 0;
+}
+
+.story-text {
+  padding-top: 54px;
+}
+
+.story-dots {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 30px;
+}
+
+.story-dots button {
+  width: 22px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: linear-gradient(var(--rule-2), var(--rule-2)) center / 100% 3px no-repeat;
+  cursor: pointer;
+  transition: width 0.45s var(--ease), background-color 0.3s;
+}
+
+.story-dots button:hover {
+  background-image: linear-gradient(var(--ink-3), var(--ink-3));
+}
+
+.story-dots button[aria-selected="true"] {
+  width: 40px;
+  background-image: linear-gradient(var(--ink), var(--ink));
+}
+
+.story-steps {
+  display: grid;
+}
+
+.step {
+  grid-area: 1 / 1;
+  max-width: 30em;
+  opacity: 0;
+  transform: translateY(18px);
+  visibility: hidden;
+  transition: opacity 0.45s var(--ease), transform 0.7s var(--ease), visibility 0s 0.45s;
+}
+
+.step.past {
+  transform: translateY(-18px);
+}
+
+.step.on {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition: opacity 0.55s 0.08s var(--ease), transform 0.8s 0.08s var(--ease), visibility 0s;
+}
+
+.step h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: clamp(28px, 2.3vw, 38px);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+}
+
+.step p {
+  margin: 14px 0 0;
+  color: var(--ink-3);
+  font-size: 16px;
+}
+
+.keyhint {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 30px;
+  padding-right: 2px;
+}
+
+.keyhint kbd {
+  align-self: center;
+  font-size: 13px;
+  vertical-align: 0;
+  animation: hint 1.1s var(--ease) both;
+}
+
+.story-pin .kami {
+  --cap: min(600px, calc(100vh - var(--header) - var(--stage-top) - 70px));
+}
+
+/* The capture, acted out on a drawn screen. */
+
+.capture {
+  padding: 120px var(--gutter) 112px;
+  border-top: 1px dashed var(--rule-2);
+  text-align: center;
+}
+
+.capture h2 span {
+  display: inline-block;
+}
+
+.capture h2,
+.agent h2,
+.end h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: clamp(30px, 3.6vw, 42px);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+}
+
+.capture-sub {
+  margin: 16px 0 0;
+  color: var(--ink-3);
+  font-size: 17px;
+}
+
+.capture-sub kbd {
+  margin: 0 1px;
+  font-size: 13px;
+}
+
+.screen-wrap {
+  --s: 1;
+  position: relative;
+  max-width: 1040px;
+  margin: 56px auto 0;
+  aspect-ratio: 984 / 624;
+}
+
+.device {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 984px;
+  height: 624px;
+  padding: 12px;
+  border-radius: 26px;
+  background: #0c0c0e;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(20, 20, 19, 0.14),
+    0 40px 90px -36px rgba(20, 20, 19, 0.5);
+  transform: scale(var(--s));
+  transform-origin: 0 0;
+}
+
+.screen {
+  position: relative;
+  width: 960px;
+  height: 600px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #3b3aa8;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif;
+  text-align: left;
+  user-select: none;
+}
+
+.wallpaper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.menubar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 26px;
+  padding: 0 14px 0 18px;
+  background: rgba(30, 20, 60, 0.12);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.18);
+}
+
+.menubar .apple svg {
+  display: block;
+  width: 13px;
+  height: 16px;
+  margin-top: -2px;
+}
+
+.menubar-app {
+  font-weight: 700;
+}
+
+.menubar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.menubar-right svg {
+  display: block;
+  width: 16px;
+  height: 13px;
+}
+
+.menubar-right svg:first-of-type {
+  width: 22px;
+}
+
+/* Kami's tray icon: the fox in white, as a menu bar template draws. */
+.menubar-right .tray {
+  width: 18px;
+  height: 18px;
+}
+
+.scene {
+  position: absolute;
+  inset: 26px 0 0;
+  opacity: 0;
+  transition: opacity 0.5s var(--ease);
+}
+
+.scene.on {
+  opacity: 1;
+}
+
+.window {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.28), 0 22px 60px -14px rgba(0, 0, 0, 0.45);
+}
+
+.lights {
+  display: flex;
+  gap: 8px;
+}
+
+.lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+}
+
+.lights i:nth-child(2) {
+  background: #febc2e;
+}
+
+.lights i:nth-child(3) {
+  background: #28c840;
+}
+
+.titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 13px;
+  border-bottom: 1px solid #e6e6e4;
+  background: #f6f6f5;
+  color: #4a4a48;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.titlebar .title {
+  position: absolute;
+  right: 0;
+  left: 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+.titlebar.dark {
+  border-color: #2a2a2a;
+  background: #232323;
+  color: #c9c9c6;
+}
+
+/* System Settings, Storage. */
+
+.settings-window {
+  top: 34px;
+  left: 110px;
+  display: flex;
+  width: 740px;
+  height: 470px;
+}
+
+.settings-side {
+  width: 200px;
+  padding: 14px 10px;
+  background: rgba(236, 235, 240, 0.96);
+  border-right: 1px solid #dcdbe0;
+}
+
+.settings-side .lights {
+  padding: 0 4px;
+}
+
+.search {
+  margin: 16px 2px 12px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #8e8e93;
+  font-size: 12.5px;
+}
+
+.settings-side ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-side li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 27px;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: #1d1d1f;
+  font-size: 13px;
+}
+
+.settings-side li i {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--c);
+}
+
+.settings-side li.on {
+  background: #0a84ff;
+  color: #fff;
+}
+
+.settings-side li.gap {
+  height: 10px;
+}
+
+.settings-main {
+  flex: 1;
+  padding: 0 22px;
+  background: #f6f6f7;
+  color: #1d1d1f;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 52px;
+  color: #8e8e93;
+  font-size: 18px;
+}
+
+.settings-head b {
+  color: #1d1d1f;
+  font-size: 15px;
+}
+
+.group {
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+}
+
+.disk {
+  padding: 14px 16px 12px;
+}
+
+.disk-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.disk-top span {
+  color: #6e6e73;
+}
+
+.disk-bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  margin: 12px 0 10px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e5e5ea;
+}
+
+.disk-bar i {
+  width: var(--w);
+  background: var(--c);
+}
+
+.disk-legend {
+  display: flex;
+  gap: 16px;
+  color: #6e6e73;
+  font-size: 11.5px;
+}
+
+.disk-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.group-title {
+  margin: 20px 4px 8px;
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rows .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  font-size: 13px;
+}
+
+.rows .row + .row {
+  border-top: 1px solid #ececee;
+}
+
+.rows b {
+  font-weight: 500;
+}
+
+.btn {
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.06);
+  font-size: 12.5px;
+}
+
+.alert {
+  position: absolute;
+  top: 112px;
+  left: 330px;
+  width: 300px;
+  padding: 20px 18px 16px;
+  border-radius: 14px;
+  background: rgba(244, 244, 246, 0.96);
+  -webkit-backdrop-filter: blur(30px);
+  backdrop-filter: blur(30px);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.22), 0 26px 70px -12px rgba(0, 0, 0, 0.5);
+  color: #1d1d1f;
+  text-align: center;
+}
+
+.alert-icon svg {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 10px;
+}
+
+.alert-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.alert-body {
+  margin: 6px 0 0;
+  color: #3a3a3c;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.alert-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.alert-buttons span {
+  flex: 1;
+  padding: 4px 0;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.05);
+  font-size: 13px;
+}
+
+.alert-buttons .primary {
+  background: #0a84ff;
+  box-shadow: none;
+  color: #fff;
+}
+
+/* QuickTime Player. */
+
+.video-window {
+  top: 40px;
+  left: 120px;
+  width: 720px;
+  height: 450px;
+  background: #111;
+}
+
+.video {
+  position: relative;
+  height: 418px;
+  overflow: hidden;
+}
+
+.video-art {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 30% at 70% 38%, rgba(255, 210, 150, 0.9), transparent 70%),
+    radial-gradient(70% 50% at 30% 80%, rgba(40, 60, 90, 0.9), transparent 70%),
+    linear-gradient(180deg, #5a6d8a 0%, #c99a73 58%, #3b3a43 100%);
+}
+
+.video-art::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgba(10, 10, 12, 0.6));
+}
+
+.subtitle {
+  position: absolute;
+  right: 40px;
+  bottom: 46px;
+  left: 40px;
+  margin: 0;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.video-bar {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  left: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.video-bar span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* Preview, an image of an article. */
+
+.article-window {
+  top: 30px;
+  left: 150px;
+  width: 660px;
+  height: 490px;
+}
+
+.article {
+  padding: 32px 48px;
+  color: #2b2b29;
+}
+
+.article h3 {
+  margin: 0 0 16px;
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.article p {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 1.62;
+}
+
+/* The capture layer, after internal/design/capture.go. */
+
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgba(247, 246, 241, 0.72);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.veil.on {
+  opacity: 1;
+  transition: opacity 0.12s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.selection {
+  position: absolute;
+  z-index: 5;
+  display: none;
+  border-radius: 8px;
+  /* Edge, contact and ambient shadows over the veil, which the spread
+     paints around the selection: what is selected shows unveiled. */
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.07),
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    0 28px 72px rgba(26, 26, 24, 0.19),
+    0 0 0 1600px rgba(247, 246, 241, 0.72);
+  pointer-events: none;
+}
+
+.selection.on {
+  display: block;
+}
+
+.hint {
+  position: absolute;
+  top: 141px;
+  left: 50%;
+  z-index: 6;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.08), 0 28px 72px rgba(26, 26, 24, 0.19);
+  color: #4e4e49;
+  font-size: 12.5px;
+  line-height: 34px;
+  white-space: pre;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 0.12s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.hint.on {
+  opacity: 1;
+}
+
+.crosshair {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 7;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  opacity: 0;
+}
+
+.crosshair.on {
+  opacity: 1;
+}
+
+.press {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  z-index: 8;
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(20, 20, 19, 0.82);
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity 0.25s, transform 0.35s var(--ease);
+}
+
+.press.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.press kbd {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 18px;
+}
+
+/* Where Kami puts the panel on that screen: centered, its top at 20%.
+   It shows at once, as Kami's does. */
+.screen-wrap .shot-panel {
+  position: absolute;
+  top: calc((12px + 141px) * var(--s));
+  left: calc((12px + 170px) * var(--s));
+  z-index: 9;
+  width: calc(620px * var(--s));
+  max-height: none;
+  font-size: calc(12.5px * var(--s));
+  text-align: left;
+  pointer-events: none;
+}
+
+.screen-wrap .shot-panel[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.scenes {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scenes button {
+  position: relative;
+  padding: 4px 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.scenes li + li::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--rule-2);
+}
+
+.scenes button[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.scenes button::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  left: 4px;
+  height: 1.5px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+
+.scenes button[aria-pressed="true"]::after {
+  transform: scaleX(1);
+  transition: transform 0.5s var(--ease);
+}
+
+/* Agent and updates */
+
+.agent {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto auto auto;
+  gap: 0 48px;
+  padding: 112px var(--gutter);
+  border-top: 1px dashed var(--rule-2);
+}
+
+.agent h2 {
+  font-size: clamp(24px, 2.6vw, 30px);
+}
+
+.agent-item {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  align-content: start;
+}
+
+.agent-item > p {
+  max-width: 30em;
+  margin: 12px 0 0;
+  color: var(--ink-3);
+}
+
+.agent .kami {
+  max-width: 640px;
+  margin-top: 28px;
+}
+
+/* The end */
+
+.end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120px var(--gutter) 104px;
+  border-top: 1px dashed var(--rule-2);
+  text-align: center;
+}
+
+.end img {
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  box-shadow: 0 0 0 1px rgba(20, 20, 19, 0.08), 0 12px 30px -12px rgba(20, 20, 19, 0.3);
+}
+
+.end h2 {
+  margin: 26px 0 0;
+}
+
+.end .get {
+  margin-inline: auto;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 26px var(--gutter) 34px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: 13.5px;
+}
+
+.foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.foot a {
+  text-decoration: none;
+}
+
+.foot a:hover {
+  color: var(--ink);
+}
+
+/* Motion of the page: the hero settles in, the rest rises into view. */
+
+.js .hero-text > * {
+  animation: rise 0.9s var(--ease) both;
+}
+
+.js .hero-text > :nth-child(2) {
+  animation-delay: 0.06s;
+}
+.js .hero-text > :nth-child(3) {
+  animation-delay: 0.14s;
+}
+.js .hero-text > :nth-child(4) {
+  animation-delay: 0.2s;
+}
+.js .hero-text > :nth-child(5) {
+  animation-delay: 0.24s;
+}
+
+.js .hero-art {
+  animation: settle 1.2s 0.15s var(--ease) both;
+}
+
+.js .keystrip li {
+  animation: rise 0.9s var(--ease) both;
+}
+.js .keystrip li:nth-child(1) {
+  animation-delay: 0.32s;
+}
+.js .keystrip li:nth-child(2) {
+  animation-delay: 0.4s;
+}
+.js .keystrip li:nth-child(3) {
+  animation-delay: 0.48s;
+}
+
+.js .story-pin {
+  animation: rise 1s 0.4s var(--ease) both;
+}
+
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+}
+
+.js [data-reveal].in {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(12px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+@keyframes bob {
+  50% {
+    transform: translate(-50%, -53%) rotate(-4deg);
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--r, 0deg));
+  }
+  50% {
+    transform: translateY(-9px) rotate(var(--r, 0deg));
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes press {
+  30% {
+    border-color: var(--ink-3);
+    background: #f2f1ee;
+    transform: translateY(1px);
+  }
+}
+
+@keyframes hint {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.92);
+  }
+  18% {
+    opacity: 1;
+    transform: none;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------- The panel ---------- */
+
+/* Registered, so that a change of theme fades every color at once. */
+@property --bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --glass {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --surface {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --raised {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --border {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --edge {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --text {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --bright {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --muted {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --faint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --accent-text {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --link {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --code {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --quote {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --operator {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --operator-fill {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --sparkle {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --danger {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --kw {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --str {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --num {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --com {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --fn {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --ty {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+
+.kami {
+  /* flexoki-light, Kami's default; the demo sets the theme in effect. */
+  --bg: #ffffff;
+  --glass: #ffffff;
+  --surface: #f6f5f1;
+  --raised: #e6e4dd;
+  --border: #e7e5df;
+  --edge: #205ea659;
+  --text: #100f0f;
+  --bright: #100f0f;
+  --muted: #5c5b57;
+  --faint: #93918b;
+  --accent: #205ea6;
+  --accent-text: #ffffff;
+  --link: #3aa99f;
+  --code: #879a39;
+  --quote: #ce5d97;
+  --operator: #3aa99f;
+  --operator-fill: #3aa99f1f;
+  --sparkle: #d0a215;
+  --danger: #d14d41;
+  --kw: #ce5d97;
+  --str: #879a39;
+  --num: #d0772b;
+  --com: #878580;
+  --fn: #205ea6;
+  --ty: #3aa99f;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: 0 1px 2px rgba(16, 15, 15, 0.04), 0 24px 56px -24px rgba(16, 15, 15, 0.24);
+  color: var(--text);
+  font-family: var(--mono);
+  transition:
+    --bg 0.2s, --glass 0.2s, --surface 0.2s, --raised 0.2s, --border 0.2s, --edge 0.2s,
+    --text 0.2s, --bright 0.2s, --muted 0.2s, --faint 0.2s, --accent 0.2s, --accent-text 0.2s,
+    --link 0.2s, --code 0.2s, --quote 0.2s, --operator 0.2s, --operator-fill 0.2s, --sparkle 0.2s,
+    --kw 0.2s, --str 0.2s, --num 0.2s, --com 0.2s, --fn 0.2s, --ty 0.2s;
+  font-size: 13.5px;
+  line-height: 1.65;
+  text-align: left;
+  cursor: default;
+}
+
+.kami [hidden] {
+  display: none !important;
+}
+
+/* A played panel: its frame follows the content's height and glides to
+   it, so lines that stream in and scenes that change do not jump. */
+.kami.fluid {
+  display: block;
+}
+
+.kami.fluid.gliding {
+  transition-property: height, --bg, --glass, --surface, --raised, --border, --edge, --text, --bright, --muted, --faint, --accent, --accent-text, --link, --code, --quote, --operator, --operator-fill, --sparkle, --kw, --str, --num, --com, --fn, --ty;
+  transition-duration: 0.28s, 0.2s;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease;
+}
+
+.k-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--cap, none);
+}
+
+.kami:focus {
+  outline: none;
+}
+
+.kami:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+:where(.kami button) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+:where(.kami svg) {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+.k-source,
+.k-note {
+  flex-shrink: 0;
+  min-height: calc(1.5em + 32px);
+  padding: 16px 22px;
+  color: var(--bright);
+  font-size: 1.111em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* With a result, the source keeps to three lines. */
+.k-source.held {
+  max-height: calc(4.5em + 16px);
+  margin-bottom: 16px;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.k-placeholder {
+  color: var(--faint);
+}
+
+.k-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.15em;
+  margin: 0 -1.5px -0.2em 0;
+  background: var(--accent);
+  animation: k-blink 1.1s steps(1) infinite;
+}
+
+.k-cmd {
+  color: var(--operator);
+  font-weight: 700;
+}
+
+.k-cmd.sheen,
+.k-pill-name.sheen {
+  background: linear-gradient(
+      100deg,
+      var(--operator) 0 35%,
+      #ffffff 50%,
+      var(--operator) 65% 100%
+    )
+    no-repeat;
+  background-size: 300% 100%;
+  background-position: 0 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: k-sheen 0.9s ease-out both;
+}
+
+.k-fill {
+  flex: 1 1 auto;
+}
+
+.k-rule {
+  flex-shrink: 0;
+  height: 1px;
+  background: var(--border);
+}
+
+/* The menu under the source: commands, operator topics, themes. */
+
+.k-menu {
+  flex: 0 1 auto;
+  min-height: 0;
+  padding: 6px 10px 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border-top: 1px solid var(--border);
+  font-size: 0.889em;
+}
+
+.k-row {
+  display: grid;
+  grid-template-columns: 11.5em 5.8em minmax(0, 1fr);
+  align-items: center;
+  height: 2.5em;
+  padding: 0 10px;
+  border-radius: 3px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.k-menu.topics .k-row {
+  grid-template-columns: 13.2em minmax(0, 1fr);
+}
+
+.k-menu.themes .k-row {
+  grid-template-columns: 13.2em auto minmax(0, 1fr);
+  cursor: pointer;
+}
+
+.k-row.on {
+  background: var(--raised);
+}
+
+.k-row b {
+  overflow: hidden;
+  color: var(--bright);
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.k-row .op {
+  color: var(--operator);
+}
+
+.k-row em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.92em;
+  font-style: normal;
+  text-overflow: ellipsis;
+}
+
+.k-swatch {
+  display: flex;
+  gap: 3px;
+  margin-right: 10px;
+}
+
+.k-swatch i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.35);
+}
+
+/* The control bar */
+
+.k-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  height: 44px;
+  padding: 0 14px;
+  font-size: 0.889em;
+  white-space: nowrap;
+}
+
+.k-modes {
+  display: flex;
+  flex: 0 1 auto;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.k-modes::-webkit-scrollbar {
+  display: none;
+}
+
+.k-chip {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 3px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.k-chip:hover {
+  color: var(--text);
+}
+
+.k-chip.on {
+  background: var(--raised);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.k-chip.notes {
+  margin-left: 6px;
+}
+
+.k-chip.fresh {
+  animation: k-fresh 1.6s ease-out;
+}
+
+.k-spacer {
+  flex: 1 1 auto;
+}
+
+.k-icon {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border-radius: 3px;
+  color: var(--faint);
+  font-size: 1.08em;
+}
+
+.k-icon:hover {
+  color: var(--text);
+}
+
+.k-icon.on {
+  background: var(--raised);
+  color: var(--accent);
+}
+
+.k-bar .k-icon {
+  margin-right: 6px;
+}
+
+.k-theme {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 10px;
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+
+.k-theme-mark {
+  color: var(--accent);
+}
+
+.k-theme-name {
+  color: var(--faint);
+  font-size: 0.917em;
+}
+
+.k-theme:hover .k-theme-name {
+  color: var(--text);
+}
+
+.k-kbd {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  margin-right: 10px;
+  font-size: 0.917em;
+}
+
+.k-kbd span:first-child {
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.k-kbd span + span {
+  color: var(--faint);
+}
+
+.k-run {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.k-run.op {
+  background: var(--operator-fill);
+  color: var(--operator);
+}
+
+.k-run.pressed {
+  filter: brightness(0.88);
+}
+
+.k-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: var(--operator-fill);
+  color: var(--operator);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.k-pill svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* The result and the follow-up line */
+
+.k-result-wrap {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.k-result {
+  min-height: 0;
+  padding: 18px 22px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.k-turn + .k-turn {
+  margin-top: 22px;
+}
+
+.k-ask {
+  margin-bottom: 0.5em;
+  color: var(--bright);
+  font-weight: 700;
+}
+
+.k-ask::before {
+  content: "❯ ";
+  color: var(--accent);
+}
+
+.k-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.889em;
+  animation: k-pulse 1.6s ease-in-out infinite;
+}
+
+.k-thinking i {
+  color: var(--accent);
+  font-size: 0.917em;
+  font-style: normal;
+}
+
+.k-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  height: calc(0.889em + 14px);
+  margin-top: 4px;
+}
+
+.k-foot .k-icon {
+  color: var(--muted);
+}
+
+.k-foot .k-icon.undo {
+  color: var(--operator);
+}
+
+.k-foot .k-icon:hover {
+  background: var(--raised);
+}
+
+.k-turn:not(:last-child) .k-foot > * {
+  visibility: hidden;
+}
+
+.k-turn:not(:last-child):hover .k-foot > * {
+  visibility: visible;
+}
+
+.k-sparkles {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.k-sparkles svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--sparkle);
+}
+
+.k-follow {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 22px;
+  color: var(--bright);
+  line-height: 1.5;
+}
+
+.k-prompt {
+  color: var(--faint);
+  font-weight: 700;
+}
+
+.k-follow.focused .k-prompt {
+  color: var(--accent);
+}
+
+.k-follow-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+.k-follow .k-kbd {
+  margin: 1px 0 0;
+}
+
+/* Notes */
+
+.k-note .nh {
+  color: var(--bright);
+  font-weight: 700;
+}
+
+.k-note .nm,
+.k-note .nl {
+  color: var(--accent);
+}
+
+.k-note .nc {
+  color: var(--code);
+}
+
+/* The update screen */
+
+.k-head {
+  flex-shrink: 0;
+  padding: 16px 22px;
+  color: var(--bright);
+  font-size: 1.111em;
+  line-height: 1.5;
+}
+
+.k-caption {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.815em;
+}
+
+/* Replies, as ui/markdown draws them in Kami's measures. */
+
+.md {
+  overflow-wrap: anywhere;
+}
+
+/* Blocks start bare; the gaps between them follow. */
+:where(.md) :where(p, ul, ol, h1, h2, h3, h4, table, blockquote, pre) {
+  margin: 0;
+}
+
+.md > * + * {
+  margin-top: 0.9em;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.md h1 {
+  color: var(--accent);
+  font-size: 1.35em;
+}
+
+.md h2 {
+  color: var(--accent);
+  font-size: 1.18em;
+}
+
+.md h3 {
+  color: var(--bright);
+  font-size: 1.05em;
+}
+
+.md h4 {
+  color: var(--bright);
+  font-size: 1em;
+}
+
+.md > * + h1 {
+  margin-top: 1.2em;
+}
+
+.md > * + h2 {
+  margin-top: 1.1em;
+}
+
+.md > * + h3,
+.md > * + h4 {
+  margin-top: 1em;
+}
+
+.md > h1 + *,
+.md > h2 + *,
+.md > h3 + *,
+.md > h4 + * {
+  margin-top: 0.45em;
+}
+
+.md strong {
+  color: var(--bright);
+  font-weight: 700;
+}
+
+.md a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.md code {
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--code);
+  font-size: 0.92em;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.6em;
+}
+
+.md ul {
+  list-style: disc;
+}
+
+.md li + li {
+  margin-top: 0.3em;
+}
+
+.md li::marker {
+  color: var(--muted);
+}
+
+.md .hr {
+  height: 1px;
+  overflow: hidden;
+  background: var(--border);
+  line-height: 0;
+}
+
+.md > .hr,
+.md > .hr + * {
+  margin-top: 1.3em;
+}
+
+.md blockquote {
+  margin: 0;
+  padding-left: 0.9em;
+  border-left: 2px solid var(--quote);
+  color: var(--muted);
+}
+
+.md table {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.md th,
+.md td {
+  padding: 0.5em 0.75em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.md th {
+  background: var(--surface);
+  color: var(--bright);
+  font-weight: 700;
+}
+
+.md td,
+.md th + th {
+  border-top: 1px solid var(--border);
+}
+
+.md th + th,
+.md td + td {
+  border-left: 1px solid var(--border);
+}
+
+.md th {
+  border-top: 0;
+}
+
+.k-code {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 0.92em;
+}
+
+.k-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6em 0.9em 0;
+  color: var(--muted);
+  font-size: 0.86em;
+}
+
+.k-code-head span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.k-code pre {
+  margin: 0;
+  padding: 0.5em 0.9em 0.9em;
+  overflow-x: auto;
+  color: var(--bright);
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.k-code.wrap pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.k-code pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: 1em;
+}
+
+.tk {
+  color: var(--kw);
+}
+.ts {
+  color: var(--str);
+}
+.tn {
+  color: var(--num);
+}
+.tc {
+  color: var(--com);
+}
+.tf {
+  color: var(--fn);
+}
+
+/* Streaming: words arrive and fade in; a block shows from its first word. */
+
+.u {
+  display: none;
+}
+
+.u.in {
+  display: inline;
+  animation: k-in 0.32s ease-out both;
+}
+
+.u.done {
+  display: inline;
+}
+
+.pend {
+  display: none !important;
+}
+
+/* Small panels in the sections */
+
+.kami.mini {
+  font-size: 12px;
+  max-height: none;
+  box-shadow: 0 1px 2px rgba(16, 15, 15, 0.03), 0 14px 32px -20px rgba(16, 15, 15, 0.2);
+}
+
+.kami.mini .k-result {
+  padding-bottom: 4px;
+}
+
+.kami.mini .clip {
+  max-height: 15.5em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+
+@keyframes k-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes k-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes k-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes k-sheen {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}
+
+@keyframes k-fresh {
+  from {
+    background: var(--operator-fill);
+    color: var(--operator);
+  }
+}
+
+/* Narrow screens: the panel pins under the header, the steps pass below. */
+
+@media (max-width: 960px) {
+  :root {
+    --gutter: 36px;
+  }
+
+  .story-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+    gap: 0 36px;
+  }
+
+  .step h2 {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 860px) {
+  :root {
+    --gutter: 16px;
+    --header: 54px;
+  }
+
+  .sheet {
+    width: auto;
+    margin: 0;
+    border-inline: 0;
+  }
+
+  .tagline {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+
+  .sheet::before,
+  .sheet::after {
+    display: none;
+  }
+
+  .top nav {
+    gap: 16px;
+  }
+
+  .hero {
+    display: block;
+    padding: 48px var(--gutter) 40px;
+  }
+
+  .hero-art {
+    display: none;
+  }
+
+  .hero h1 {
+    font-size: 72px;
+  }
+
+  .get {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .button {
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .brew {
+    font-size: 12.5px;
+  }
+
+  .sub {
+    font-size: 22px;
+  }
+
+  .keystrip li,
+  .keystrip li:first-child {
+    padding: 20px 12px 22px;
+  }
+
+  .keystrip li:first-child {
+    padding-left: var(--gutter);
+  }
+
+  .keystrip .keys {
+    height: 34px;
+    gap: 4px;
+  }
+
+  .keystrip kbd {
+    font-size: 14px;
+  }
+
+  .keystrip em {
+    margin-right: 2px;
+    font-size: 13px;
+  }
+
+  .keystrip .label {
+    margin-top: 10px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+
+  .story {
+    --step: 70vh;
+    height: calc(100vh - var(--header) + (var(--n) - 1) * var(--step) + 16vh);
+  }
+
+  .story-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: calc(100vh - var(--header));
+    height: calc(100svh - var(--header));
+    padding: 10px var(--gutter) 0;
+  }
+
+  .story-pin {
+    order: -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .story-pin .kami {
+    --cap: 52vh;
+    --cap: 52svh;
+    font-size: 12px;
+  }
+
+  .keyhint {
+    height: 26px;
+  }
+
+  .story-text {
+    padding-top: 0;
+  }
+
+  .story-dots {
+    margin-bottom: 14px;
+  }
+
+  .step h2 {
+    font-size: 22px;
+  }
+
+  .step p {
+    margin-top: 8px;
+    font-size: 15px;
+  }
+
+  .capture {
+    padding: 80px var(--gutter);
+  }
+
+  .capture-sub {
+    font-size: 15px;
+  }
+
+  .screen-wrap {
+    margin-top: 36px;
+    padding-top: 63.41%;
+    aspect-ratio: auto;
+  }
+
+  /* The screen is too small to read the panel on; it rises out of it. */
+  .screen-wrap .shot-panel {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: calc(100% - 16px);
+    min-height: 196px;
+    margin: -44px auto 0;
+    font-size: 12px;
+  }
+
+  .agent {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    gap: 72px;
+    padding: 80px var(--gutter);
+  }
+
+  .agent-item {
+    display: block;
+  }
+
+  .end {
+    padding: 88px var(--gutter) 80px;
+  }
+
+  .kami.mini {
+    font-size: 11.5px;
+  }
+
+  .k-source,
+  .k-note,
+  .k-head {
+    padding: 12px 14px;
+  }
+
+  .k-source.held {
+    max-height: calc(4.5em + 12px);
+    margin-bottom: 12px;
+  }
+
+  .k-result {
+    padding: 14px 14px 4px;
+  }
+
+  .k-follow {
+    padding: 9px 14px;
+  }
+
+  .k-bar {
+    height: 40px;
+    padding: 0 6px;
+  }
+
+  .k-bar .k-pin,
+  .k-theme-name,
+  .k-bar .k-kbd,
+  .k-follow .k-kbd {
+    display: none !important;
+  }
+
+  .k-theme {
+    margin-right: 6px;
+  }
+
+  .k-menu .k-row,
+  .k-menu.topics .k-row {
+    grid-template-columns: 8.5em minmax(0, 1fr);
+  }
+
+  .k-menu.themes .k-row {
+    grid-template-columns: 11em auto minmax(0, 1fr);
+  }
+
+  .k-row > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .k-row em {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kami,
+  .kami.fluid.gliding,
+  .step {
+    transition: none;
+  }
+
+  .k-caret,
+  .k-thinking,
+  .u.in,
+  .k-chip.fresh,
+  .keyhint kbd,
+  .keystrip li.pulse kbd,
+  .hero-art .mark,
+  .hero-art .cap,
+  .hero-art .spark,
+  .js .hero-text > *,
+  .js .hero-art,
+  .js .keystrip li,
+  .js .story-pin {
+    animation: none;
+  }
+
+  .k-cmd.sheen,
+  .k-pill-name.sheen {
+    animation: none;
+    background: none;
+    color: var(--operator);
+  }
+
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .step,
+  .scene,
+  .press,
+  .veil.on,
+  .hint {
+    transition: none;
+  }
+}
