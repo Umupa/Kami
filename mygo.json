@@ -1,7 +1,7 @@
 {
   "name": "Kami",
   "identifier": "dev.umupa.kami",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "out": "build",
   "macos": {
     "minimumSystemVersion": "15.2",
