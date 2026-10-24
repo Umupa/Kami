@@ -6,19 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 )
 
-var update = flag.Bool("update", false, "rewrite the site's and the README's copy of the install prompt")
+var update = flag.Bool("update", false, "rewrite the site's copy of the install prompt")
 
-// The copies of the prompt that installs Kami and connects a model: the
-// site's "交给 Agent 安装" button copies one, the README shows the other.
+// The site's "交给 Agent 安装" button copies the installation prompt.
 const (
 	sitePrompt   = "../../site/prompt.js"
-	readmePath   = "../../README.md"
-	readmeStart  = "<!-- agent-prompt -->\n"
-	readmeEnd    = "<!-- /agent-prompt -->"
 	installSteps = `你好！请帮我在这台 Mac 上安装 Kami，再把它连上一个 AI 模型。Kami 需要 macOS 15.2 或更新版本。
 
 ## 先装好 Kami（不用问我）
@@ -50,9 +45,9 @@ func installPrompt(t *testing.T) string {
 	})
 }
 
-// TestInstallPromptCopies keeps both copies the prompt the app gives; go
-// test ./internal/config -update writes them again.
-func TestInstallPromptCopies(t *testing.T) {
+// TestSiteInstallPrompt keeps the site in sync with the app configuration prompt.
+// Run go test ./internal/config -update to regenerate it.
+func TestSiteInstallPrompt(t *testing.T) {
 	prompt := installPrompt(t)
 
 	text, err := json.Marshal(prompt)
@@ -65,32 +60,13 @@ func TestInstallPromptCopies(t *testing.T) {
 	site.WriteString("// -update`; do not edit.\n")
 	fmt.Fprintf(&site, "window.KAMI_AGENT_PROMPT = %s;\n", text)
 
-	data, err := os.ReadFile(readmePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	readme := string(data)
-	i := strings.Index(readme, readmeStart)
-	j := strings.Index(readme, readmeEnd)
-	if i < 0 || j < i {
-		t.Fatalf("README.md has no %q … %q block", strings.TrimSpace(readmeStart), readmeEnd)
-	}
-	block := "````text\n" + strings.TrimRight(prompt, "\n") + "\n````\n"
-	readme = readme[:i+len(readmeStart)] + block + readme[j:]
-
 	if *update {
 		if err := os.WriteFile(sitePrompt, site.Bytes(), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(readmePath, []byte(readme), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		return
 	}
 	if got, err := os.ReadFile(sitePrompt); err != nil || !bytes.Equal(got, site.Bytes()) {
 		t.Errorf("%s is out of date; run go test ./internal/config -update", sitePrompt)
-	}
-	if readme != string(data) {
-		t.Errorf("the prompt in %s is out of date; run go test ./internal/config -update", readmePath)
 	}
 }
