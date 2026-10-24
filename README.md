@@ -72,13 +72,6 @@
       <img src="docs/media/agent.png" width="240" alt="配置交给 Agent演示">
     </td>
   </tr>
-  <tr>
-    <td width="33%" valign="top">
-      <h3>一键更新</h3>
-      <p>查看更新内容，确认后安装并重启。</p>
-      <img src="docs/media/update.png" width="240" alt="一键更新演示">
-    </td>
-  </tr>
 </table>
 
 <p align="center">
