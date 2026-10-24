@@ -275,6 +275,9 @@ func ImageFromRGBA(src *image.RGBA) (*Image, error) {
 }
 
 // WarmUpVision loads both recognizers with actual Chinese and English text.
+// Vision unloads them within seconds of idling, so callers warm right before
+// the recognition they want to speed up. An image about the size of a framed
+// Retina paragraph warms more of the pipeline than a single small line.
 func WarmUpVision() {
 	img := warmUpImage()
 	if img == nil {
@@ -284,13 +287,15 @@ func WarmUpVision() {
 	_, _ = RecognizeText(img)
 }
 
+const warmUpW, warmUpH = 1800, 320
+
 func warmUpImage() *Image {
 	if loadCapture() != nil {
 		return nil
 	}
 	var img *Image
 	withPool(func() {
-		rep := send(send(class("NSBitmapImageRep"), "alloc"), "initWithBitmapDataPlanes:pixelsWide:pixelsHigh:bitsPerSample:samplesPerPixel:hasAlpha:isPlanar:colorSpaceName:bytesPerRow:bitsPerPixel:", uintptr(0), 480, 64, 8, 4, true, false, nsString("NSDeviceRGBColorSpace"), 0, 0)
+		rep := send(send(class("NSBitmapImageRep"), "alloc"), "initWithBitmapDataPlanes:pixelsWide:pixelsHigh:bitsPerSample:samplesPerPixel:hasAlpha:isPlanar:colorSpaceName:bytesPerRow:bitsPerPixel:", uintptr(0), warmUpW, warmUpH, 8, 4, true, false, nsString("NSDeviceRGBColorSpace"), 0, 0)
 		if rep == 0 {
 			return
 		}
@@ -301,14 +306,15 @@ func warmUpImage() *Image {
 		send(graphics, "setCurrentContext:", send(graphics, "graphicsContextWithBitmapImageRep:", rep))
 		cg := uintptr(send(send(graphics, "currentContext"), "CGContext"))
 		cgContextSetRGBFillColor(cg, 1, 1, 1, 1)
-		cgContextFillRect(cg, cgRect{W: 480, H: 64})
+		cgContextFillRect(cg, cgRect{W: warmUpW, H: warmUpH})
 		attrs := send(class("NSMutableDictionary"), "dictionary")
-		send(attrs, "setObject:forKey:", send(class("NSFont"), "systemFontOfSize:", float64(28)), nsString("NSFont"))
+		send(attrs, "setObject:forKey:", send(class("NSFont"), "systemFontOfSize:", float64(56)), nsString("NSFont"))
 		send(attrs, "setObject:forKey:", send(class("NSColor"), "blackColor"), nsString("NSColor"))
-		send(nsString("截图翻译 Kami"), "drawAtPoint:withAttributes:", struct{ X, Y float64 }{16, 20}, attrs)
+		send(nsString("Kami reads the text you frame"), "drawAtPoint:withAttributes:", struct{ X, Y float64 }{48, 190}, attrs)
+		send(nsString("截图翻译，在本机识别中英文"), "drawAtPoint:withAttributes:", struct{ X, Y float64 }{48, 60}, attrs)
 		ref := uintptr(send(rep, "CGImage"))
 		if ref != 0 {
-			img = &Image{ref: cgImageRetain(ref), W: 480, H: 64}
+			img = &Image{ref: cgImageRetain(ref), W: warmUpW, H: warmUpH}
 		}
 	})
 	return img

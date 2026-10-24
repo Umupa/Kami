@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -38,6 +39,8 @@ type backend struct {
 	display func() mygo.Display
 	freeze  func(context.Context, mygo.Display) (*macos.Image, error)
 	read    func(context.Context, *macos.Image, macos.Rect) Result
+	// warm loads recognition in the background without blocking the picker.
+	warm func()
 }
 
 // Capturer owns one complete capture, including recognition. Its methods run
@@ -61,10 +64,14 @@ type Capturer struct {
 	ink         bool
 	fadeStarted bool
 	hint        ui.Rect
+	memory      *idleMemory
+	memoryDirty bool
 }
 
-// New returns a Capturer and warms both recognition languages in the background.
+// New returns an idle Capturer. Vision unloads its models within seconds of
+// idling, so each capture warms them while the user frames.
 func New(log *slog.Logger, done func(Result)) *Capturer {
+	var warming atomic.Bool
 	c := &Capturer{log: log, done: done, post: mygo.RunOnMain, sys: backend{
 		access:  macos.ScreenAccess,
 		display: func() mygo.Display { return mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint()) },
@@ -72,14 +79,19 @@ func New(log *slog.Logger, done func(Result)) *Capturer {
 			return macos.CaptureDisplay(ctx, uint32(d.ID), int(math.Round(float64(d.Bounds.Width)*d.ScaleFactor)), int(math.Round(float64(d.Bounds.Height)*d.ScaleFactor)))
 		},
 		read: recognize,
+		warm: func() {
+			if !warming.CompareAndSwap(false, true) {
+				return
+			}
+			go func() {
+				defer warming.Store(false)
+				macos.WarmUpVision()
+			}()
+		},
 	}}
-	c.present, c.dismiss = c.show, func() {
-		if c.win != nil {
-			c.win.Hide()
-		}
-	}
+	c.memory = newIdleMemory()
+	c.present, c.dismiss = c.show, c.destroyPicker
 	c.keyWindow = func() bool { return c.win != nil && c.win.IsFocused() }
-	go macos.WarmUpVision()
 	return c
 }
 
@@ -96,6 +108,12 @@ func (c *Capturer) Start() {
 		// The app asks for it: a prompt, or System Settings after one.
 		c.done(Result{Err: macos.ErrNoScreenAccess})
 		return
+	}
+	if c.memory.cancel() {
+		c.memoryDirty = true
+	}
+	if c.sys.warm != nil {
+		c.sys.warm()
 	}
 	c.state = freezing
 	c.generation++
@@ -125,12 +143,14 @@ func (c *Capturer) Start() {
 				c.complete(Result{Err: err})
 				return
 			}
+			c.memoryDirty = true
 			c.display, c.shot, c.bitmap, c.sel = d, shot, bitmap, selection{}
 			c.ink, c.fadeStarted, c.hint = ink, false, ui.Rect{}
 			c.state = selecting
 			if err := c.present(); err != nil {
 				c.shot.Release()
 				c.shot, c.bitmap = nil, nil
+				c.dismiss()
 				c.complete(Result{Err: err})
 			}
 		})
@@ -165,7 +185,21 @@ func (c *Capturer) show() error {
 	return nil
 }
 
-// finish hides the picker once; recognition still owns the capture afterwards.
+// destroyPicker hides immediately and releases the renderer after input dispatch.
+func (c *Capturer) destroyPicker() {
+	if c.win == nil {
+		return
+	}
+	win := c.win
+	c.win = nil
+	win.Hide()
+	// Destroy detaches the UI runtime; finish can run inside its current frame.
+	// The panel window always exists, so this never closes the last window,
+	// which would quit the app.
+	go win.Destroy()
+}
+
+// finish releases the picker; recognition still owns the capture afterwards.
 func (c *Capturer) finish(region *ui.Rect) {
 	if c.state != selecting {
 		return
@@ -177,7 +211,7 @@ func (c *Capturer) finish(region *ui.Rect) {
 		c.dismiss()
 		shot.Release()
 		c.log.Info("capture canceled")
-		c.done(Result{Canceled: true})
+		c.complete(Result{Canceled: true})
 		return
 	}
 	c.state = recognizing
@@ -207,11 +241,16 @@ func (c *Capturer) complete(r Result) {
 		c.cancel = nil
 	}
 	c.state = idle
+	if c.memoryDirty {
+		c.memoryDirty = false
+		c.memory.schedule()
+	}
 	c.done(r)
 }
 
 // Close cancels workers and invalidates queued results before the app quits.
 func (c *Capturer) Close() {
+	c.memory.close()
 	c.generation++
 	c.state = closed
 	if c.cancel != nil {

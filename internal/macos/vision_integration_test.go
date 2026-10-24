@@ -84,8 +84,44 @@ func TestWarmupRecognizesBothScripts(t *testing.T) {
 	for _, l := range lines {
 		text += l.Text
 	}
-	if !strings.Contains(text, "截图翻译") || !strings.Contains(text, "Kami") {
+	if !strings.Contains(text, "截图翻译") || !strings.Contains(text, "Kami reads") {
 		t.Fatalf("warmup text: %q", text)
+	}
+}
+
+// TestWarmupSpeedsUpLaterRecognition guards the reason capture warms on every
+// start: Vision unloads after seconds of idling, and a warm-up shortly before
+// a different image still saves most of the load.
+func TestWarmupSpeedsUpLaterRecognition(t *testing.T) {
+	src := ui.Render(func(c *ui.Context) {
+		ui.Column(c).Fill().Padding(24).Gap(18).Background(ui.Hex("#FFFFFF")).Children(func() {
+			ui.Text(c, "Framing usually outlasts the warm-up").FontSize(28).TextColor(ui.Hex("#000000"))
+			ui.Text(c, "框选通常比预热更久").FontSize(28).TextColor(ui.Hex("#000000"))
+		})
+	}, 900, 160, 2)
+	rgba := image.NewRGBA(src.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), src, src.Bounds().Min, draw.Src)
+	img, err := ImageFromRGBA(rgba)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Release()
+	recognize := func() time.Duration {
+		start := time.Now()
+		if _, err := RecognizeText(img); err != nil {
+			t.Fatal(err)
+		}
+		return time.Since(start)
+	}
+	time.Sleep(10 * time.Second)
+	cold := recognize()
+	time.Sleep(10 * time.Second)
+	WarmUpVision()
+	time.Sleep(500 * time.Millisecond) // the user framing
+	warm := recognize()
+	t.Logf("cold %s, after warm-up %s", cold, warm)
+	if warm > cold*7/10 {
+		t.Errorf("warm-up saved too little: cold %s, warm %s", cold, warm)
 	}
 }
 

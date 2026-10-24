@@ -215,7 +215,7 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
 
 `capture` 的状态为 idle → freezing → selecting → recognizing → idle，直到识别结果在主线程交付才释放占用；面板、带入选区与截图共享这个门禁。MyGo 在失焦时合成的 pointer-up 不作为确认。退出进入 closed，取消 context 并递增代次，排队和迟到的结果不能重新打开面板。
 
-系统采集总预算 10 秒，识别 30 秒。异步原生回调经 `awaitNative` 交付；取消、超时及重复回调都释放无人接收的原生引用。Vision 的 worker 持有独立的图像引用，取消时调用 `request.cancel`，等请求真正返回再释放；首次模型加载在启动后台用中英文文字预热。
+系统采集总预算 10 秒，识别 30 秒。异步原生回调经 `awaitNative` 交付；取消、超时及重复回调都释放无人接收的原生引用。Vision 的 worker 持有独立的图像引用，取消时调用 `request.cancel`，等请求真正返回再释放；Vision 空闲数秒即卸载识别模型，冷识别约 350ms；每次开始截图（屏幕录制权限通过后）都在后台用一张接近 Retina 段落尺寸的中英文图片预热，与采集、框选并行，已有预热在进行时不重复，框选超过约 0.4 秒时松手后的识别约 100ms；不截图时不加载 Vision。集成测试 `TestWarmupSpeedsUpLaterRecognition` 守住这两个前提。框选结束、取消或窗口配置失败时立即隐藏并清除窗口引用，在当前输入分发结束后销毁窗口及其渲染资源（面板窗口常驻，销毁截图窗口不会触发「最后一个窗口关闭」而退出）；下次截图重新创建窗口。截图曾分配图片时，完成、取消或展示失败后安排一次 30 秒延迟的 `debug.FreeOSMemory`，在后台触发 Go 垃圾回收并归还空闲堆页；再次截图取消并推迟任务，失败重试保留上一轮待回收需求，退出取消尚未开始的任务。已开始的运行时回收无法取消，可能与新的操作重叠；这是进程级回收，包含短暂的全局暂停，因此仅在截图操作结束后触发一次，不做周期性回收。它不清空会话，也不释放 Vision 等原生框架的缓存。
 
 MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size content；`macos.ConfigureCaptureWindow` 改成真正无边框的非激活面板并按整屏 frame 放置，否则菜单栏位置约束会让真实与冻结的工具栏同时露出。纸雾依冻结画面的平均亮度选择，提示胶囊依应用外观选择；颜色与动效集中在 `internal/design/capture.go`。
 
