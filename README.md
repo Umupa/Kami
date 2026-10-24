@@ -9,6 +9,8 @@
 <h3 align="center">一个快捷键，把手头的文字交给你的大模型。</h3>
 
 <p align="center">
+  <a href="https://umupa.github.io/Kami/">官网与交互演示</a>
+  &nbsp;·&nbsp;
   <a href="https://github.com/Umupa/Kami/releases/latest"><b>下载 Kami</b></a>
   &nbsp;·&nbsp;
   <code>brew install --cask umupa/kami/kami</code>
