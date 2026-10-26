@@ -181,7 +181,12 @@ func (p *Panel) fit(contentH float32) {
 		return
 	}
 	natural := contentH - p.fillerH
-	if p.sess != nil && !p.noteMode() {
+	switch {
+	case p.updating:
+		// The notes keep within the window, as tall as it was; what they
+		// scroll by is content too.
+		natural += p.updateScroll.MaxY
+	case p.sess != nil && !p.noteMode():
 		if n := len(p.sess.Turns); n > 0 && p.resultRows == n {
 			// List's viewport can still have the height of an older reply
 			// or an estimate for a new row. Only the painted rows are content.

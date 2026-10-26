@@ -120,12 +120,16 @@ type Panel struct {
 	// updating is set while the update screen shows; updateIdx is its
 	// chosen item, focusUpdate asks for its keyboard focus, and
 	// updateConfirmed is set once the user asked for the restart while
-	// the panel is up.
-	updating        bool
-	updateIdx       int
-	focusUpdate     bool
-	updateConfirmed bool
-	updateMD        markdown.Options
+	// the panel is up. The panel grows to show the notes, whose scroll
+	// range updateScroll measures, and goes back to leastBeforeUpdate as
+	// the screen closes.
+	updating          bool
+	updateIdx         int
+	focusUpdate       bool
+	updateConfirmed   bool
+	updateMD          markdown.Options
+	updateScroll      ui.ScrollState
+	leastBeforeUpdate int
 	// results holds the other modes' sessions, by mode id.
 	results map[string]result
 

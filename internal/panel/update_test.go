@@ -216,3 +216,37 @@ func TestUpdateCommandNeedsAChecker(t *testing.T) {
 		t.Error("/update shows without a way to check")
 	}
 }
+
+// The panel grows to show the notes: the window is as tall as the panel was
+// before, and the notes' scroll area alone would keep to it.
+func TestUpdateNotesGrowThePanel(t *testing.T) {
+	for _, notes := range []string{
+		"- 菜单栏显示模型与连接状态\n- 授权一项一项来",
+		"- 修复取消固定后，在副屏等处用快捷键唤起的面板被其他应用的窗口挡住、看起来没有弹出的问题。",
+	} {
+		uh := newUpdateHarness(t)
+		uh.state.Notes = notes
+		uh.settle()
+		before := uh.p.height
+		uh.tt.SetSize(820, before)
+		uh.tt.Frame()
+		uh.p.offerUpdate()
+		for range 4 {
+			uh.tt.SetSize(820, uh.p.height)
+			uh.settle()
+		}
+		lines := strings.Split(notes, "\n")
+		last, ok := uh.tt.Find(strings.TrimPrefix(lines[len(lines)-1], "- "))
+		if !ok || last.H == 0 || last.Y+last.H > float32(uh.p.height) {
+			t.Fatalf("panel %d tall (was %d), last note at %v: want the notes in view", uh.p.height, before, last)
+		}
+		uh.tt.Key(0, ui.KeyEscape)
+		for range 3 {
+			uh.tt.SetSize(820, uh.p.height)
+			uh.settle()
+		}
+		if uh.p.updating || uh.p.height != before {
+			t.Errorf("updating %v, height %d after closing: want the panel back at %d", uh.p.updating, uh.p.height, before)
+		}
+	}
+}

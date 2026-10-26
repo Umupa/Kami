@@ -94,12 +94,16 @@ func (p *Panel) offerUpdate() {
 }
 
 func (p *Panel) openUpdate() {
+	if !p.updating {
+		p.leastBeforeUpdate = p.least
+	}
 	p.updating, p.updateIdx, p.focusUpdate = true, 0, true
 }
 
 // closeUpdate gives the panel back to the user's session.
 func (p *Panel) closeUpdate() {
 	p.updating, p.updateConfirmed = false, false
+	p.least = p.leastBeforeUpdate
 	p.sourceIn.Focus()
 }
 
@@ -243,7 +247,7 @@ func (p *Panel) updateView(c *ui.Context, pal *design.Palette) {
 		}
 		return
 	}
-	ui.Scroll(c.Key("update-notes")).Grow(1).Shrink(1).MinHeight(0).Children(func() {
+	ui.Scroll(c.Key("update-notes")).Grow(1).Shrink(1).MinHeight(0).TrackScroll(&p.updateScroll).Children(func() {
 		ui.Column(c).PaddingX(design.SpaceX).PaddingY(14).Gap(8).Children(func() {
 			ui.Text(c, "更新内容").FontSize(p.sz.Caption).TextColor(pal.Faint)
 			if s.Notes == "" {
