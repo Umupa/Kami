@@ -104,12 +104,16 @@ func (p *Panel) endSetup() {
 		p.deps.OnSetup(false)
 	}
 	p.heldOpen = false
+	p.applyLevel()
 }
 
 // holdForSetup keeps the panel up while the user works in a coding agent or
-// System Settings. Unlike a pin it stays at its level, so System Settings
-// and macOS's prompts come in front of it.
-func (p *Panel) holdForSetup() { p.heldOpen = true }
+// System Settings. Unlike a pin it drops to the normal level, so System
+// Settings and macOS's prompts come in front of it.
+func (p *Panel) holdForSetup() {
+	p.heldOpen = true
+	p.applyLevel()
+}
 
 // setupDone reports whether every permission is granted and in effect.
 func setupDone(steps []permStep) bool {

@@ -179,6 +179,7 @@ GlobalShortcut.Register("Alt+Space")（Carbon 热键）
 ```
 
 - 组合键不需要输入监控权限。
+- 面板是非激活 NSPanel，处在浮动层级，只有授权步骤 `heldOpen` 且未固定时降到普通层级（`Panel.onTop`）；固定与取消固定只决定失焦时是否隐藏，不会把面板降到普通层级。显示时 `makeKeyAndOrderFront` 之后再 `orderFrontRegardless`：Kami 不是前台应用，只调前者时，面板可能排在刚切到的那个应用的窗口后面，在副屏上尤其容易出现。
 - 任何入口是双击修饰键时，创建一个共用的 CGEventTap（listen-only，只订阅 flagsChanged 与 keyDown）：按下 → 松开 → 按下 → 松开，总时长 ≤ 300ms，中间没有其他键或修饰键。只读，不拦截、不修改。系统因回调超时停用监听（`kCGEventTapDisabledByTimeout`）时立即重新启用。
 - 创建监听需要输入监控权限：启动时已经有模型才请求；还没有模型时不请求，由「已连接」回复里的授权步骤请求（F13.4）；配置热加载后重新注册快捷键时不请求。
 

@@ -886,8 +886,20 @@ func (p *Panel) stepFontSize(step float32) {
 // it hide with them again (Cmd-P).
 func (p *Panel) togglePin() {
 	p.pinned = !p.pinned
+	p.applyLevel()
+}
+
+// onTop reports whether the panel floats above other apps' windows. It does
+// but while held for the permission step, where System Settings and macOS's
+// prompts must come in front of it; a pin floats it then too. At the normal
+// level, the window of the app the user just switched to can cover the panel
+// as it shows.
+func (p *Panel) onTop() bool { return p.pinned || !p.heldOpen }
+
+// applyLevel puts the window at the level onTop says.
+func (p *Panel) applyLevel() {
 	if p.win != nil {
-		p.win.SetAlwaysOnTop(p.pinned)
+		p.win.SetAlwaysOnTop(p.onTop())
 	}
 }
 

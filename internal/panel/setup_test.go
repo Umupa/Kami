@@ -226,6 +226,33 @@ func TestFirstRunHoldsThePanel(t *testing.T) {
 	}
 }
 
+// The panel floats but while held for the permission step; unpinning must
+// not leave it at the normal level, where the window of the app the user
+// just switched to covers it as it shows.
+func TestPanelLevel(t *testing.T) {
+	ph := newPermissionHarness(t)
+	if ph.p.onTop() {
+		t.Error("held for the permission step, the panel floats over System Settings")
+	}
+	ph.p.togglePin()
+	if !ph.p.onTop() {
+		t.Error("pinned while held, the panel does not float")
+	}
+	ph.p.togglePin()
+	if ph.p.onTop() {
+		t.Error("unpinned while held, the panel still floats")
+	}
+	ph.p.endSetup()
+	if !ph.p.onTop() {
+		t.Error("after the permission step, the panel does not float")
+	}
+	ph.p.togglePin()
+	ph.p.togglePin()
+	if !ph.p.onTop() {
+		t.Error("pinned and unpinned, the panel dropped to the normal level")
+	}
+}
+
 func TestConnectedAsksForPermissionsOneAtATime(t *testing.T) {
 	ph := newPermissionHarness(t)
 	ph.arrive(firstModel)

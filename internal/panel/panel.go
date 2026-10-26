@@ -396,6 +396,10 @@ func (p *Panel) Show() {
 	p.updateConfirmed = false
 	p.offerUpdate()
 	p.win.Show()
+	// Kami is not the active app, and makeKeyAndOrderFront alone may leave
+	// the panel behind the active app's windows on that display;
+	// orderFrontRegardless puts it at the front of its level all the same.
+	p.win.ShowInactive()
 	switch {
 	case p.noteMode():
 		p.notes.focusNote, p.notes.listOpen = true, false
