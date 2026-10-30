@@ -210,7 +210,12 @@ func (p *Panel) fit(contentH float32) {
 	// laid out, which keeps within the window as it was. It does not glide:
 	// each resize shows the last frame stretched or shifted until one of the
 	// new size is drawn, and a resize every frame reads as flicker.
-	h := int(p.target())
+	p.resizeTo(int(p.target()))
+}
+
+// resizeTo asks the window for height h, which the panel then takes as its
+// own rather than the user's.
+func (p *Panel) resizeTo(h int) {
 	if h == p.height {
 		return
 	}
@@ -274,9 +279,11 @@ func (p *Panel) fits() bool {
 }
 
 // fixedLayout reports whether the panel keeps the height the user resized
-// it to, rather than following its content, including an empty panel.
+// it to, rather than following its content, including an empty panel. The
+// update screen sets that height aside: its notes show whole, however
+// short the panel was made.
 func (p *Panel) fixedLayout() bool {
-	return p.fixedHeight > 0
+	return p.fixedHeight > 0 && !p.updating
 }
 
 func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {

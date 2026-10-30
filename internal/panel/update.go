@@ -104,6 +104,10 @@ func (p *Panel) openUpdate() {
 func (p *Panel) closeUpdate() {
 	p.updating, p.updateConfirmed = false, false
 	p.least = p.leastBeforeUpdate
+	if p.fixedHeight > 0 {
+		// fit leaves a resized panel alone, so it goes back here.
+		p.resizeTo(p.fixedHeight)
+	}
 	p.sourceIn.Focus()
 }
 

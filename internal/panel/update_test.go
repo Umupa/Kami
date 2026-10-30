@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -248,5 +249,34 @@ func TestUpdateNotesGrowThePanel(t *testing.T) {
 		if uh.p.updating || uh.p.height != before {
 			t.Errorf("updating %v, height %d after closing: want the panel back at %d", uh.p.updating, uh.p.height, before)
 		}
+	}
+}
+
+// A height the user resized the panel to gives way to the notes while they
+// show, and comes back as the screen closes.
+func TestUpdateNotesGrowAResizedPanel(t *testing.T) {
+	uh := newUpdateHarness(t)
+	uh.state.Notes = "- 修复取消固定后，在副屏等处用快捷键唤起的面板被其他应用的窗口挡住、看起来没有弹出的问题。"
+	uh.settle()
+	short := uh.p.height + 3
+	uh.p.resized(mygo.Rectangle{Width: 820, Height: short})
+	uh.tt.SetSize(820, short)
+	uh.settle()
+	uh.p.offerUpdate()
+	for range 4 {
+		uh.tt.SetSize(820, uh.p.height)
+		uh.settle()
+	}
+	last, ok := uh.tt.Find("修复取消固定后，在副屏等处用快捷键唤起的面板被其他应用的窗口挡住、看起来没有弹出的问题。")
+	if !ok || last.H == 0 || last.Y+last.H > float32(uh.p.height) {
+		t.Fatalf("panel %d tall (resized to %d), last note at %v: want the notes in view", uh.p.height, short, last)
+	}
+	uh.tt.Key(0, ui.KeyEscape)
+	for range 3 {
+		uh.tt.SetSize(820, uh.p.height)
+		uh.settle()
+	}
+	if uh.p.fixedHeight != short || uh.p.height != short {
+		t.Errorf("fixed %d, height %d after closing: want the user's %d back", uh.p.fixedHeight, uh.p.height, short)
 	}
 }
