@@ -75,5 +75,7 @@
 </table>
 
 <p align="center">
-  <sub>Kami 是日语里的「纸」。 · <a href="https://github.com/Umupa/Kami/blob/main/CHANGELOG.md">更新记录</a> · <a href="LICENSE">Apache-2.0</a> · 用 Go 和 <a href="https://github.com/egoist/mygo">MyGo</a> 编写</sub>
+  <sub>Kami 是日语里的「纸」。 · <a href="https://github.com/Umupa/Kami/blob/main/CHANGELOG.md">更新记录</a> · <a href="LICENSE">Apache-2.0</a></sub>
+  <br>
+  <sub>灵感来自 <a href="https://cida.xuanwo.io/">辞达</a>，界面与打包基于 <a href="https://github.com/egoist/mygo">MyGo</a>。感谢这两个项目。</sub>
 </p>
