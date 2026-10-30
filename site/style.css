@@ -1666,13 +1666,11 @@ code {
   color: var(--ink);
 }
 
-.foot .thanks {
-  flex-basis: 100%;
+.foot .note {
   margin: 0;
-  font-size: 12.5px;
 }
 
-.foot .thanks a {
+.foot .note a {
   text-decoration: underline;
   text-decoration-color: var(--rule-2);
   text-underline-offset: 3px;
