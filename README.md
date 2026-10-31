@@ -16,7 +16,7 @@
   <code>brew install --cask umupa/kami/kami</code>
 </p>
 
-<p align="center">需要 macOS 15.2 或更新版本</p>
+<p align="center">需要 macOS 15.2 或更新版本<br>第一次打开时，在「系统设置 → 隐私与安全性」里点「仍要打开」</p>
 
 ## 功能
 
