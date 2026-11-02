@@ -32,7 +32,9 @@ var (
 	codeRe    = regexp.MustCompile("`[^`\n]+`")
 	// A URL ends at the first space, bracket, quote or non-ASCII rune, as
 	// where Chinese text goes on after it.
-	urlRe = regexp.MustCompile(`https?://[^\s<>()\[\]{}"'` + "`" + `\x{80}-\x{10FFFF}]+`)
+	// imageRe is an image's Markdown, as a pasted one: ![alt](path).
+	imageRe = regexp.MustCompile(`!\[[^\]\n]*\]\(([^()\s]+)\)`)
+	urlRe   = regexp.MustCompile(`https?://[^\s<>()\[\]{}"'` + "`" + `\x{80}-\x{10FFFF}]+`)
 )
 
 // Highlight finds the Markdown of a note to color: it never changes the
@@ -79,6 +81,9 @@ func Highlight(text string) []Span {
 			for _, m := range codeRe.FindAllStringIndex(body, -1) {
 				add(m[0], m[1], Code)
 			}
+			for _, m := range imageRe.FindAllStringIndex(body, -1) {
+				add(m[0], m[1], Link)
+			}
 			for _, m := range urlRe.FindAllStringIndex(body, -1) {
 				add(m[0], m[0]+len(trimURL(body[m[0]:m[1]])), Link)
 			}
@@ -99,6 +104,30 @@ func URLAt(text string, offset int) string {
 				start := at + utf8.RuneCountInString(line[:m[0]])
 				if offset >= start && offset <= start+utf8.RuneCountInString(url) {
 					return url
+				}
+			}
+			return ""
+		}
+		at += n
+	}
+	return ""
+}
+
+// imageWord stands for an image in a note's title and summary.
+const imageWord = "[图片]"
+
+// ImageAt returns the path of the image whose Markdown is around the rune
+// at offset, "" when there is none.
+func ImageAt(text string, offset int) string {
+	at := 0
+	for line := range strings.Lines(text) {
+		n := utf8.RuneCountInString(line)
+		if offset >= at && offset <= at+n {
+			for _, m := range imageRe.FindAllStringSubmatchIndex(line, -1) {
+				start := at + utf8.RuneCountInString(line[:m[0]])
+				end := start + utf8.RuneCountInString(line[m[0]:m[1]])
+				if offset >= start && offset <= end {
+					return line[m[2]:m[3]]
 				}
 			}
 			return ""

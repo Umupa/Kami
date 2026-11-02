@@ -163,3 +163,56 @@ func TestSummary(t *testing.T) {
 		}
 	}
 }
+
+func TestImages(t *testing.T) {
+	s := NewStore(t.TempDir(), nil)
+	for _, name := range []string{"2026-10-19-143012.md", "2026-10-19-143012-2.md"} {
+		for range 2 {
+			if _, err := s.SaveImage(name, []byte("png"), ".PNG"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	path, _ := s.SaveImage("2026-10-19-143012.md", []byte("png"), ".png")
+	if path != "assets/2026-10-19-143012-img3.png" {
+		t.Errorf("path = %q", path)
+	}
+	if got := len(s.Images("2026-10-19-143012.md")); got != 3 {
+		t.Errorf("images of the first note = %d, want 3, not its neighbor's", got)
+	}
+	if _, err := s.SaveImage("a.md", make([]byte, MaxImage+1), ".png"); err != ErrImageTooLarge {
+		t.Errorf("large image: %v", err)
+	}
+	if err := s.Remove("2026-10-19-143012-2.md"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Images("2026-10-19-143012-2.md")) != 0 || len(s.Images("2026-10-19-143012.md")) != 3 {
+		t.Error("removing a note did not take only its images")
+	}
+}
+
+func TestImageLink(t *testing.T) {
+	text := "![](assets/a-img1.png)\n看 ![图](assets/b-img2.png) 这里"
+	if got := Title(text); got != "[图片]" {
+		t.Errorf("Title = %q", got)
+	}
+	if got := Summary(text); got != "看 [图片] 这里" {
+		t.Errorf("Summary = %q", got)
+	}
+	if got := ImageAt(text, 5); got != "assets/a-img1.png" {
+		t.Errorf("ImageAt = %q", got)
+	}
+	if got := ImageAt(text, 26); got != "assets/b-img2.png" {
+		t.Errorf("ImageAt = %q", got)
+	}
+	if got := ImageAt(text, 24); got != "" {
+		t.Errorf("ImageAt before the link = %q", got)
+	}
+	var link bool
+	for _, sp := range Highlight(text) {
+		link = link || (sp.Kind == Link && sp.Start == 0 && sp.End == 22)
+	}
+	if !link {
+		t.Error("the image's Markdown is not colored as a link")
+	}
+}

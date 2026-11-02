@@ -137,30 +137,125 @@ func (s *Store) exists(name string) bool {
 	return err == nil
 }
 
-// Delete moves a note to the Trash.
+// Delete moves a note to the Trash, with the images pasted into it.
 func (s *Store) Delete(name string) error {
-	path := filepath.Join(s.Dir, name)
+	if err := s.trash(filepath.Join(s.Dir, name)); err != nil {
+		return err
+	}
+	s.trashImages(name)
+	return nil
+}
+
+// Remove deletes the file of an emptied note for good: there is nothing in
+// it to get back. A note never written is no error. Its images go to the
+// Trash, as no text links them any more.
+func (s *Store) Remove(name string) error {
+	err := os.Remove(filepath.Join(s.Dir, name))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	s.trashImages(name)
+	return nil
+}
+
+func (s *Store) trash(path string) error {
 	if s.Trash == nil {
 		return os.Remove(path)
 	}
 	return s.Trash(path)
 }
 
-// Remove deletes the file of an emptied note for good: there is nothing in
-// it to get back. A note never written is no error.
-func (s *Store) Remove(name string) error {
-	err := os.Remove(filepath.Join(s.Dir, name))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+// Assets is the directory, inside the notes', that keeps pasted images.
+const Assets = "assets"
+
+// MaxImage is the largest image a note takes, in bytes.
+const MaxImage = 20 << 20
+
+// ErrImageTooLarge is an image over MaxImage.
+var ErrImageTooLarge = errors.New("note: image too large")
+
+// imageInfix joins a note's name to its images' numbers: a note named
+// after another made in the same second ends in -2, never in -img.
+const imageInfix = "-img"
+
+// SaveImage writes an image pasted into the note name, in the format of
+// ext (as ".png"), and returns its path relative to the notes' directory,
+// which the note links. An image is named after its note, so that it goes
+// to the Trash with it.
+func (s *Store) SaveImage(name string, data []byte, ext string) (string, error) {
+	if len(data) > MaxImage {
+		return "", ErrImageTooLarge
 	}
-	return err
+	dir := filepath.Join(s.Dir, Assets)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	base := strings.TrimSuffix(name, Ext) + imageInfix
+	for i := 1; ; i++ {
+		file := fmt.Sprintf("%s%d%s", base, i, strings.ToLower(ext))
+		path := filepath.Join(dir, file)
+		if _, err := os.Lstat(path); err == nil {
+			continue
+		}
+		tmp, err := os.CreateTemp(dir, ".tmp-*")
+		if err != nil {
+			return "", err
+		}
+		defer os.Remove(tmp.Name())
+		if _, err := tmp.Write(data); err != nil {
+			tmp.Close()
+			return "", err
+		}
+		if err := tmp.Close(); err != nil {
+			return "", err
+		}
+		// A link, unlike a rename, fails when another image took the name
+		// meanwhile.
+		if err := os.Link(tmp.Name(), path); errors.Is(err, fs.ErrExist) {
+			continue
+		} else if err != nil {
+			return "", err
+		}
+		return Assets + "/" + file, nil
+	}
 }
 
+// Images are the paths of the images pasted into the note name.
+func (s *Store) Images(name string) []string {
+	base := strings.TrimSuffix(name, Ext) + imageInfix
+	entries, _ := os.ReadDir(filepath.Join(s.Dir, Assets))
+	var paths []string
+	for _, e := range entries {
+		rest, ok := strings.CutPrefix(e.Name(), base)
+		if !ok || e.IsDir() {
+			continue
+		}
+		num, _, _ := strings.Cut(rest, ".")
+		if num == "" || strings.Trim(num, "0123456789") != "" {
+			continue
+		}
+		paths = append(paths, filepath.Join(s.Dir, Assets, e.Name()))
+	}
+	return paths
+}
+
+// trashImages moves a note's images to the Trash, as far as it can: an
+// image left behind is no harm to the note.
+func (s *Store) trashImages(name string) {
+	for _, path := range s.Images(name) {
+		_ = s.trash(path)
+	}
+}
+
+// ImageLink is the Markdown that shows the image at path in a note.
+func ImageLink(path string) string { return "![](" + path + ")" }
+
 // Title is text's first line that is not blank, without the Markdown marks
-// that start it: a heading's #, a list's bullet or a quote's >.
+// that start it: a heading's #, a list's bullet or a quote's >. An image
+// reads as [图片].
 func Title(text string) string {
 	for line := range strings.Lines(text) {
-		line = strings.TrimSpace(line)
+		line = strings.TrimSpace(imageRe.ReplaceAllString(line, imageWord))
 		line = strings.TrimLeft(line, "#>")
 		line = strings.TrimSpace(line)
 		for _, mark := range []string{"- [ ] ", "- [x] ", "- [X] ", "- ", "* ", "+ "} {
@@ -186,7 +281,7 @@ func Summary(text string) string {
 			continue
 		}
 		if titled {
-			return line
+			return imageRe.ReplaceAllString(line, imageWord)
 		}
 		titled = Title(line) != ""
 	}

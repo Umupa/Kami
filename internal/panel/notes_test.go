@@ -384,3 +384,60 @@ func TestNotesTakeTheirOwnHeight(t *testing.T) {
 		t.Errorf("back from notes: %d high, was %d", h.p.height, tall)
 	}
 }
+
+func TestPastedImageIsSavedAndLinked(t *testing.T) {
+	h := newHarness(t, script{})
+	h.enterNotes()
+	png := []byte("\x89PNG fake")
+	h.p.readImage = func(text string) (func() ([]byte, error), string) {
+		if text != "" {
+			return nil, ""
+		}
+		return func() ([]byte, error) { return png, nil }, ".png"
+	}
+	var opened string
+	h.p.openPath = func(path string) { opened = path }
+
+	h.tt.Type("看图 ")
+	h.tt.SetClipboard("")
+	h.tt.Key(ui.Cmd, ui.KeyV)
+	h.drain()
+	h.tt.Frame()
+	h.tt.Type(" 完")
+	h.drain()
+
+	base := strings.TrimSuffix(h.p.notes.cur, ".md")
+	link := "![](assets/" + base + "-img1.png)"
+	if want := "看图 " + link + " 完"; h.p.notes.text != want {
+		t.Fatalf("note = %q, want %q", h.p.notes.text, want)
+	}
+	file := filepath.Join(h.p.notes.store.Dir, "assets", base+"-img1.png")
+	if data, err := os.ReadFile(file); err != nil || string(data) != string(png) {
+		t.Fatalf("image = %q, %v", data, err)
+	}
+
+	// Text on the clipboard pastes as text, image or not.
+	h.tt.SetClipboard("字")
+	h.tt.Key(ui.Cmd, ui.KeyV)
+	h.drain()
+	if !strings.HasSuffix(h.p.notes.text, " 完字") {
+		t.Fatalf("note = %q, want the text pasted", h.p.notes.text)
+	}
+
+	// Cmd-click on the link opens the image.
+	h.p.openImage("assets/" + base + "-img1.png")
+	if opened != file {
+		t.Errorf("opened %q, want %q", opened, file)
+	}
+	h.p.openImage("../secret.png")
+	if opened != file {
+		t.Errorf("opened %q outside the notes", opened)
+	}
+
+	// Deleting the note takes its image with it.
+	h.p.saveNote()
+	h.p.deleteNote(h.p.notes.cur)
+	if _, err := os.Stat(file); !os.IsNotExist(err) {
+		t.Errorf("image left after its note was deleted: %v", err)
+	}
+}

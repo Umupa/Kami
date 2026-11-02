@@ -230,7 +230,7 @@ MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size conten
 ~/Library/Application Support/Kami/
 ├── config.json          全部设置，带 "$schema" 指向旁边的 schema；权限 0600
 ├── config.schema.json   每次启动由应用写出，与当前版本一致
-└── notes/               笔记（默认目录）
+└── notes/               笔记（默认目录）；粘贴的图片在 notes/assets/
 ~/Library/Logs/Kami/     日志（log/slog 文本格式，只记事件与耗时）
 ```
 
@@ -280,6 +280,7 @@ MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size conten
 - `note` 包只管文件：列出目录、读、原子写（临时文件 + rename）、取标题、按标题与正文搜索、着色（`note.Highlight` 只设颜色与字重，不改文字）。不依赖 UI，用临时目录测试。移到废纸篓经 `macos.Trash`（`NSFileManager trashItemAtURL:`，3 秒超时）。
 - 目录来自 `notesDir`；热加载改了目录时，下次切到笔记就用新目录。不维护索引文件：列表每次打开时在后台读目录，按修改时间排序，「上次编辑的那张」就是修改时间最新的那张；光标与滚动位置只在内存里。切到某张笔记时比较修改时间，比内存里新就重新读取。
 - 笔记模式是 `modeIdx == len(modes)`。编辑区按笔记文件名取 key，每张笔记有自己的撤销历史。自动保存的 500ms 延迟用一次性计时器；切出、换笔记、隐藏面板和退出时立即保存。
+- 粘贴图片（F12.15）：编辑区的 `OnPaste` 交给 `pasteImage`，由 `readImage` 判断剪贴板：Finder 复制的单个图片文件优先（它同时带文件名文字和图标图片），否则只有在没有文字时取 `transfer.PNG`（MyGo 把 TIFF 转成 PNG）。读文件和 `note.Store.SaveImage`（临时文件 + `link`，名字被占用时换下一个序号）在后台完成，回到主线程时笔记没换才在当时的选区插入链接。图片名是笔记名加 `-img<序号>`，`Store.Images` 按这个前缀找出一张笔记的图片，删除笔记时一起进废纸篓；不维护引用计数，删掉链接的图片留在原处。⌘ 点击时 `note.ImageAt` 取出路径，只打开笔记目录以内的文件。
 - 笔记列表是 `ui.PopoverBase`，`AttachTo` 挂在「全部笔记」按钮上方，不参与面板布局。选中别的笔记时，编辑器的位置换成只读预览，高度取编辑器上一次布局的高度（`notes.editorH`），所以打开、搜索、移动选中项都不改变面板高度。选中行只在选中项变化的那一帧 `ScrollIntoView`，不跟滚轮抢位置。⌘[ / ⌘] 第一次按下时取一份按修改时间排好的快照，连续切换都沿用它；编辑或打开列表后快照作废。
 
 ## 十二、首次使用

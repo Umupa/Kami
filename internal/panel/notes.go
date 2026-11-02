@@ -1,11 +1,17 @@
 package panel
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/Umupa/Kami/internal/design"
@@ -35,7 +41,10 @@ type notes struct {
 	// caretPending puts it back in the next frame.
 	carets       map[string]int
 	caretPending int
-	err          string
+	// anchor is where the open note's selection starts, the caret where
+	// it ends, as of the last frame: where a pasted image goes.
+	anchor int
+	err    string
 
 	// The list of notes (Cmd-P), a popover over the open note: what is
 	// searched, the chosen row, and reveal to scroll it into view once,
@@ -456,6 +465,7 @@ func (p *Panel) noteView(c *ui.Context, pal *design.Palette) {
 	}
 	in := p.noteText(c, pal, ui.TextAreaBase(c.Key("note-"+n.cur), &n.text).Bind(&n.in).
 		Placeholder("随手记点什么…  ⌘N 新建  ⌘P 全部笔记").Label("笔记"), n.text)
+	in.OnPaste(p.pasteImage)
 	in.OnTextKey(func(k ui.TextKey) bool {
 		n.text = k.Text()
 		switch {
@@ -483,17 +493,126 @@ func (p *Panel) noteView(c *ui.Context, pal *design.Palette) {
 		n.caretPending = -1
 	}
 	if n.cur != "" {
-		_, caret := in.TextAnchorCaret()
-		n.carets[n.cur] = caret
+		anchor, caret := in.TextAnchorCaret()
+		n.carets[n.cur], n.anchor = caret, anchor
 	}
 	if in.Clicked() && in.ClickModifiers()&ui.Cmd != 0 {
 		_, caret := in.TextAnchorCaret()
 		if url := note.URLAt(n.text, caret); url != "" {
 			p.deps.Log.Info("note link opened")
 			p.openURL(url)
+		} else if path := note.ImageAt(n.text, caret); path != "" {
+			p.openImage(path)
 		}
 	}
 	p.noteEdited()
+}
+
+// pasteImage takes a paste of an image into the open note, text being the
+// clipboard's: the image is read and written next to the notes off the
+// main thread, and its link goes where the selection is then. It reports
+// whether the clipboard held an image.
+func (p *Panel) pasteImage(text string) bool {
+	n := &p.notes
+	if n.cur == "" || n.store == nil || p.readImage == nil {
+		return false
+	}
+	load, ext := p.readImage(text)
+	if load == nil {
+		return false
+	}
+	store, name, start := n.store, n.cur, time.Now()
+	p.background(func() {
+		data, err := load()
+		path := ""
+		if err == nil {
+			path, err = store.SaveImage(name, data, ext)
+		}
+		p.post(func() {
+			if err != nil {
+				p.deps.Log.Warn("paste image", "err", err, "bytes", len(data))
+				n.err = "图片没有保存"
+				if errors.Is(err, note.ErrImageTooLarge) {
+					n.err = "图片超过 20MB，没有粘贴"
+				}
+				return
+			}
+			p.deps.Log.Info("note image pasted", "name", name, "bytes", len(data), "took", time.Since(start))
+			if n.store != store || n.cur != name {
+				return
+			}
+			n.err = ""
+			p.insertNote(note.ImageLink(path))
+		})
+	})
+	return true
+}
+
+// insertNote puts s in place of the open note's selection, the caret after
+// it.
+func (p *Panel) insertNote(s string) {
+	n := &p.notes
+	rs := []rune(n.text)
+	from, to := n.anchor, n.carets[n.cur]
+	if from > to {
+		from, to = to, from
+	}
+	from, to = max(0, min(from, len(rs))), max(0, min(to, len(rs)))
+	n.text = string(rs[:from]) + s + string(rs[to:])
+	n.caretPending = from + utf8.RuneCountInString(s)
+	n.focusNote = !n.listOpen
+}
+
+// openImage opens an image of the open note, by its path in the note, in
+// its default app.
+func (p *Panel) openImage(path string) {
+	if !filepath.IsLocal(filepath.FromSlash(path)) {
+		return
+	}
+	p.deps.Log.Info("note image opened")
+	p.openPath(filepath.Join(p.notes.store.Dir, filepath.FromSlash(path)))
+}
+
+// imageExts are the image files a paste from Finder takes, by extension.
+var imageExts = []string{".png", ".jpg", ".jpeg", ".gif", ".heic", ".webp", ".tiff", ".bmp"}
+
+// readClipboardImage finds the image on the system clipboard, text being
+// its text: one image file copied in Finder, which comes with its name as
+// text and its icon as a picture, else a picture with no text, as a
+// screenshot; text with a picture, as from a document, pastes as text. It
+// returns how to read the image off the main thread, and its extension;
+// no load says there is none.
+func readClipboardImage(text string) (func() ([]byte, error), string) {
+	formats := mygo.Clipboard.Formats()
+	if slices.Contains(formats, transfer.FileList) {
+		files, err := mygo.Clipboard.ReadFiles()
+		if err != nil || len(files) != 1 {
+			return nil, ""
+		}
+		file := files[0]
+		ext := strings.ToLower(filepath.Ext(file))
+		if !slices.Contains(imageExts, ext) {
+			return nil, ""
+		}
+		return func() ([]byte, error) {
+			info, err := os.Stat(file)
+			if err != nil {
+				return nil, err
+			}
+			if info.Size() > note.MaxImage {
+				return nil, note.ErrImageTooLarge
+			}
+			return os.ReadFile(file)
+		}, ext
+	}
+	if text != "" || !slices.Contains(formats, transfer.PNG) {
+		return nil, ""
+	}
+	data, err := mygo.Clipboard.ReadFormat(transfer.PNG)
+	if err != nil || len(data) == 0 {
+		return nil, ""
+	}
+	return func() ([]byte, error) { return data, nil }, ".png"
 }
 
 // noteSize sizes a note's text area: it fills a panel the user resized, and

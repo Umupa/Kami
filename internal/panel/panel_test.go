@@ -88,6 +88,8 @@ func newHarnessWith(t *testing.T, client llm.Client, configJSON string) *harness
 	}
 	h.p.resize = func(r mygo.Rectangle) { h.sizes = append(h.sizes, r) }
 	h.p.writeClipboard = func(s string) { h.clip = s }
+	h.p.readImage = func(string) (func() ([]byte, error), string) { return nil, "" }
+	h.p.openPath = func(string) {}
 	h.p.place = placeOn(mygo.Rectangle{Width: 1440, Height: 875})
 	h.tt = ui.NewTester(h.p.view, 820, 700)
 	h.tt.SetLocale("zh-Hans")

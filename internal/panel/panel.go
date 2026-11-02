@@ -85,6 +85,11 @@ type Panel struct {
 	background func(func())
 	after      func(time.Duration, func())
 	openURL    func(string)
+	// readImage finds the image on the clipboard, given its text: how to
+	// read it, nil when there is none, and its extension. openPath opens a
+	// file in its default app.
+	readImage func(text string) (func() ([]byte, error), string)
+	openPath  func(string)
 
 	custom map[string]*design.Palette
 	cfg    *config.Config
@@ -356,7 +361,9 @@ func New(d Deps) *Panel {
 func newPanel(d Deps) *Panel {
 	p := &Panel{deps: d, list: newList(), post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich,
 		background: func(fn func()) { go fn() },
-		openURL:    func(url string) { _ = mygo.Shell.OpenExternal(url) }}
+		openURL:    func(url string) { _ = mygo.Shell.OpenExternal(url) },
+		readImage:  readClipboardImage,
+		openPath:   func(path string) { _ = mygo.Shell.OpenPath(path) }}
 	p.traceLayoutEnabled = os.Getenv("KAMI_TRACE_LAYOUT") == "1"
 	p.after = func(d time.Duration, fn func()) { time.AfterFunc(d, func() { p.post(fn) }) }
 	p.applyConfig(d.Store.Snapshot().Config)
