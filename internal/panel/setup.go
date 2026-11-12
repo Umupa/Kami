@@ -144,7 +144,7 @@ func (p *Panel) say(text string) {
 func (p *Panel) setupText() string {
 	var b strings.Builder
 	if err := p.configErr(); err != nil {
-		b.WriteString("⚠️ **config.json 有错误**\n\n")
+		b.WriteString("**config.json 有错误**\n\n")
 		for _, pr := range problemsOf(err) {
 			if pr.Path != "" {
 				fmt.Fprintf(&b, "- `%s`：%s\n", pr.Path, pr.Message)
@@ -152,12 +152,10 @@ func (p *Panel) setupText() string {
 				fmt.Fprintf(&b, "- %s\n", pr.Message)
 			}
 		}
-		b.WriteString("\n🛠️ 按 ⏎ 复制提示词，交给 Claude Code、Codex 等 Coding Agent 修复。\n\n")
+		b.WriteString("\n## 按 ⏎ 复制提示词\n\n交给 Claude Code、Codex 等 Coding Agent 修复。\n\n")
 	} else {
-		b.WriteString("👋 **欢迎使用 Kami。**\n\n")
-		b.WriteString("✨ 这是常驻在 Mac 上的 AI 文字助手，随时通过快捷键帮你翻译外文、润色表达与即时问答。\n\n")
-		b.WriteString("🔌 Kami 由你自己的模型提供动力（支持 Claude、OpenAI、DeepSeek、本地 Ollama 等）。\n\n")
-		b.WriteString("📋 按 **⏎** 复制下面的配置提示词给 **Claude Code**、**Codex** 等 Coding Agent，它会协助你完成接入并自动检查。配置完成后这里会接着显示，随时可以开始。\n\n")
+		b.WriteString("**欢迎使用 Kami**\n\n常驻在 Mac 上的 AI 文字助手，用快捷键翻译外文、润色表达、随时问答，由你自己的模型提供动力（Claude、OpenAI、DeepSeek、本地 Ollama 等）。\n\n")
+		b.WriteString("## 按 ⏎ 复制配置提示词\n\n交给 Claude Code、Codex 等 Coding Agent，它会帮你接入模型并自动检查。配好后这里会接着显示。\n\n")
 	}
 	b.WriteString("````text\n" + strings.TrimRight(p.agentPrompt(), "\n") + "\n````\n")
 	return b.String()
@@ -172,16 +170,16 @@ func (p *Panel) connectedText() string {
 	steps := p.permissionSteps()
 	ready := setupDone(steps)
 	if ready {
-		fmt.Fprintf(&b, "🎉 **Kami 已准备就绪**，正在使用 %s（%s）。常用操作：\n\n", m.Model, hostOf(m.Endpoint))
+		fmt.Fprintf(&b, "**Kami 已准备就绪**，正在使用 %s（%s）。常用操作：\n\n", m.Model, hostOf(m.Endpoint))
 		p.writeTips(&b)
 	} else {
-		fmt.Fprintf(&b, "✅ **已连接 %s**（%s）。", m.Model, hostOf(m.Endpoint))
+		fmt.Fprintf(&b, "**已连接 %s**（%s）。", m.Model, hostOf(m.Endpoint))
 		if sc, err := config.ParseShortcut(p.cfg.Shortcuts.Panel); err == nil && !sc.IsZero() {
 			fmt.Fprintf(&b, "按 `%s` 随时打开 Kami。", sc.Glyphs())
 		}
 		b.WriteString("\n\n")
 		if nextPermission(steps) != nil {
-			b.WriteString("🔐 接下来授予以下权限，以使用完整功能：\n\n")
+			b.WriteString("接下来授予以下权限，以使用完整功能：\n\n")
 		}
 		for _, s := range steps {
 			mark := " "
@@ -196,13 +194,13 @@ func (p *Panel) connectedText() string {
 	switch {
 	case strings.TrimSpace(p.source) != "" && len(p.modes) > 0 && !p.noteMode():
 		// Text to process comes first; what is left is asked for on use.
-		fmt.Fprintf(&b, "👉 按 ⏎，用「%s」处理上面的文字。\n", p.modes[p.modeIdx].Name)
+		fmt.Fprintf(&b, "**按 ⏎，用「%s」处理上面的文字。**\n", p.modes[p.modeIdx].Name)
 	case next != nil:
-		fmt.Fprintf(&b, "👉 点「授权」或按 ⏎，在打开的系统设置里打开 Kami 的「%s」开关。\n", next.Name)
+		fmt.Fprintf(&b, "**点「授权」或按 ⏎，在打开的系统设置里打开 Kami 的「%s」开关。**\n", next.Name)
 	case restart != "":
-		fmt.Fprintf(&b, "🔄 点「重新启动」或按 ⏎，让%s生效。\n", restart)
+		fmt.Fprintf(&b, "**点「重新启动」或按 ⏎，让%s生效。**\n", restart)
 	default:
-		b.WriteString("🚀 输入或粘贴一段文字，按 ⏎ 试一次。\n")
+		b.WriteString("**输入或粘贴一段文字，按 ⏎ 试一次。**\n")
 	}
 	return b.String()
 }

@@ -243,3 +243,13 @@ func TestOperatorMenuEditClearsArrowChoice(t *testing.T) {
 	}
 	assertMenuClosed(t, oh.harness)
 }
+
+func TestOperatorThemeTopicMatchesBothNames(t *testing.T) {
+	h := newHarness(t, script{})
+	for _, query := range []string{"theme", "主题", "The"} {
+		items := h.p.topicItems(query)
+		if len(items) == 0 || items[0].key != "主题" {
+			t.Errorf("%q: items %v, want the 主题 topic first", query, items)
+		}
+	}
+}

@@ -13,6 +13,9 @@ const (
 	CaptureFade       = 120 * time.Millisecond
 	CaptureHintSize   = 12.5
 	CaptureHintHeight = 34
+	// The hint sits on the veil, so its lift stays tight enough not to smudge it.
+	CaptureHintShadowY    = 1
+	CaptureHintShadowBlur = 3
 )
 
 var (
@@ -24,10 +27,11 @@ var (
 	CaptureAmbient   = ui.Hex("#1A1A1830")
 )
 
-// CaptureHint returns the pill's paper, text, border and two shadows.
-func CaptureHint(dark bool) (ui.Color, ui.Color, ui.Color, ui.Color, ui.Color) {
+// CaptureHint returns the pill's paper, text, border and shadow.
+// The dark pill has no shadow; its border alone separates it from the veil.
+func CaptureHint(dark bool) (fill, text, border, shadow ui.Color) {
 	if dark {
-		return ui.Hex("#262624"), ui.Hex("#C2C2BA"), ui.Hex("#FFFFFF1F"), ui.Hex("#00000040"), ui.Hex("#00000073")
+		return ui.Hex("#262624"), ui.Hex("#C2C2BA"), ui.Hex("#FFFFFF1F"), ui.Transparent
 	}
-	return ui.Hex("#FFFFFF"), ui.Hex("#4E4E49"), CapturePaperEdge, CaptureContact, CaptureAmbient
+	return ui.Hex("#FFFFFF"), ui.Hex("#4E4E49"), CapturePaperEdge, ui.Hex("#0000000D")
 }

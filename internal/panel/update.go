@@ -202,67 +202,30 @@ func (p *Panel) updateView(c *ui.Context, pal *design.Palette) {
 		ui.Text(c, title).FontSize(p.sz.Source).TextColor(pal.Bright)
 		ui.Text(c, rest).FontSize(p.sz.Source).TextColor(pal.Faint)
 	})
-	ui.Divider(c).Background(pal.Border)
-
-	step := func(d int) { p.updateIdx = (p.updateIdx + d + len(choices)) % len(choices) }
-	bar := ui.Row(c.Key("update-bar")).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX-8).Gap(2).Focusable().
-		OnShortcut(0, ui.KeyTab, func() { step(1) }).
-		OnShortcut(ui.Shift, ui.KeyTab, func() { step(-1) }).
-		OnShortcut(0, ui.KeyEnter, func() { choices[p.updateIdx].do(p) }).
-		// Escape puts it off or closes: the second choice, or the only one.
-		OnShortcut(0, ui.KeyEscape, func() { choices[min(1, len(choices)-1)].do(p) })
-	bar.Children(func() {
-		for i, ch := range choices {
-			chip := ui.Box(c.Key("update-" + ch.label)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
-			chip.Children(func() {
-				t := ui.Text(c, ch.label).FontSize(p.sz.Label)
-				switch {
-				case i == p.updateIdx:
-					t.TextColor(pal.Accent).FontWeight(700)
-				case chip.Hovered():
-					t.TextColor(pal.Text)
-				default:
-					t.TextColor(pal.Muted)
-				}
-			})
-			if i == p.updateIdx {
-				chip.Background(pal.Raised)
-			}
-			if chip.Clicked() {
-				p.updateIdx = i
-				ch.do(p)
-			}
-		}
-		ui.Spacer(c)
-		if len(choices) > 1 {
-			p.kbd(c, pal, "tab", "切换")
-		}
-	})
-	if p.focusUpdate {
-		bar.Focus()
-		p.focusUpdate = false
-	}
-	ui.Divider(c).Background(pal.Border)
 
 	if s.checked() {
-		p.filler(c)
 		if s.Phase == UpdateChecking {
 			c.After(150 * time.Millisecond)
 		}
-		return
-	}
-	ui.Scroll(c.Key("update-notes")).Grow(1).Shrink(1).MinHeight(0).TrackScroll(&p.updateScroll).Children(func() {
-		ui.Column(c).PaddingX(design.SpaceX).PaddingY(14).Gap(8).Children(func() {
-			ui.Text(c, "更新内容").FontSize(p.sz.Caption).TextColor(pal.Faint)
-			if s.Notes == "" {
-				ui.Text(c, "这个版本没有更新说明。").FontSize(p.sz.Body).TextColor(pal.Muted)
-				return
-			}
-			p.updateMD.Theme = p.md.Theme
-			markdown.View(c, s.Notes, &p.updateMD)
+		// The filler keeps the bar at the bottom of a taller panel.
+		p.filler(c)
+	} else {
+		ui.Divider(c).Background(pal.Border)
+		// The notes take the room a filler would, so they never share it.
+		ui.Scroll(c.Key("update-notes")).Grow(1).Shrink(1).MinHeight(0).TrackScroll(&p.updateScroll).Children(func() {
+			ui.Column(c).PaddingX(design.SpaceX).PaddingY(14).Gap(8).Children(func() {
+				ui.Text(c, "更新内容").FontSize(p.sz.Caption).TextColor(pal.Faint)
+				if s.Notes == "" {
+					ui.Text(c, "这个版本没有更新说明。").FontSize(p.sz.Body).TextColor(pal.Muted)
+					return
+				}
+				p.updateMD.Theme = p.md.Theme
+				markdown.View(c, s.Notes, &p.updateMD)
+			})
 		})
-	})
-	p.filler(c)
+	}
+	ui.Divider(c).Background(pal.Border)
+	p.updateBar(c, pal, choices)
 
 	switch {
 	case s.Phase == UpdateDownloading:
@@ -276,5 +239,67 @@ func (p *Panel) updateView(c *ui.Context, pal *design.Palette) {
 			p.updateConfirmed = false
 			p.deps.Updates.Restart()
 		}
+	}
+}
+
+// updateBar is the update screen's control bar, at the panel's bottom like
+// the session's: the quiet choices on the left, the default on the right as
+// the run button. Enter takes the choice the keyboard is on.
+func (p *Panel) updateBar(c *ui.Context, pal *design.Palette, choices []updateChoice) {
+	step := func(d int) { p.updateIdx = (p.updateIdx + d + len(choices)) % len(choices) }
+	bar := ui.Row(c.Key("update-bar")).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX-8).Gap(2).Focusable().
+		OnShortcut(0, ui.KeyTab, func() { step(1) }).
+		OnShortcut(ui.Shift, ui.KeyTab, func() { step(-1) }).
+		OnShortcut(0, ui.KeyEnter, func() { choices[p.updateIdx].do(p) }).
+		// Escape puts it off or closes: the second choice, or the only one.
+		OnShortcut(0, ui.KeyEscape, func() { choices[min(1, len(choices)-1)].do(p) })
+	take := func(i int) {
+		p.updateIdx = i
+		choices[i].do(p)
+	}
+	bar.Children(func() {
+		for i := 1; i < len(choices); i++ {
+			ch := choices[i]
+			chip := ui.Box(c.Key("update-" + ch.label)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
+			chip.Children(func() {
+				t := ui.Text(c, ch.label).FontSize(p.sz.Label)
+				switch {
+				case i == p.updateIdx:
+					t.TextColor(pal.Accent)
+				case chip.Hovered():
+					t.TextColor(pal.Text)
+				default:
+					t.TextColor(pal.Muted)
+				}
+			})
+			switch {
+			case i == p.updateIdx:
+				chip.Background(pal.Chosen())
+			case chip.Hovered():
+				chip.Background(pal.Hover())
+			}
+			if chip.Clicked() {
+				take(i)
+			}
+		}
+		ui.Spacer(c)
+		// The return glyph marks where Enter goes; it keeps its width while
+		// the keyboard is on a quiet choice so the button does not shift.
+		glyph := pal.AccentText
+		if p.updateIdx != 0 {
+			glyph = glyph.Alpha(0)
+		}
+		run := ui.Row(c.Key("update-" + choices[0].label)).Gap(6).PaddingX(10).PaddingY(4).Radius(design.RadiusChip).Background(pal.Accent)
+		run.Children(func() {
+			ui.Text(c, "⏎").FontSize(p.sz.Label).TextColor(glyph)
+			ui.Text(c, choices[0].label).FontSize(p.sz.Label).FontWeight(700).TextColor(pal.AccentText)
+		})
+		if run.Clicked() {
+			take(0)
+		}
+	})
+	if p.focusUpdate {
+		bar.Focus()
+		p.focusUpdate = false
 	}
 }

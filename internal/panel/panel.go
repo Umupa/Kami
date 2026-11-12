@@ -73,6 +73,8 @@ type Panel struct {
 	// post runs a function on the main thread and draws a frame: the
 	// window's Update, or a test's queue.
 	post func(func())
+	// hideWindow hides the panel: the window's Hide, or a test's.
+	hideWindow func()
 	// resize sets the window's bounds after the view has been built.
 	resize func(mygo.Rectangle)
 	// writeClipboard copies text, and writeRich HTML with its plain text:
@@ -291,6 +293,7 @@ func New(d Deps) *Panel {
 		Vibrancy:          mygo.VibrancyHUD,
 		Content:           ui.View(p.view),
 	})
+	p.hideWindow = p.win.Hide
 	// Escape and Cmd-W close a panel; hiding keeps its state and shows it
 	// at once the next time.
 	// Quitting must still close it, or the app could not quit.
@@ -360,6 +363,7 @@ func New(d Deps) *Panel {
 // newPanel returns a panel without a window, as tests drive it.
 func newPanel(d Deps) *Panel {
 	p := &Panel{deps: d, list: newList(), post: func(fn func()) { fn() }, resize: func(mygo.Rectangle) {}, writeClipboard: mygo.Clipboard.WriteText, writeRich: writeRich,
+		hideWindow: func() {},
 		background: func(fn func()) { go fn() },
 		openURL:    func(url string) { _ = mygo.Shell.OpenExternal(url) },
 		readImage:  readClipboardImage,
@@ -511,7 +515,7 @@ func (p *Panel) Notify(notice string) {
 }
 
 // Hide hides the panel. A request in progress goes on.
-func (p *Panel) Hide() { p.win.Hide() }
+func (p *Panel) Hide() { p.hideWindow() }
 
 func (p *Panel) applyConfig(c *config.Config) {
 	modes, err := mode.Resolve(c)
@@ -578,6 +582,48 @@ func (p *Panel) run() {
 		return
 	}
 	p.runMaterial()
+}
+
+// runMode switches to the mode at i and, when the source has text and a
+// model is ready, runs it (Cmd-1 through Cmd-9).
+func (p *Panel) runMode(i int) {
+	if p.noteMode() || p.operatorActive() || i < 0 || i >= len(p.modes) {
+		return
+	}
+	p.setMode(i)
+	if p.updating || p.unconfigured() || strings.TrimSpace(p.source) == "" {
+		return
+	}
+	p.run()
+}
+
+// copyAndHide copies the latest reply as Cmd-C does, then hides the panel
+// unless it is pinned (Cmd-Enter).
+func (p *Panel) copyAndHide() {
+	if p.noteMode() || !p.copyableTurn() {
+		return
+	}
+	p.copyTurn(-1)
+	if !p.pinned {
+		p.Hide()
+	}
+}
+
+// copyableTurn reports whether the latest turn has a reply for Cmd-C to
+// copy, and it has finished.
+func (p *Panel) copyableTurn() bool {
+	if p.sess == nil || len(p.sess.Turns) == 0 || p.sess.Busy() {
+		return false
+	}
+	t := p.sess.Last()
+	switch {
+	case p.greeting() && p.unconfigured():
+		return p.agentPrompt() != ""
+	case t.Status == session.Failed && t.Reply == "" && fixable(t.Err):
+		return p.agentPrompt() != ""
+	default:
+		return t.Reply != ""
+	}
 }
 
 // runMaterial starts a session without interpreting source text as commands.

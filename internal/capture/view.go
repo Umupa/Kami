@@ -26,7 +26,7 @@ func abs(v float32) float32 {
 }
 
 const minRegion = 4
-const captureHint = "拖动框选文字 · Esc 取消"
+const captureHint = "框选文字 · esc 取消"
 
 func (c *Capturer) view(ctx *ui.Context) {
 	root := ctx.Root().Background(ui.Transparent)
@@ -95,8 +95,8 @@ func (c *Capturer) view(ctx *ui.Context) {
 		return true
 	})
 	// The label never consumes a press; its entire area belongs to the canvas.
-	fill, text, border, contact, ambient := design.CaptureHint(ctx.Theme().Dark)
-	label := "Kami  │  " + captureHint
+	fill, text, border, shadow := design.CaptureHint(ctx.Theme().Dark)
+	label := captureHint
 	tw, th := ctx.MeasureText(0, ui.Span{Text: label, Size: design.CaptureHintSize})
 	hw, hh := tw+32, max(float32(design.CaptureHintHeight), th+16)
 	y := float32(c.display.WorkArea.Y-c.display.Bounds.Y) + float32(math.Floor(float64(c.display.WorkArea.Height)*design.PanelTopRatio))
@@ -110,8 +110,9 @@ func (c *Capturer) view(ctx *ui.Context) {
 	}
 	hintAlpha := root.AnimateWith([2]uint64{c.generation, 1}, target, design.CaptureFade, ui.CubicBezier(0.33, 1, 0.68, 1))
 	ui.Box(ctx).Label(captureHint).PassThrough().Absolute().Left(c.hint.X).Top(y).Size(hw, hh).Opacity(veilAlpha * hintAlpha).Draw(func(p *ui.Painter, r ui.Rect) {
-		p.Shadow(r, hh/2, 0, 2, 6, 0, contact)
-		p.Shadow(r, hh/2, 0, 28, 72, 0, ambient)
+		if shadow.A > 0 {
+			p.Shadow(r, hh/2, 0, design.CaptureHintShadowY, design.CaptureHintShadowBlur, 0, shadow)
+		}
 		p.Fill(r, fill, hh/2)
 		p.Stroke(r, border, hh/2, 1)
 		p.Text(r.X+16, r.Y+(r.H-th)/2, label, design.CaptureHintSize, text)

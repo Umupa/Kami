@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -56,13 +57,13 @@ func TestFirstRunIsAConversation(t *testing.T) {
 	if !sh.p.greeting() || !strings.Contains(sh.p.sess.Last().Reply, strings.TrimSpace(prompt)) {
 		t.Fatalf("the panel did not answer with the prompt; greeting %v", sh.p.greeting())
 	}
-	if !sh.tt.HasText("欢迎使用 Kami。") || sh.tt.HasText("执行") {
+	sh.snapshot("first-run")
+	if !sh.tt.HasText("按 ⏎ 复制配置提示词") || sh.tt.HasText("执行") {
 		t.Fatalf("texts %q: want the reply, without the run button", sh.tt.Texts())
 	}
 	if _, ok := sh.tt.Find("追问"); ok {
 		t.Error("the app's own reply offers a follow-up")
 	}
-	sh.snapshot("first-run")
 
 	sh.tt.Click("原文")
 	sh.tt.Type("Hello world")
@@ -96,6 +97,27 @@ func TestFirstRunIsAConversation(t *testing.T) {
 	sh.drain()
 	if sh.p.greeting() || sh.p.sess.Last().Reply != "Bonjour" {
 		t.Errorf("Enter after connecting: reply %q, want the model's", sh.p.sess.Last().Reply)
+	}
+}
+
+func TestFirstRunPromptFolds(t *testing.T) {
+	sh := newSetupHarness(t, script{}, `{"version":1}`)
+	sh.tt.Frame()
+	sh.show()
+	sh.tt.Advance(2 * time.Second)
+	prompt := sh.p.agentPrompt()
+	if err := sh.tt.Click("展开"); err != nil {
+		t.Fatalf("%v; texts %q", err, sh.tt.Texts())
+	}
+	sh.snapshot("first-run-expanded")
+	if !sh.tt.HasText("收起") {
+		t.Errorf("texts %q: want the toggle to fold it again", sh.tt.Texts())
+	}
+	if err := sh.tt.Click("复制"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sh.tt.Clipboard(); got != strings.TrimRight(prompt, "\n")+"\n" {
+		t.Errorf("the block copied %d bytes, want the whole prompt", len(got))
 	}
 }
 
@@ -334,7 +356,7 @@ func TestPermissionStepResumesAfterRestart(t *testing.T) {
 	}
 	done.drain()
 	reply = done.p.sess.Last().Reply
-	for _, want := range []string{"🎉 **Kami 已准备就绪**，正在使用 deepseek-chat（api.deepseek.com）。常用操作：", "| `⌥Space` | 打开面板 |", "| 双击 `⌥` | 带入选中的文字，立即翻译 |", "| `⌥S` | 截图识别文字，立即翻译 |", "| `Tab` | 切换模式：翻译、润色、问答、笔记 |", "输入或粘贴一段文字，按 ⏎ 试一次。"} {
+	for _, want := range []string{"**Kami 已准备就绪**，正在使用 deepseek-chat（api.deepseek.com）。常用操作：", "| `⌥Space` | 打开面板 |", "| 双击 `⌥` | 带入选中的文字，立即翻译 |", "| `⌥S` | 截图识别文字，立即翻译 |", "| `Tab` | 切换模式：翻译、润色、问答、笔记 |", "输入或粘贴一段文字，按 ⏎ 试一次。"} {
 		if !strings.Contains(reply, want) {
 			t.Errorf("ready reply lacks %q:\n%s", want, reply)
 		}

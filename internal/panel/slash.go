@@ -27,9 +27,11 @@ const (
 // item is an entry of a menu.
 type item struct {
 	key, title, desc string
-	color            ui.Color   // the key's, zero for the default
-	swatch           []ui.Color // a theme's colors
-	take             func(p *Panel, setText func(string))
+	// alias also matches what is typed, as the English name of a topic.
+	alias  string
+	color  ui.Color   // the key's, zero for the default
+	swatch []ui.Color // a theme's colors
+	take   func(p *Panel, setText func(string))
 }
 
 // themeCommand opens the theme picker. Picking a theme needs no model, so
@@ -99,22 +101,22 @@ func (p *Panel) commandItems(query string, pal *design.Palette) []item {
 
 // topics are what operator mode is most often asked, each a question it
 // answers or, for themes, the picker.
-var topics = []struct{ key, title, ask string }{
-	{"theme", "切换配色主题", ""},
-	{"自定义主题", "改颜色，或基于内置主题新建一套", "基于当前主题新建一套自定义主题之前，先告诉我能改哪些颜色，以及现在每个颜色的值。"},
-	{"模型", "当前使用的模型", "现在用的是哪个模型？"},
-	{"快捷键", "查看或修改全局快捷键", "现在的快捷键有哪些？"},
-	{"模式", "查看模式和完整提示词，增删模式", "列出所有模式，以及每个模式的提示词。"},
-	{"权限", "哪些系统权限还没给", "哪些权限还没给？分别影响什么？"},
-	{"语言", "我的语言和外语", "我的语言和外语分别是什么？"},
-	{"开机启动", "登录时自动打开", "登录时自动打开现在是开着还是关着？"},
-	{"配置模型", "交给 Coding Agent 配置模型服务", "我想配置或更换模型服务。"},
+var topics = []struct{ key, alias, title, ask string }{
+	{"主题", "theme", "切换配色主题", ""},
+	{"自定义主题", "", "改颜色，或基于内置主题新建一套", "基于当前主题新建一套自定义主题之前，先告诉我能改哪些颜色，以及现在每个颜色的值。"},
+	{"模型", "", "当前使用的模型", "现在用的是哪个模型？"},
+	{"快捷键", "", "查看或修改全局快捷键", "现在的快捷键有哪些？"},
+	{"模式", "", "查看模式和完整提示词，增删模式", "列出所有模式，以及每个模式的提示词。"},
+	{"权限", "", "哪些系统权限还没给", "哪些权限还没给？分别影响什么？"},
+	{"语言", "", "我的语言和外语", "我的语言和外语分别是什么？"},
+	{"开机启动", "", "登录时自动打开", "登录时自动打开现在是开着还是关着？"},
+	{"配置模型", "", "交给 Coding Agent 配置模型服务", "我想配置或更换模型服务。"},
 }
 
 func (p *Panel) topicItems(query string) []item {
 	var all []item
 	for _, t := range topics {
-		all = append(all, item{key: t.key, title: t.title, take: func(p *Panel, set func(string)) {
+		all = append(all, item{key: t.key, alias: t.alias, title: t.title, take: func(p *Panel, set func(string)) {
 			if t.ask == "" {
 				set(themeCommand + " ")
 				p.caretToEnd = true
@@ -163,17 +165,17 @@ func takeTheme(name string) func(p *Panel, set func(string)) {
 	}
 }
 
-// filter keeps the items whose key or title has query, those starting with
-// it first.
+// filter keeps the items whose key, alias or title has query, those
+// starting with it first.
 func filter(all []item, query string) []item {
 	q := strings.ToLower(query)
 	var first, rest []item
 	for _, it := range all {
-		key := strings.ToLower(it.key)
+		key, alias := strings.ToLower(it.key), strings.ToLower(it.alias)
 		switch {
-		case strings.HasPrefix(key, q) || strings.HasPrefix(it.title, query):
+		case strings.HasPrefix(key, q) || alias != "" && strings.HasPrefix(alias, q) || strings.HasPrefix(it.title, query):
 			first = append(first, it)
-		case strings.Contains(key, q) || strings.Contains(it.title, query):
+		case strings.Contains(key, q) || alias != "" && strings.Contains(alias, q) || strings.Contains(it.title, query):
 			rest = append(rest, it)
 		}
 	}
@@ -280,13 +282,24 @@ func (p *Panel) menuView(c *ui.Context, pal *design.Palette) {
 			return
 		}
 		sel := min(p.menuIdx, len(items)-1)
+		// The chosen row reads as the notes list's; operator's topics take
+		// its own tint.
+		chosen, bar := pal.Chosen(), pal.Accent
+		if kind == menuTopics {
+			chosen, bar = pal.OperatorFill, pal.Operator
+		}
 		list := ui.Scroll(c.Key("items")).MaxHeight(260).Gap(1)
 		list.Children(func() {
 			for i, it := range items {
 				row := ui.Row(c.Key(it.key)).Gap(10).Padding(6, 10).Radius(design.RadiusChip)
-				if i == sel {
-					row.Background(pal.Raised)
+				switch {
+				case i == sel:
+					row.Background(chosen).BorderStartWidth(2).BorderColor(bar)
 					row.ScrollIntoView()
+				case row.Hovered():
+					row.Background(pal.Hover()).BorderStartWidth(2).BorderColor(bar.Alpha(0))
+				default:
+					row.BorderStartWidth(2).BorderColor(bar.Alpha(0))
 				}
 				row.Children(func() {
 					color := it.color

@@ -308,14 +308,14 @@ func TestStaleAfterEditingSource(t *testing.T) {
 	h.tt.Type("first")
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
-	if h.tt.HasText("原文已改") {
-		t.Error("fresh result marked stale")
+	if h.tt.HasText("执行") {
+		t.Error("fresh result offers to run again")
 	}
 	h.tt.Click("原文")
 	h.tt.Type(" more")
 	h.tt.Frame()
-	if !h.tt.HasText("原文已改") {
-		t.Error("result not marked stale after the source changed")
+	if !h.tt.HasText("执行") {
+		t.Error("no run button after the source changed")
 	}
 	if h.p.sess.Busy() {
 		t.Error("an edit started a request on its own")
@@ -360,8 +360,8 @@ func TestEachModeKeepsItsResult(t *testing.T) {
 	if !h.tt.HasText("润色的结果") || h.tt.HasText("其他模式的结果") {
 		t.Errorf("back in improve: %q", h.tt.Texts())
 	}
-	if h.tt.HasText("原文已改") {
-		t.Error("improve's own result marked stale")
+	if h.tt.HasText("执行") {
+		t.Error("improve's own result offers to run again")
 	}
 
 	// A new source marks every mode's result stale.
@@ -369,8 +369,8 @@ func TestEachModeKeepsItsResult(t *testing.T) {
 	h.tt.Type(" more")
 	h.tt.Key(0, ui.KeyTab)
 	h.tt.Frame()
-	if !h.tt.HasText("原文已改") {
-		t.Error("a result for the earlier source not marked stale")
+	if !h.tt.HasText("执行") {
+		t.Error("no run button for a result of the earlier source")
 	}
 }
 
@@ -564,9 +564,12 @@ func TestLongReplyKeepsSourceAndBar(t *testing.T) {
 	h.tt.Key(0, ui.KeyEnter)
 	h.drain()
 	h.tt.Frame()
-	bar, _ := h.tt.Find("执行")
-	if bar.Y < 50 {
-		t.Errorf("the mode bar is at %v: the source above it was squeezed by a long reply", bar)
+	if src := h.p.sourceBox.H; src < h.p.minSourceHeight()-0.5 {
+		t.Errorf("the source is %g high: it was squeezed by a long reply", src)
+	}
+	bar, ok := h.tt.Find("追问")
+	if !ok || bar.Y+bar.H > float32(h.p.height) {
+		t.Errorf("the control bar is at %v, out of a panel %d high", bar, h.p.height)
 	}
 	h.snapshot("long-reply")
 }

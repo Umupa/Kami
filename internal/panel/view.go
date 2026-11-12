@@ -13,6 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/egoist/mygo/ui/markdown/parser"
+	"github.com/egoist/mygo/ui/shader"
 
 	"github.com/Umupa/Kami/internal/config"
 	"github.com/Umupa/Kami/internal/design"
@@ -42,8 +43,13 @@ func (p *Panel) view(c *ui.Context) {
 	if key := (mdKey{pal, p.sz.Body}); p.mdFor != key {
 		p.md.Theme, p.mdFor = design.Markdown(pal, p.sz.Body), key
 	}
-	// The prompt in the app's own reply is read whole, not scrolled across.
+	// The prompt in the app's own reply is handed on, not read: folded, and
+	// wrapped rather than scrolled across when shown whole.
 	p.md.WrapCode = p.greeting()
+	p.md.CodeBlock = nil
+	if p.greeting() {
+		p.md.CodeBlock = design.FoldCode(p.md.Theme, design.FoldLines)
+	}
 	c.Root().Background(ui.Transparent)
 	c.OnShortcut(ui.Cmd, ui.KeyEqual, func() { p.stepFontSize(1) })
 	c.OnShortcut(ui.Cmd, ui.KeyMinus, func() { p.stepFontSize(-1) })
@@ -64,6 +70,10 @@ func (p *Panel) view(c *ui.Context) {
 		c.OnShortcut(ui.Cmd, ui.KeyPeriod, p.stop)
 		c.OnShortcut(ui.Cmd, ui.KeyN, p.reset)
 		c.OnShortcut(ui.Cmd, ui.KeyJ, func() { p.switchInput(c) })
+		for i := 0; i < 9; i++ {
+			c.OnShortcut(ui.Cmd, ui.Key1+ui.Key(i), func() { p.runMode(i) })
+		}
+		c.OnShortcut(ui.Cmd, ui.KeyEnter, p.copyAndHide)
 		// Cmd-C copies the latest reply, unless the focused input has a
 		// selection, which it copies itself.
 		c.OnShortcut(ui.Cmd, ui.KeyC, func() { p.copyTurn(-1) })
@@ -97,10 +107,10 @@ func (p *Panel) view(c *ui.Context) {
 		case shown > 0:
 			// The content is at least as tall as the panel holds and the
 			// window is, the filler taking what it has to spare, so that
-			// the bar or the follow-up line keeps to the bottom. With a
+			// the control bar keeps to the bottom. With a
 			// result, it keeps within the window too, not yet resized,
 			// which AppKit does later when busy: the result gives way, its
-			// scroll range telling how much, and the follow-up line stays
+			// scroll range telling how much, and the control bar stays
 			// in view.
 			if p.sess != nil && !p.noteMode() {
 				content.Height(min(shown, windowH, maxHeight))
@@ -132,40 +142,33 @@ func (p *Panel) view(c *ui.Context) {
 				p.noteView(c, pal)
 				p.filler(c)
 				ui.Divider(c).Background(pal.Border)
-				p.modeBar(c, pal)
+				p.controlBar(c, pal)
 				return
 			}
+			// Content above, controls below: the bar is always the last
+			// row, so the run button and the pin keep their place as a
+			// result comes; the splitter alone parts the source and it.
 			p.sourceView(c, pal)
 			p.menuView(c, pal)
 			if p.sess == nil {
 				p.filler(c)
 			}
 			p.splitter(c, pal)
-			// Once an operator request is under way, the source says the
-			// mode and the follow-up line goes on; the bar would only
-			// repeat them.
-			bar := !p.operatorSession()
-			if bar {
-				p.modeBar(c, pal)
+			if p.sess != nil {
+				p.resultView(c, pal)
+				p.filler(c)
 			}
 			if p.notice != "" {
-				ui.Divider(c).Background(pal.Border)
+				if p.sess != nil {
+					ui.Divider(c).Background(pal.Border)
+				}
 				ui.Text(c, p.notice).FontSize(p.sz.Label).TextColor(pal.Muted).
 					PaddingX(design.SpaceX).PaddingY(12)
 			}
-			if p.sess != nil {
-				if bar {
-					ui.Divider(c).Background(pal.Border)
-				}
-				p.resultView(c, pal)
-				p.filler(c)
-				// The app's own reply about its model has nothing to
-				// follow up on.
-				if !p.greeting() {
-					ui.Divider(c).Background(pal.Border)
-					p.followView(c, pal)
-				}
+			if p.sess != nil || p.notice != "" {
+				ui.Divider(c).Background(pal.Border)
 			}
+			p.controlBar(c, pal)
 		})
 	})
 }
@@ -250,8 +253,7 @@ func (p *Panel) target() float32 {
 }
 
 // filler takes the height the panel holds beyond its content, under what
-// would otherwise grow into it, and keeps the bar or the follow-up line at
-// the bottom.
+// would otherwise grow into it, and keeps the control bar at the bottom.
 func (p *Panel) filler(c *ui.Context) {
 	// A result or note fills a fixed panel itself; a source still needs
 	// the filler to keep the control bar at the bottom.
@@ -301,6 +303,12 @@ func (p *Panel) sourceView(c *ui.Context, pal *design.Palette) {
 			switch {
 			case k.Key == ui.KeyEnter && k.Mods == 0:
 				p.run()
+				return true
+			case k.Key == ui.KeyEnter && k.Mods == ui.Cmd:
+				p.copyAndHide()
+				return true
+			case k.Key >= ui.Key1 && k.Key <= ui.Key9 && k.Mods == ui.Cmd:
+				p.runMode(int(k.Key - ui.Key1))
 				return true
 			case k.Key == ui.KeyTab && k.Mods == 0:
 				p.cycleMode(1)
@@ -396,70 +404,94 @@ func (p *Panel) cycleMode(step int) {
 	p.setMode((p.modeIdx + step + n) % n)
 }
 
-func (p *Panel) modeBar(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).Children(func() {
-		if p.operatorActive() && !p.noteMode() {
-			p.operatorPill(c, pal)
+// controlBar is the panel's last row in every state. Each control sits in
+// a slot as tall as the bar; the follow-up input grows the row as it wraps,
+// and the slots keep to its bottom. The pin is always last, the run button
+// just before it, so neither moves as a result comes.
+func (p *Panel) controlBar(c *ui.Context, pal *design.Palette) {
+	ui.Row(c.Key("bar")).MinHeight(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).AlignItems(ui.End).Children(func() {
+		switch {
+		case p.noteMode():
+			p.barSlot(c, func() { p.modeTabs(c, pal, false) })
 			ui.Spacer(c)
-			p.pinButton(c, pal)
-			p.runButton(c, pal)
-			return
-		}
-		ui.ScrollHorizontal(c).Shrink(1).Children(func() {
-			ui.Row(c).Gap(2).Children(func() {
-				for i, m := range p.modes {
-					name := m.Name
-					if m.ID == "translate" && i == p.modeIdx {
-						if to := p.translateTarget(); to != "" {
-							name += " → " + to
-						}
-					}
-					chip := ui.Box(c.Key(m.ID)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
-					chip.Children(func() {
-						t := ui.Text(c, name).FontSize(p.sz.Label)
-						switch {
-						case i == p.modeIdx:
-							t.TextColor(pal.Accent).FontWeight(700)
-						case chip.Hovered():
-							t.TextColor(pal.Text)
-						default:
-							t.TextColor(pal.Muted)
-						}
-					})
-					if i == p.modeIdx {
-						chip.Background(pal.Raised)
-					}
-					if chip.Clicked() {
-						p.setMode(i)
-						p.sourceIn.Focus()
-					}
+			p.barSlot(c, func() { p.noteBar(c, pal) })
+		case p.operatorSession():
+			p.barSlot(c, func() { p.operatorPill(c, pal) })
+			p.followInput(c, pal)
+			p.barSlot(c, func() { p.latestActions(c, pal) })
+		case p.operatorActive():
+			p.barSlot(c, func() { p.operatorPill(c, pal) })
+			ui.Spacer(c)
+			p.barSlot(c, func() { p.runButton(c, pal) })
+		case p.sess == nil || p.greeting():
+			p.barSlot(c, func() { p.modeTabs(c, pal, false) })
+			ui.Spacer(c)
+			p.barSlot(c, func() {
+				if p.sess == nil && p.source == "" {
+					p.kbd(c, pal, "tab", "模式")
 				}
-				p.notesChip(c, pal)
+				p.latestActions(c, pal)
+				p.fitButton(c, pal)
+				p.runButton(c, pal)
 			})
-		})
-		ui.Spacer(c)
-		if p.noteMode() {
-			p.noteBar(c, pal)
-			p.pinButton(c, pal)
-			return
+		default:
+			p.barSlot(c, func() { p.modeTabs(c, pal, true) })
+			p.followInput(c, pal)
+			p.barSlot(c, func() {
+				p.latestActions(c, pal)
+				p.fitButton(c, pal)
+				// A result of another source or mode, or an operator
+				// session the source has left: the next step is to run,
+				// in the button's place before the result.
+				if p.stale() || p.sess.Operator {
+					p.runButton(c, pal)
+				}
+			})
 		}
-		p.pinButton(c, pal)
-		p.fitButton(c, pal)
-		p.themeButton(c, pal)
-		p.kbd(c, pal, "tab", "模式")
-		p.runButton(c, pal)
+		p.barSlot(c, func() { p.pinButton(c, pal) })
 	})
 }
 
-// notesChip is the tab of notes mode, after the modes.
-func (p *Panel) notesChip(c *ui.Context, pal *design.Palette) {
-	chip := ui.Box(c.Key("notes")).PaddingX(8).PaddingY(4).Radius(design.RadiusChip).MarginStart(6)
-	on := p.noteMode()
+// barSlot is a group of the bar's controls, centered in a bar's height.
+func (p *Panel) barSlot(c *ui.Context, children func()) {
+	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).Gap(2).Children(children)
+}
+
+// modeTabs are the modes and notes; beside the follow-up input they take
+// at most a share of the width and scroll, so the input keeps its room.
+func (p *Panel) modeTabs(c *ui.Context, pal *design.Palette, beside bool) {
+	tabs := ui.ScrollHorizontal(c).Shrink(1)
+	if beside {
+		w, _ := c.Size()
+		tabs.MaxWidth(w * design.ModeTabsMaxRatio)
+	}
+	tabs.Children(func() {
+		ui.Row(c).Gap(2).Children(func() {
+			for i, m := range p.modes {
+				name := m.Name
+				if m.ID == "translate" && i == p.modeIdx {
+					if to := p.translateTarget(); to != "" {
+						name += " → " + to
+					}
+				}
+				if p.tab(c, pal, m.ID, name, i == p.modeIdx) {
+					p.setMode(i)
+					p.sourceIn.Focus()
+				}
+			}
+			p.notesChip(c, pal)
+		})
+	})
+}
+
+// tab is one mode's chip, reporting a click.
+func (p *Panel) tab(c *ui.Context, pal *design.Palette, key, name string, on bool) bool {
+	chip := ui.Box(c.Key(key)).PaddingX(8).PaddingY(4).Radius(design.RadiusChip)
 	chip.Children(func() {
-		t := ui.Text(c, "笔记").FontSize(p.sz.Label)
+		t := ui.Text(c, name).FontSize(p.sz.Label)
 		switch {
 		case on:
-			t.TextColor(pal.Accent).FontWeight(700)
+			t.TextColor(pal.Accent)
 		case chip.Hovered():
 			t.TextColor(pal.Text)
 		default:
@@ -467,9 +499,18 @@ func (p *Panel) notesChip(c *ui.Context, pal *design.Palette) {
 		}
 	})
 	if on {
-		chip.Background(pal.Raised)
+		chip.Background(pal.Chosen())
 	}
-	if chip.Clicked() && !on {
+	if key == "notes" {
+		chip.MarginStart(6)
+	}
+	return chip.Clicked()
+}
+
+// notesChip is the tab of notes mode, after the modes.
+func (p *Panel) notesChip(c *ui.Context, pal *design.Palette) {
+	on := p.noteMode()
+	if p.tab(c, pal, "notes", "笔记", on) && !on {
 		p.setMode(len(p.modes))
 	}
 }
@@ -491,7 +532,7 @@ func (p *Panel) pinButton(c *ui.Context, pal *design.Palette) {
 	if p.pinned {
 		label = "取消固定 ⌘⇧P"
 	}
-	b := ui.Box(c.Key("pin")).Padding(4).MarginEnd(6).Radius(design.RadiusChip).Label(label).Tooltip(label)
+	b := ui.Box(c.Key("pin")).Padding(4).Radius(design.RadiusChip).Label(label).Tooltip(label)
 	col := pal.Faint
 	switch {
 	case p.pinned:
@@ -514,29 +555,7 @@ func (p *Panel) fitButton(c *ui.Context, pal *design.Palette) {
 	if p.fits() {
 		return
 	}
-	p.iconButton(c, pal, "fit-height", fitIcon, "适应内容 ⌥⌘0", pal.Faint, p.fitHeight).MarginEnd(6)
-}
-
-// themeButton opens the theme picker.
-func (p *Panel) themeButton(c *ui.Context, pal *design.Palette) {
-	name := "auto"
-	if p.cfg != nil {
-		name = p.cfg.Theme
-	}
-	b := ui.Row(c.Key("theme")).Gap(5).PaddingX(6).PaddingY(3).MarginEnd(10).Radius(design.RadiusChip).Label("切换主题")
-	b.Children(func() {
-		ui.Text(c, "◐").FontSize(p.sz.Label).TextColor(pal.Accent)
-		col := pal.Faint
-		if b.Hovered() {
-			col = pal.Text
-		}
-		ui.Text(c, name).FontSize(p.sz.Caption).TextColor(col)
-	})
-	if b.Clicked() {
-		p.source = themeCommand + " "
-		p.caretToEnd = true
-		p.sourceIn.Focus()
-	}
+	p.iconButton(c, pal, "fit-height", fitIcon, "适应内容 ⌥⌘0", pal.Faint, p.fitHeight)
 }
 
 // runButton runs the source; in operator mode it takes the pill's colors,
@@ -554,7 +573,7 @@ func (p *Panel) runButton(c *ui.Context, pal *design.Palette) {
 	if step := p.stepLabel(); step != "" {
 		label = step
 	}
-	run := ui.Row(c.Key("run")).Gap(6).PaddingX(10).PaddingY(4).Radius(design.RadiusChip).Background(fill)
+	run := ui.Row(c.Key("run")).Gap(6).PaddingX(10).PaddingY(4).MarginStart(4).MarginEnd(4).Radius(design.RadiusChip).Background(fill)
 	run.Children(func() {
 		ui.Text(c, "⏎").FontSize(p.sz.Label).TextColor(text)
 		ui.Text(c, label).FontSize(p.sz.Label).FontWeight(700).TextColor(text)
@@ -602,19 +621,68 @@ func (p *Panel) resultView(c *ui.Context, pal *design.Palette) {
 		list := ui.List(c, &p.list.ListState, len(p.sess.Turns), func(i int) {
 			p.turnView(c, pal, i)
 		}).Fill().PaddingX(design.SpaceX).PaddingY(design.SpaceResultY).Gap(design.SpaceTurns).TrackScroll(&p.list.scroll)
+		p.fadeEdges(list)
 		p.sparkle(c, list, pal)
 		if p.list.FollowEnd && !p.list.AtEnd() {
-			// Back to the latest, and following it again.
-			jump := ui.Box(c.Key("latest")).PaddingX(9).PaddingY(4).Radius(design.RadiusChip).Label("回到底部").
-				Background(pal.Raised).Border(1, pal.Border).Attach(ui.AnchorBottom, ui.AnchorBottom).Bottom(10)
-			jump.Children(func() {
-				ui.Text(c, "↓").FontSize(p.sz.Caption).TextColor(pal.Bright)
-			})
-			if jump.Clicked() {
-				p.list.ScrollToEnd()
-			}
+			p.jumpButton(c, pal)
 		}
 	})
+}
+
+// edgeFade masks the result's content toward transparent along the edges
+// where scrolling cuts it, so that whatever is behind, the panel's tint or
+// the blurred desktop through it, shows as it does elsewhere: a color
+// painted over the edge would thicken a translucent background into a band.
+var edgeFade = shader.MustCompile(`package main
+
+var Top float
+var Bottom float
+
+func ColorEffect(pos vec2, color vec4) vec4 {
+	a := 1.0
+	if Top > 0 {
+		a *= smoothstep(0, Top, pos.y)
+	}
+	if Bottom > 0 {
+		a *= smoothstep(0, Bottom, rectSize().y-pos.y)
+	}
+	return color * a
+}
+`)
+
+// fadeEdges fades the result's top while content is scrolled above it, and
+// its bottom while content continues below; an edge cutting nothing stays.
+func (p *Panel) fadeEdges(list ui.Element) {
+	var top, bottom float32
+	if s := p.list.scroll; s.MaxY > 0.5 {
+		if s.Y > 0.5 {
+			top = design.ResultFade
+		}
+		if s.Y < s.MaxY-0.5 {
+			bottom = design.ResultFade
+		}
+	}
+	if top == 0 && bottom == 0 {
+		return
+	}
+	list.Effect(edgeFade.Effect(shader.Options{Uniforms: map[string]any{"Top": top, "Bottom": bottom}}))
+}
+
+// jumpButton goes back to the latest, and follows it again.
+func (p *Panel) jumpButton(c *ui.Context, pal *design.Palette) {
+	jump := ui.Box(c.Key("latest")).Size(design.JumpSize, design.JumpSize).Radius(design.JumpSize/2).
+		Center().Label("回到底部").
+		Background(pal.Background).Border(1, pal.Border).Attach(ui.AnchorBottom, ui.AnchorBottom).Bottom(10)
+	arrow := pal.Muted
+	if jump.Hovered() {
+		arrow = pal.Text
+	}
+	jump.Children(func() {
+		ui.Text(c, "↓").FontSize(p.sz.Caption).TextColor(arrow)
+	})
+	if jump.Clicked() {
+		p.list.ScrollToEnd()
+	}
 }
 
 func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
@@ -655,11 +723,33 @@ func (p *Panel) turnView(c *ui.Context, pal *design.Palette, i int) {
 			markdown.Stream(c, operator.Visible(t.Reply), &p.md)
 		case t.Status == session.Streaming:
 			markdown.Stream(c, t.Reply, &p.md)
-		default:
+		case t.Reply != "":
 			markdown.View(c, t.Reply, &p.md)
 		}
-		last := i == len(p.sess.Turns)-1
-		p.turnFooter(c, pal, i, last || turn.Hovered())
+		p.turnNotes(c, pal, i)
+		if t.Status == session.Failed {
+			p.failure(c, pal, i)
+		}
+		if i < len(p.sess.Turns)-1 && turn.Hovered() && t.Reply != "" && t.Status != session.Streaming {
+			p.turnActions(c, pal, i)
+		}
+	})
+}
+
+// turnActions are a historical turn's actions, shown while the pointer is
+// over it, floating in its top right corner: out of the layout, so that
+// scrolling under the pointer neither resizes rows nor moves text. The
+// latest turn's are in the control bar.
+func (p *Panel) turnActions(c *ui.Context, pal *design.Palette, i int) {
+	t := &p.sess.Turns[i]
+	ui.Row(c.Key("actions")).Gap(2).Padding(2).Radius(design.RadiusChip).
+		Background(pal.Background).Border(1, pal.Border).
+		Attach(ui.AnchorTopRight, ui.AnchorTopRight).Children(func() {
+		if t.Undoable {
+			p.iconButton(c, pal, "undo", undoIcon, "撤销这次修改 ⌘Z", pal.Operator, func() { p.undoOperator() })
+		}
+		p.copyAs(c, pal, t)
+		p.copyButton(c, pal, i, "复制 Markdown")
 	})
 }
 
@@ -674,57 +764,14 @@ func (p *Panel) thinking(c *ui.Context, pal *design.Palette) {
 	})
 }
 
-// turnFooter reserves its height even when the historical turn's actions
-// are hidden: scrolling under the pointer must not resize list rows.
-func (p *Panel) turnFooter(c *ui.Context, pal *design.Palette, i int, visible bool) {
-	t := &p.sess.Turns[i]
-	last := i == len(p.sess.Turns)-1
-	ui.Row(c.Key("footer")).Gap(2).Height(p.sz.Label + 14).Children(func() {
-		if !visible {
-			return
-		}
-		var notes []string
-		if t.Dropped > 0 {
-			notes = append(notes, fmt.Sprintf("省略了之前 %d 轮", t.Dropped))
-		}
-		if t.Parts > 1 {
-			notes = append(notes, fmt.Sprintf("分 %d 段处理", t.Parts))
-		}
-		if len(notes) > 0 {
-			ui.Text(c, strings.Join(notes, " · ")).FontSize(p.sz.Caption).TextColor(pal.Faint)
-		}
-		if last && p.stale() {
-			ui.Text(c, "原文已改").FontSize(p.sz.Caption).TextColor(pal.Sparkle).MarginStart(8)
-		}
-		ui.Spacer(c)
-		if t.Status == session.Streaming || t.Reply == "" {
-			return
-		}
-		if t.Undoable {
-			p.iconButton(c, pal, "undo", undoIcon, "撤销这次修改 ⌘Z", pal.Operator, func() { p.undoOperator() })
-		}
-		if last && !t.Local {
-			p.iconButton(c, pal, "retry", retryIcon, "重新生成", pal.Muted, p.retry)
-		}
-		if !p.greeting() {
-			p.copyAs(c, pal, t)
-		}
-		icon, tip, col := copyIcon, "复制 Markdown", pal.Muted
-		if p.greeting() && p.unconfigured() {
-			tip = "复制配置提示词"
-		}
-		if last {
-			tip += " ⌘C"
-		}
-		if p.copiedTurn == i && c.Now().Sub(p.copiedAt) < design.MotionCopiedHold {
-			icon, tip, col = checkIcon, "已复制", pal.Code
-			c.After(design.MotionCopiedHold)
-		}
-		p.iconButton(c, pal, "copy", icon, tip, col, func() { p.copyTurn(i) })
-	})
-	if t.Status == session.Failed {
-		p.failure(c, pal, i)
+// copyButton copies turn i, and says so for a moment.
+func (p *Panel) copyButton(c *ui.Context, pal *design.Palette, i int, tip string) {
+	icon, col := copyIcon, pal.Muted
+	if p.copiedTurn == i && c.Now().Sub(p.copiedAt) < design.MotionCopiedHold {
+		icon, tip, col = checkIcon, "已复制", pal.Code
+		c.After(design.MotionCopiedHold)
 	}
+	p.iconButton(c, pal, "copy", icon, tip, col, func() { p.copyTurn(i) })
 }
 
 // failure says why a turn failed and what to do next. A rejection that the
@@ -822,14 +869,21 @@ func failureText(err error) (title, next string) {
 	return "请求没有完成。", "重试 ⏎"
 }
 
-// followView is the follow-up line.
-func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
-	ui.Row(c).Shrink(0).PaddingX(design.SpaceX).PaddingY(11).Gap(8).AlignItems(ui.Start).Children(func() {
+// followInput is the follow-up, in the control bar between the modes and
+// the latest turn's actions. Its padding centers one line in the bar's
+// height; as it wraps to four lines the bar grows with it.
+func (p *Panel) followInput(c *ui.Context, pal *design.Palette) {
+	line := p.sz.Body * design.LineHeightSource
+	pad := max((design.ControlBarHeight-line)/2, 4)
+	// A rule parts the modes, or the operator pill, from the prompt.
+	p.barSlot(c, func() { ui.Box(c).Width(1).Height(16).MarginX(8).Background(pal.Border) })
+	ui.Row(c).Grow(1).Shrink(1).MinWidth(0).PaddingEnd(4).PaddingY(pad).Gap(8).AlignItems(ui.Start).Children(func() {
 		prompt := pal.Faint
 		if p.followIn.Focused(c) {
 			prompt = pal.Accent
 		}
-		ui.Text(c, "❯").FontSize(p.sz.Body).FontWeight(700).TextColor(prompt)
+		// The input's line height, so the prompt sits on its first line.
+		ui.Text(c, "❯").FontSize(p.sz.Body).LineHeight(design.LineHeightSource).FontWeight(700).TextColor(prompt)
 		in := ui.TextAreaBase(c.Key("follow"), &p.follow).Bind(&p.followIn).Grow(1).
 			Lines(1, 4).Placeholder("追问…").Label("追问").
 			FontSize(p.sz.Body).LineHeight(design.LineHeightSource).TextColor(pal.Bright).
@@ -838,6 +892,12 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 				case k.Key == ui.KeyEnter && k.Mods == 0:
 					p.follow = k.Text()
 					p.send()
+					return true
+				case k.Key == ui.KeyEnter && k.Mods == ui.Cmd:
+					p.copyAndHide()
+					return true
+				case k.Key >= ui.Key1 && k.Key <= ui.Key9 && k.Mods == ui.Cmd:
+					p.runMode(int(k.Key - ui.Key1))
 					return true
 				case k.Key == ui.KeyC && k.Mods == ui.Cmd && !p.followSelected:
 					p.copyTurn(-1)
@@ -849,8 +909,50 @@ func (p *Panel) followView(c *ui.Context, pal *design.Palette) {
 			})
 		start, end := in.TextSelection()
 		p.followSelected = start != end
-		p.kbd(c, pal, "⌘J", "切换")
 	})
+}
+
+// latestActions are the latest turn's icons, in the control bar: undo,
+// regenerate, the copy menu and copy (Cmd-C). They show once its reply is
+// done.
+func (p *Panel) latestActions(c *ui.Context, pal *design.Palette) {
+	if p.sess == nil || len(p.sess.Turns) == 0 {
+		return
+	}
+	i := len(p.sess.Turns) - 1
+	t := &p.sess.Turns[i]
+	if t.Status == session.Streaming || t.Reply == "" {
+		return
+	}
+	if t.Undoable {
+		p.iconButton(c, pal, "undo", undoIcon, "撤销这次修改 ⌘Z", pal.Operator, func() { p.undoOperator() })
+	}
+	if !t.Local {
+		p.iconButton(c, pal, "retry", retryIcon, "重新生成", pal.Muted, p.retry)
+	}
+	if !p.greeting() {
+		p.copyAs(c, pal, t)
+	}
+	tip := "复制 Markdown ⌘C"
+	if p.greeting() && p.unconfigured() {
+		tip = "复制配置提示词 ⌘C"
+	}
+	p.copyButton(c, pal, i, tip)
+}
+
+// turnNotes says how a turn was sent, under its reply.
+func (p *Panel) turnNotes(c *ui.Context, pal *design.Palette, i int) {
+	t := &p.sess.Turns[i]
+	var notes []string
+	if t.Dropped > 0 {
+		notes = append(notes, fmt.Sprintf("省略了之前 %d 轮", t.Dropped))
+	}
+	if t.Parts > 1 {
+		notes = append(notes, fmt.Sprintf("分 %d 段处理", t.Parts))
+	}
+	if len(notes) > 0 {
+		ui.Text(c, strings.Join(notes, " · ")).FontSize(p.sz.Caption).TextColor(pal.Faint)
+	}
 }
 
 // copyTurn copies a turn's reply as Markdown; -1 is the latest turn. With

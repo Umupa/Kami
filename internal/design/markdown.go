@@ -1,6 +1,8 @@
 package design
 
 import (
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
@@ -80,3 +82,60 @@ func Syntax(p *Palette) *editor.Theme {
 	set(editor.TokenDeleted, p.Danger)
 	return t
 }
+
+// FoldCode builds code blocks of more than lines lines folded to their
+// first lines, fading into the block, with a toggle below to show them
+// whole. It is for text handed on rather than read; copying a block still
+// copies all of it.
+func FoldCode(th *markdown.Theme, lines int) func(c *ui.Context, b *markdown.CodeBlockView) {
+	return func(c *ui.Context, b *markdown.CodeBlockView) {
+		if strings.Count(strings.TrimRight(b.Code(), "\n"), "\n")+1 <= lines+1 {
+			markdown.DefaultCodeBlock(c, b)
+			return
+		}
+		col := ui.Column(c).AlignSelf(ui.Stretch).Gap(th.FontSize * 0.35)
+		open := ui.Local(col, "open", func() bool { return false })
+		col.Children(func() {
+			em := func(v float32) float32 { return v * th.FontSize }
+			box := ui.Column(c).Background(th.CodeBlockBackground).Border(1, th.CodeBlockBorder).Radius(th.CodeBlockRadius).AlignSelf(ui.Stretch).Clip()
+			box.Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Padding(em(0.35), em(0.4), 0, em(th.CodeBlockPadding)).Children(func() {
+					ui.Text(c, b.Language).FontSize(em(0.8)).TextColor(th.Muted).Unselectable()
+					ui.Spacer(c)
+					b.CopyButton(c)
+				})
+				if *open {
+					b.Body(c)
+					return
+				}
+				// The top padding of the body and the lines shown.
+				line := em(th.CodeSize) * th.CodeLineHeight
+				body := ui.Column(c).AlignSelf(ui.Stretch).Height(em(0.25) + float32(lines)*line).Clip()
+				body.Children(func() {
+					b.Body(c)
+					ui.Box(c).PassThrough().Absolute().Left(0).Right(0).Bottom(0).Height(2*line).
+						Gradient(th.CodeBlockBackground.Alpha(0), th.CodeBlockBackground, 180)
+				})
+			})
+			label := "展开"
+			if *open {
+				label = "收起"
+			}
+			// No side padding: the label lines up with the text and the block.
+			btn := ui.ButtonBase(c).AlignSelf(ui.Start).Padding(em(0.1), 0).Label(label)
+			color := th.Muted
+			if btn.Hovered() {
+				color = th.Text
+			}
+			btn.Children(func() {
+				ui.Text(c, label).FontSize(em(0.85)).TextColor(color)
+			})
+			if btn.Clicked() {
+				*open = !*open
+			}
+		})
+	}
+}
+
+// FoldLines is how many lines a folded code block shows.
+const FoldLines = 4

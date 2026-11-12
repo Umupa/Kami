@@ -158,7 +158,7 @@ SSE 字节流 ─► 解析器 ─► 文本增量 ─► session 追加（主�
 **高度**（F1.3）。内容区最后一个子元素之后（`DrawOver`）调用 `fit`，量出内容自身的高度 `natural`；`least` 记下本次会话到过的最高值（只长不缩），笔记模式用 `noteH` 代替。几条约束：
 
 - 窗口一步到目标高度，不逐帧滑动：每次改窗口尺寸，在新尺寸的一帧画出之前，图层会拉伸或平移上一帧（`contentsGravity` 为 resize，顶边固定而原点在左下），逐帧改尺寸会让整个面板闪烁。
-- 窗口改尺寸是异步的。请求经 `heightSetter` 串行发出，只发最新的高度，避免连续的请求在主线程乱序落地；有结果时内容区高度取 `least` 与窗口实际高度中较小的，结果区让位，追问栏始终在窗口内。
+- 窗口改尺寸是异步的。请求经 `heightSetter` 串行发出，只发最新的高度，避免连续的请求在主线程乱序落地；有结果时内容区高度取 `least` 与窗口实际高度中较小的，结果区让位，控制条始终在窗口内。
 - 多出的空间由填充块（`filler`）吸收，`natural` 必须扣除它，也不能把列表上一帧的临时滚动范围算作内容，否则「适应内容」会反复显隐并推移图钉。
 - 手动高度的识别：窗口报告的高度落在最近 1 秒内应用请求过的高度范围里时算应用自己的，否则算用户的，之后由 `fixedHeight` 接管；`fitHeight`（⌥⌘0）收回到 `natural`。更新界面显示时暂时不管 `fixedHeight`，面板随更新内容增高，关闭后回到用户的高度。`reset`、`Import`、`importCaptured` 清零 `least`。上限由 `placeOn` 取可见高度 70% 与 `design.PanelMaxHeight` 中较小的。
 - 原文分隔线：`minSourceHeight` 按当前字号 × 行高系数 + 留白计算，保证光标整行放得下；`clampSource` 在拖动和每帧布局时用可用高度减去原文下方不让位的部分（`underSource`），有会话时再留 `minResult`。布局只约束显示高度，`sourceHeight` 保留用户的值，窗口变高或字号缩回时恢复。
@@ -285,16 +285,16 @@ MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size conten
 
 ## 十二、首次使用
 
-引导是结果区里 Kami 自己的回复（F13），走和模型回复相同的会话、Markdown 与底栏；状态全部由配置推出，不落盘：
+引导是结果区里 Kami 自己的回复（F13），走和模型回复相同的会话、Markdown 与控制条；状态全部由配置推出，不落盘：
 
 ```
 没有模型（Show、⌘N、带入）──► greet：本地会话，llm.Canned 流式写出说明 + 配置提示词
-   │  ⏎ / ⌘C / 底栏复制 ──► 复制 config.AgentPrompt，原文保留
+   │  ⏎ / ⌘C / 控制条复制 ──► 复制 config.AgentPrompt，原文保留
    └─ 热加载读到 model ──► connected：「已连接…」与授权步骤 ──► 第一次请求让位
 ```
 
 - `panel.unconfigured()`：配置里没有 `model`，且不是演示回复（开发构建只在 `KAMI_DEMO=1` 时用演示回复）。此时 `run` 只复制提示词，`Import`、`ImportCaptured` 只放进原文。
-- Kami 自己的回复是首轮 `Local` 的会话（`greeting()`）：不跟随末尾、代码块 `WrapCode`，没有追问栏；切换模式时 `showResult` 保留它，`park` 丢弃它。同样的文字不重说，配置变化时重说。
+- Kami 自己的回复是首轮 `Local` 的会话（`greeting()`）：不跟随末尾、代码块 `WrapCode` 并由 `design.FoldCode` 折叠，控制条上没有追问输入框；切换模式时 `showResult` 保留它，`park` 丢弃它。同样的文字不重说，配置变化时重说。
 - 面板只在 `Show` 和 ⌘N 后打招呼；`applyConfig` 只更新已在显示的回复，或在模型从无到有时说「已连接」，因为面板在 `New` 里第一次读配置时还没有窗口和主线程投递。
 - 授权步骤：`app` 提供 `Deps.Permissions`、`RequestPermission`、`Relaunch`。步骤进行中由 `Deps.OnSetup` 在用户默认设置里记下 `permissionSetupPending`（不进 config.json）；启动时有模型且该值为真，`panel.ResumeSetup` 接着显示剩余的权限。期间 `holdForSetup` 设 `heldOpen`：失焦不隐藏但不置顶。用户发起的权限请求都经 `app.requestPermission`：先 `promptPermission`（一次运行最多一次，它把 Kami 加进列表），1.5 秒后仍未授权再打开设置页；屏幕录制另调用一次 `getShareableContent`，较新的 macOS 靠它把 Kami 加进列表。
 - 菜单状态行由 `menuStatus`（`app/status.go`，纯函数）从配置快照和连接状态推出；连接状态来自模型变化时的一次 `llm.Ping`（30 秒超时，过期结果按计数丢弃）和面板的 `OnOutcome`（停止与 Kami 自己的回复不算）。`macos.WatchStatusMenuItem` 按标题找到原生菜单项并持有它，SF Symbol 与颜色由它设置。「显示面板」「截图识别」的 `Accelerator` 随快捷键更新；双击修饰键无法写成 Accelerator，留空。

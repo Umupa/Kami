@@ -782,12 +782,12 @@ func (p *Panel) listContent(c *ui.Context, pal *design.Palette) {
 func (p *Panel) rowState(row ui.Element, pal *design.Palette, chosen bool) {
 	switch {
 	case chosen:
-		row.Background(pal.Accent.Alpha(0.14)).BorderStartWidth(2).BorderColor(pal.Accent)
+		row.Background(pal.Chosen()).BorderStartWidth(2).BorderColor(pal.Accent)
 		if p.notes.reveal {
 			row.ScrollIntoView()
 		}
 	case row.Hovered():
-		row.Background(pal.Raised.Alpha(0.6)).BorderStartWidth(2).BorderColor(pal.Accent.Alpha(0))
+		row.Background(pal.Hover()).BorderStartWidth(2).BorderColor(pal.Accent.Alpha(0))
 	default:
 		row.BorderStartWidth(2).BorderColor(pal.Accent.Alpha(0))
 	}

@@ -42,6 +42,13 @@ type Palette struct {
 	Keyword, String, Number, Comment, Function, Type ui.Color
 }
 
+// Chosen is the fill of the chosen item of a list or a row of tabs: a tint
+// of the accent, so that it reads on every theme.
+func (p *Palette) Chosen() ui.Color { return p.Accent.Alpha(0.14) }
+
+// Hover is the fill of an item under the pointer.
+func (p *Palette) Hover() ui.Color { return p.Raised.Alpha(0.6) }
+
 // Type sizes in points, and line heights as multiples of the size.
 const (
 	FontCaption = 11
@@ -66,6 +73,8 @@ const (
 	SpaceSourceY = 16
 	SpaceResultY = 18
 	SpaceTurns   = 22
+	ResultFade   = 10 // the fade along a result's edge that scrolling cuts
+	JumpSize     = 26 // the round button back to the latest
 )
 
 // The panel (requirements F1.2, F1.3).
@@ -76,6 +85,7 @@ const (
 	PanelMaxHeight   = 720 // the tallest it grows on a large display, to read without travel
 	SourceMaxRatio   = 0.3 // of the visible height, the tallest the source grows
 	ControlBarHeight = 44
+	ModeTabsMaxRatio = 0.4 // of the panel's width, the most the mode tabs take beside the follow-up input
 )
 
 // Motion, after monocode's.
