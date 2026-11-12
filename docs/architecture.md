@@ -294,7 +294,7 @@ MyGo 的 `Frameless` 只隐藏标题栏，窗口仍是 titled、full-size conten
 ```
 
 - `panel.unconfigured()`：配置里没有 `model`，且不是演示回复（开发构建只在 `KAMI_DEMO=1` 时用演示回复）。此时 `run` 只复制提示词，`Import`、`ImportCaptured` 只放进原文。
-- Kami 自己的回复是首轮 `Local` 的会话（`greeting()`）：不跟随末尾、代码块 `WrapCode` 并由 `design.FoldCode` 折叠，控制条上没有追问输入框；切换模式时 `showResult` 保留它，`park` 丢弃它。同样的文字不重说，配置变化时重说。
+- Kami 自己的回复是首轮 `Local` 的会话（`greeting()`）：不跟随末尾、代码块 `WrapCode` 并由 `design.FoldCode` 折叠，没有追问行；切换模式时 `showResult` 保留它，`park` 丢弃它。同样的文字不重说，配置变化时重说。
 - 面板只在 `Show` 和 ⌘N 后打招呼；`applyConfig` 只更新已在显示的回复，或在模型从无到有时说「已连接」，因为面板在 `New` 里第一次读配置时还没有窗口和主线程投递。
 - 授权步骤：`app` 提供 `Deps.Permissions`、`RequestPermission`、`Relaunch`。步骤进行中由 `Deps.OnSetup` 在用户默认设置里记下 `permissionSetupPending`（不进 config.json）；启动时有模型且该值为真，`panel.ResumeSetup` 接着显示剩余的权限。期间 `holdForSetup` 设 `heldOpen`：失焦不隐藏但不置顶。用户发起的权限请求都经 `app.requestPermission`：先 `promptPermission`（一次运行最多一次，它把 Kami 加进列表），1.5 秒后仍未授权再打开设置页；屏幕录制另调用一次 `getShareableContent`，较新的 macOS 靠它把 Kami 加进列表。
 - 菜单状态行由 `menuStatus`（`app/status.go`，纯函数）从配置快照和连接状态推出；连接状态来自模型变化时的一次 `llm.Ping`（30 秒超时，过期结果按计数丢弃）和面板的 `OnOutcome`（停止与 Kami 自己的回复不算）。`macos.WatchStatusMenuItem` 按标题找到原生菜单项并持有它，SF Symbol 与颜色由它设置。「显示面板」「截图识别」的 `Accelerator` 随快捷键更新；双击修饰键无法写成 Accelerator，留空。

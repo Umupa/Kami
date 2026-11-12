@@ -85,7 +85,8 @@ const (
 	PanelMaxHeight   = 720 // the tallest it grows on a large display, to read without travel
 	SourceMaxRatio   = 0.3 // of the visible height, the tallest the source grows
 	ControlBarHeight = 44
-	ModeTabsMaxRatio = 0.4 // of the panel's width, the most the mode tabs take beside the follow-up input
+	FollowPadTop     = 11 // above the follow-up row
+	FollowPadBottom  = 3  // under it: the control bar's own padding is the rest of the room
 )
 
 // Motion, after monocode's.

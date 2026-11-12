@@ -168,6 +168,9 @@ func (p *Panel) view(c *ui.Context) {
 			if p.sess != nil || p.notice != "" {
 				ui.Divider(c).Background(pal.Border)
 			}
+			if p.followShown() {
+				p.followRow(c, pal)
+			}
 			p.controlBar(c, pal)
 		})
 	})
@@ -404,27 +407,36 @@ func (p *Panel) cycleMode(step int) {
 	p.setMode((p.modeIdx + step + n) % n)
 }
 
-// controlBar is the panel's last row in every state. Each control sits in
-// a slot as tall as the bar; the follow-up input grows the row as it wraps,
-// and the slots keep to its bottom. The pin is always last, the run button
-// just before it, so neither moves as a result comes.
+// followShown reports whether the follow-up row shows: after a result of
+// a model, in a mode or in an operator session.
+func (p *Panel) followShown() bool {
+	if p.operatorSession() {
+		return true
+	}
+	return !p.operatorActive() && p.sess != nil && !p.greeting()
+}
+
+// controlBar is the panel's last row in every state: the modes on the
+// left, the latest turn's actions, the run button and the pin on the
+// right. The pin is always last, the run button just before it, so neither
+// moves as a result comes.
 func (p *Panel) controlBar(c *ui.Context, pal *design.Palette) {
-	ui.Row(c.Key("bar")).MinHeight(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).AlignItems(ui.End).Children(func() {
+	ui.Row(c.Key("bar")).Height(design.ControlBarHeight).Shrink(0).PaddingX(design.SpaceX - 8).Gap(2).Children(func() {
 		switch {
 		case p.noteMode():
-			p.barSlot(c, func() { p.modeTabs(c, pal, false) })
+			p.modeTabs(c, pal)
 			ui.Spacer(c)
-			p.barSlot(c, func() { p.noteBar(c, pal) })
+			p.noteBar(c, pal)
 		case p.operatorSession():
-			p.barSlot(c, func() { p.operatorPill(c, pal) })
-			p.followInput(c, pal)
-			p.barSlot(c, func() { p.latestActions(c, pal) })
-		case p.operatorActive():
-			p.barSlot(c, func() { p.operatorPill(c, pal) })
+			p.operatorPill(c, pal)
 			ui.Spacer(c)
-			p.barSlot(c, func() { p.runButton(c, pal) })
+			p.latestActions(c, pal)
+		case p.operatorActive():
+			p.operatorPill(c, pal)
+			ui.Spacer(c)
+			p.runButton(c, pal)
 		case p.sess == nil || p.greeting():
-			p.barSlot(c, func() { p.modeTabs(c, pal, false) })
+			p.modeTabs(c, pal)
 			ui.Spacer(c)
 			p.barSlot(c, func() {
 				if p.sess == nil && p.source == "" {
@@ -435,8 +447,8 @@ func (p *Panel) controlBar(c *ui.Context, pal *design.Palette) {
 				p.runButton(c, pal)
 			})
 		default:
-			p.barSlot(c, func() { p.modeTabs(c, pal, true) })
-			p.followInput(c, pal)
+			p.modeTabs(c, pal)
+			ui.Spacer(c)
 			p.barSlot(c, func() {
 				p.latestActions(c, pal)
 				p.fitButton(c, pal)
@@ -448,24 +460,19 @@ func (p *Panel) controlBar(c *ui.Context, pal *design.Palette) {
 				}
 			})
 		}
-		p.barSlot(c, func() { p.pinButton(c, pal) })
+		p.pinButton(c, pal)
 	})
 }
 
-// barSlot is a group of the bar's controls, centered in a bar's height.
+// barSlot is a group of the bar's controls that keeps its width.
 func (p *Panel) barSlot(c *ui.Context, children func()) {
-	ui.Row(c).Height(design.ControlBarHeight).Shrink(0).Gap(2).Children(children)
+	ui.Row(c).Shrink(0).Gap(2).Children(children)
 }
 
-// modeTabs are the modes and notes; beside the follow-up input they take
-// at most a share of the width and scroll, so the input keeps its room.
-func (p *Panel) modeTabs(c *ui.Context, pal *design.Palette, beside bool) {
-	tabs := ui.ScrollHorizontal(c).Shrink(1)
-	if beside {
-		w, _ := c.Size()
-		tabs.MaxWidth(w * design.ModeTabsMaxRatio)
-	}
-	tabs.Children(func() {
+// modeTabs are the modes and notes; they scroll when the bar is too narrow
+// for them.
+func (p *Panel) modeTabs(c *ui.Context, pal *design.Palette) {
+	ui.ScrollHorizontal(c).Shrink(1).Children(func() {
 		ui.Row(c).Gap(2).Children(func() {
 			for i, m := range p.modes {
 				name := m.Name
@@ -869,15 +876,10 @@ func failureText(err error) (title, next string) {
 	return "请求没有完成。", "重试 ⏎"
 }
 
-// followInput is the follow-up, in the control bar between the modes and
-// the latest turn's actions. Its padding centers one line in the bar's
-// height; as it wraps to four lines the bar grows with it.
-func (p *Panel) followInput(c *ui.Context, pal *design.Palette) {
-	line := p.sz.Body * design.LineHeightSource
-	pad := max((design.ControlBarHeight-line)/2, 4)
-	// A rule parts the modes, or the operator pill, from the prompt.
-	p.barSlot(c, func() { ui.Box(c).Width(1).Height(16).MarginX(8).Background(pal.Border) })
-	ui.Row(c).Grow(1).Shrink(1).MinWidth(0).PaddingEnd(4).PaddingY(pad).Gap(8).AlignItems(ui.Start).Children(func() {
+// followRow is the follow-up, a row of its own between the result and the
+// control bar, on the result's left edge. It wraps to four lines.
+func (p *Panel) followRow(c *ui.Context, pal *design.Palette) {
+	ui.Row(c).Shrink(0).Padding(design.FollowPadTop, design.SpaceX, design.FollowPadBottom).Gap(8).AlignItems(ui.Start).Children(func() {
 		prompt := pal.Faint
 		if p.followIn.Focused(c) {
 			prompt = pal.Accent

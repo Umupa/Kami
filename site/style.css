@@ -2165,8 +2165,7 @@ code {
 }
 
 /* The control bar: the panel's last row. Its controls sit in slots as
-   tall as the bar; the follow-up grows it as it wraps, and the slots keep
-   to its bottom. */
+   tall as the bar; the follow-up is a row of its own above them. */
 
 /* While the frame glides to a taller content, the bar keeps to its bottom
    edge, over the content still on its way. */
@@ -2177,8 +2176,9 @@ code {
   display: flex;
   background: var(--glass);
   flex-shrink: 0;
-  align-items: flex-end;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 2px;
   min-height: 44px;
   padding: 0 14px;
   font-size: 0.889em;
@@ -2197,22 +2197,12 @@ code {
   height: 44px;
 }
 
-.k-slot:first-child {
+.k-slot:first-child,
+.k-slot:has(.k-modes) {
   flex-shrink: 1;
   min-width: 0;
 }
 
-/* Beside the follow-up, the modes take at most a share and scroll. */
-.k-bar:has(.k-follow) .k-slot:first-child {
-  max-width: 40%;
-}
-
-.k-vrule {
-  width: 1px;
-  height: 16px;
-  margin: 0 8px;
-  background: var(--border);
-}
 
 .k-modes {
   display: flex;
@@ -2482,14 +2472,15 @@ code {
   color: var(--sparkle);
 }
 
-/* The follow-up, in the bar; it wraps to four lines. */
+/* The follow-up, a row of its own above the bar's controls, on the
+   result's left edge; it wraps to four lines. */
 .k-follow {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 100%;
   align-items: flex-start;
   gap: 8px;
   min-width: 0;
-  padding: 11px 4px 11px 0;
+  padding: 11px 8px 3px;
   color: var(--bright);
   font-size: 1.125em;
   line-height: 1.5;
@@ -3076,11 +3067,7 @@ code {
   }
 
   .k-follow {
-    padding: 9px 2px 9px 0;
-  }
-
-  .k-vrule {
-    margin: 0 6px;
+    padding: 9px 8px 1px;
   }
 
   .k-bar .k-kbd,

@@ -776,8 +776,9 @@
     }
 
     // renderBar draws the control bar, the panel's last row in every
-    // state (controlBar in view.go). The pin is always last and the run
-    // button just before it, so neither moves as a result comes.
+    // state (controlBar in view.go), and the follow-up as a row of its own
+    // above it (followRow). The pin is always last and the run button just
+    // before it, so neither moves as a result comes.
     function renderBar() {
       const bar = E.bar;
       bar.replaceChildren();
@@ -787,7 +788,6 @@
         s.append(...kids);
         return s;
       };
-      const rule = () => el("span", "k-vrule");
       const pin = button("k-icon k-pin" + (S.pinned ? " on" : ""), ICON.pin, S.pinned ? "取消固定 ⌘⇧P" : "固定面板 ⌘⇧P", () => {
         S.pinned = !S.pinned;
         render();
@@ -804,11 +804,11 @@
           render();
         });
         pill.append(name, x);
-        if (sess && sess.operator) bar.append(slot(pill), slot(rule()), E.follow, slot(...latestActions(sess)), slot(pin));
+        if (sess && sess.operator) bar.append(E.follow, slot(pill), el("span", "k-spacer"), slot(...latestActions(sess)), slot(pin));
         else bar.append(slot(pill), el("span", "k-spacer"), slot(runButton(true)), slot(pin));
         return;
       }
-      const modes = el("div", "k-modes" + (sess ? " beside" : ""));
+      const modes = el("div", "k-modes");
       S.modes.forEach((m, i) => {
         let name = m.name;
         if (m.id === "translate" && i === S.idx) {
@@ -841,7 +841,7 @@
         // the button's place before the result.
         const tail = latestActions(sess);
         if (sess.ask !== S.source) tail.push(runButton(false));
-        bar.append(slot(modes), slot(rule()), E.follow, slot(...tail), slot(pin));
+        bar.append(E.follow, slot(modes), el("span", "k-spacer"), slot(...tail), slot(pin));
       } else {
         const tail = [];
         if (!S.source) {

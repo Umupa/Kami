@@ -11,8 +11,8 @@ import (
 )
 
 // The run button and the pin keep their place as a result comes, and the
-// control bar is the one row at the bottom: the follow-up, the latest
-// turn's actions and the pin share it.
+// control bar is the last row: the latest turn's actions and the pin share
+// it, and the follow-up is a row of its own above, on the reply's edge.
 func TestBarKeepsItsPlace(t *testing.T) {
 	h := newHarness(t, script{pieces: []string{"结果"}})
 	h.tt.Frame()
@@ -43,10 +43,16 @@ func TestBarKeepsItsPlace(t *testing.T) {
 	if !ok || !copyOK {
 		t.Fatal("the follow-up or the copy icon is missing")
 	}
-	for name, r := range map[string]ui.Rect{"follow-up": follow, "copy": copyIcon} {
-		if math.Abs(float64(r.Y+r.H/2-(after.Y+after.H/2))) > 2 {
-			t.Errorf("the %s at %v is not in the pin's row %v", name, r, after)
-		}
+	if math.Abs(float64(copyIcon.Y+copyIcon.H/2-(after.Y+after.H/2))) > 2 {
+		t.Errorf("the copy icon at %v is not in the pin's row %v", copyIcon, after)
+	}
+	reply, _ := h.tt.Find("结果")
+	tab, _ := h.tt.Find("润色")
+	if follow.Y < reply.Y+reply.H || follow.Y+follow.H > tab.Y {
+		t.Errorf("the follow-up %v is not between the reply %v and the bar %v", follow, reply, tab)
+	}
+	if follow.X > reply.X+30 {
+		t.Errorf("the follow-up %v starts far from the reply's edge %v", follow, reply)
 	}
 	// Editing the source brings the run button back where it was.
 	h.tt.Click("原文")
@@ -62,8 +68,8 @@ func TestBarKeepsItsPlace(t *testing.T) {
 	h.snapshot("result-stale")
 }
 
-// A follow-up that wraps grows the bar; the pin keeps to its bottom.
-func TestBarGrowsWithFollowUp(t *testing.T) {
+// A follow-up that wraps grows its row; the bar stays at the bottom.
+func TestFollowUpWraps(t *testing.T) {
 	h := newHarness(t, script{pieces: []string{"结果"}})
 	h.tt.Frame()
 	h.tt.Click("原文")
@@ -101,8 +107,8 @@ func TestLatestActionsInBar(t *testing.T) {
 	reply, _ := h.tt.Find("结果")
 	retry, ok := h.tt.Find("重新生成")
 	follow, _ := h.tt.Find("追问")
-	if !ok || retry.X < follow.X+follow.W-1 {
-		t.Errorf("regenerate at %v is not right of the follow-up %v", retry, follow)
+	if !ok || retry.Y < follow.Y+follow.H {
+		t.Errorf("regenerate at %v is not under the follow-up %v", retry, follow)
 	}
 	if retry.Y < reply.Y+reply.H+20 {
 		t.Errorf("regenerate at %v sits under the reply %v", retry, reply)
