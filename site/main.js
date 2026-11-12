@@ -36,7 +36,7 @@
 
   // What /operator offers before a request, internal/panel/slash.go.
   const TOPICS = [
-    ["theme", "切换配色主题"],
+    ["主题", "切换配色主题", "theme"],
     ["自定义主题", "改颜色，或基于内置主题新建一套"],
     ["模型", "当前使用的模型"],
     ["快捷键", "查看或修改全局快捷键"],
@@ -233,21 +233,21 @@
   // running shows what Kami would.
   const TERMINAL = {
     source: md(
-      "⏺ The follow-up bar now stays inside the window. I changed",
-      "  internal/panel/view.go so the result gives way first, then",
+      "⏺ The control bar now stays at the bottom of the window. I",
+      "  changed internal/panel/view.go so the result gives way first, then",
       "  ran scripts/check.sh: gofmt, go vet for arm64 and amd64, and",
       "  go test all pass.",
     ),
     replies: {
       translate:
-        "追问栏现在始终留在窗口内。我修改了 internal/panel/view.go，让结果区先让位，然后运行了 scripts/check.sh：gofmt、arm64 与 amd64 的 go vet，以及 go test 全部通过。",
+        "控制条现在始终留在窗口底部。我修改了 internal/panel/view.go，让结果区先让位，然后运行了 scripts/check.sh：gofmt、arm64 与 amd64 的 go vet，以及 go test 全部通过。",
       improve:
-        "The follow-up bar now stays inside the window. I changed internal/panel/view.go so that the result gives way first, then ran scripts/check.sh: gofmt, go vet for arm64 and amd64, and go test all pass.",
-      ask: "Sounds done: the change is in and every check passes. To be sure, fill the panel with a long reply and confirm the follow-up bar stays in view.",
+        "The control bar now stays at the bottom of the window. I changed internal/panel/view.go so that the result gives way first, then ran scripts/check.sh: gofmt, go vet for arm64 and amd64, and go test all pass.",
+      ask: "Sounds done: the change is in and every check passes. To be sure, fill the panel with a long reply and confirm the control bar stays in view.",
     },
     follow: {
       ask: "再短一点",
-      reply: "追问栏已固定在窗口内；改了 internal/panel/view.go，scripts/check.sh 全部通过。",
+      reply: "控制条已固定在窗口底部；改了 internal/panel/view.go，scripts/check.sh 全部通过。",
     },
   };
 
@@ -408,12 +408,9 @@
       <div class="k-menu" hidden></div>
       <div class="k-fill"></div>
       <div class="k-rule"></div>
-      <div class="k-bar"></div>
-      <div class="k-rule k-rule-result" hidden></div>
       <div class="k-result-wrap" hidden><div class="k-result"></div></div>
       <div class="k-fill k-fill-result" hidden></div>
-      <div class="k-rule k-rule-follow" hidden></div>
-      <div class="k-follow" hidden><span class="k-prompt">❯</span><span class="k-follow-text"></span><span class="k-kbd"><span>⌘J</span><span>切换</span></span></div>
+      <div class="k-bar"></div>
       </div>
       <div class="k-sparkles"></div>`;
 
@@ -454,16 +451,15 @@
       menu: $(".k-menu"),
       fill: $(".k-fill"),
       bar: $(".k-bar"),
-      ruleResult: $(".k-rule-result"),
       resultWrap: $(".k-result-wrap"),
       result: $(".k-result"),
       fillResult: $(".k-fill-result"),
-      ruleFollow: $(".k-rule-follow"),
-      follow: $(".k-follow"),
-      followText: $(".k-follow-text"),
+      follow: el("div", "k-follow"),
+      followText: el("span", "k-follow-text"),
       sparkles: $(".k-sparkles"),
       run: null,
     };
+    E.follow.append(el("span", "k-prompt", "❯"), E.followText);
 
     const isNotes = () => S.idx === S.modes.length;
     const currentId = () => (isNotes() ? "note" : S.modes[S.idx].id);
@@ -630,16 +626,16 @@
       box.append(text.slice(at));
     }
 
-    // filter keeps the items whose key or title has query, those starting
-    // with it first (slash.go).
+    // filter keeps the items whose key, alias or title has query, those
+    // starting with it first (slash.go).
     function filter(all, query) {
       const q = query.toLowerCase();
       const first = [];
       const rest = [];
       for (const it of all) {
-        const key = it.key.toLowerCase();
-        if (key.startsWith(q) || it.title.startsWith(query)) first.push(it);
-        else if (key.includes(q) || it.title.includes(query)) rest.push(it);
+        const keys = [it.key.toLowerCase(), (it.alias || "").toLowerCase()].filter(Boolean);
+        if (keys.some((k) => k.startsWith(q)) || it.title.startsWith(query)) first.push(it);
+        else if (keys.some((k) => k.includes(q)) || it.title.includes(query)) rest.push(it);
       }
       return first.concat(rest);
     }
@@ -660,7 +656,7 @@
         if (/[ \t]/.test(request)) return null;
         kind = "topics";
         items = filter(
-          TOPICS.map(([key, title]) => ({ key, title })),
+          TOPICS.map(([key, title, alias]) => ({ key, title, alias })),
           request,
         );
       } else if (src.startsWith("/") && !/[ \t]/.test(src)) {
@@ -779,13 +775,24 @@
       return b;
     }
 
+    // renderBar draws the control bar, the panel's last row in every
+    // state (controlBar in view.go). The pin is always last and the run
+    // button just before it, so neither moves as a result comes.
     function renderBar() {
       const bar = E.bar;
       bar.replaceChildren();
+      E.run = null;
+      const slot = (...kids) => {
+        const s = el("div", "k-slot");
+        s.append(...kids);
+        return s;
+      };
+      const rule = () => el("span", "k-vrule");
       const pin = button("k-icon k-pin" + (S.pinned ? " on" : ""), ICON.pin, S.pinned ? "取消固定 ⌘⇧P" : "固定面板 ⌘⇧P", () => {
         S.pinned = !S.pinned;
         render();
       });
+      const sess = shown();
       if (operatorActive()) {
         const pill = el("span", "k-pill");
         pill.innerHTML = ICON.operator;
@@ -797,10 +804,11 @@
           render();
         });
         pill.append(name, x);
-        bar.append(pill, el("span", "k-spacer"), pin, runButton(true));
+        if (sess && sess.operator) bar.append(slot(pill), slot(rule()), E.follow, slot(...latestActions(sess)), slot(pin));
+        else bar.append(slot(pill), el("span", "k-spacer"), slot(runButton(true)), slot(pin));
         return;
       }
-      const modes = el("div", "k-modes");
+      const modes = el("div", "k-modes" + (sess ? " beside" : ""));
       S.modes.forEach((m, i) => {
         let name = m.name;
         if (m.id === "translate" && i === S.idx) {
@@ -819,28 +827,30 @@
       const notes = button("k-chip notes" + (isNotes() ? " on" : ""), "", "", () => actions.setMode(S.modes.length));
       notes.textContent = "笔记";
       modes.append(notes);
-      bar.append(modes, el("span", "k-spacer"));
       if (isNotes()) {
         const all = el("span", "k-icon");
         all.innerHTML = ICON.list;
         all.title = "全部笔记 ⌘P";
-        bar.append(
-          button("k-icon", ICON.plus, "新建 ⌘N", () => {
-            S.note = "";
-            render();
-          }),
-          all,
-          pin,
-        );
-      } else {
-        const theme = button("k-theme", "", "切换主题", () => {
-          openThemes();
+        const add = button("k-icon", ICON.plus, "新建笔记 ⌘N", () => {
+          S.note = "";
           render();
         });
-        theme.append(el("span", "k-theme-mark", "◐"), el("span", "k-theme-name", S.theme));
-        const kbd = el("span", "k-kbd");
-        kbd.append(el("span", "", "tab"), el("span", "", "模式"));
-        bar.append(pin, theme, kbd, runButton(false));
+        bar.append(slot(modes), el("span", "k-spacer"), slot(add, all), slot(pin));
+      } else if (sess) {
+        // A result of another source: the next step is to run again, in
+        // the button's place before the result.
+        const tail = latestActions(sess);
+        if (sess.ask !== S.source) tail.push(runButton(false));
+        bar.append(slot(modes), slot(rule()), E.follow, slot(...tail), slot(pin));
+      } else {
+        const tail = [];
+        if (!S.source) {
+          const kbd = el("span", "k-kbd");
+          kbd.append(el("span", "", "tab"), el("span", "", "模式"));
+          tail.push(kbd);
+        }
+        tail.push(runButton(false));
+        bar.append(slot(modes), el("span", "k-spacer"), slot(...tail), slot(pin));
       }
       // Keep the current tab in view where the bar scrolls.
       const on = modes.querySelector(".on");
@@ -858,6 +868,38 @@
       return b;
     }
 
+    // copyButton copies a turn's reply, and says so for a moment.
+    function copyButton(turn, tip) {
+      const done = turn.copiedAt && performance.now() - turn.copiedAt < 1500;
+      return button("k-icon", done ? ICON.check : ICON.copy, done ? "已复制" : tip, () => {
+        if (navigator.clipboard) navigator.clipboard.writeText(turn.reply).catch(() => {});
+        turn.copiedAt = performance.now();
+        render();
+        setTimeout(render, 1500);
+      });
+    }
+
+    function copyAs() {
+      const more = el("span", "k-icon k-more");
+      more.innerHTML = ICON.more;
+      more.title = "复制为…";
+      return more;
+    }
+
+    // latestActions are the latest turn's icons, in the control bar, once
+    // its reply is done.
+    function latestActions(sess) {
+      const turn = sess.turns[sess.turns.length - 1];
+      if (!turn || turn.status !== "done") return [];
+      const out = [];
+      if (sess.undoable) out.push(button("k-icon undo", ICON.undo, "撤销这次修改 ⌘Z", () => actions.undo()));
+      // An operator reply would change the settings again; the demo
+      // does not ask twice.
+      if (!sess.operator) out.push(button("k-icon", ICON.retry, "重新生成", () => actions.retry(sess)));
+      out.push(copyAs(), copyButton(turn, "复制 Markdown ⌘C"));
+      return out;
+    }
+
     function renderFollow() {
       E.follow.classList.toggle("focused", S.followFocus);
       const t = E.followText;
@@ -870,19 +912,20 @@
     function render() {
       const notes = isNotes();
       const sess = shown();
-      const bar = !(sess && sess.operator && operatorActive());
       E.source.hidden = notes;
       E.note.hidden = !notes;
       if (notes) renderNote();
       else renderSource();
       renderMenu();
-      E.fill.hidden = !!sess && !notes;
-      E.bar.hidden = !bar;
-      renderBar();
       const result = !!sess && !notes;
-      E.ruleResult.hidden = !(result && bar);
-      E.resultWrap.hidden = E.fillResult.hidden = E.ruleFollow.hidden = E.follow.hidden = !result;
+      // Content above, the bar below: the rule under the source alone
+      // parts it from the result.
+      E.fill.hidden = result;
+      E.resultWrap.hidden = E.fillResult.hidden = !result;
+      E.bar.classList.toggle("ruled", result);
       if (result && E.result.firstChild !== sess.el) E.result.replaceChildren(sess.el);
+      renderBar();
+      edges();
       E.source.classList.toggle("held", result);
       renderFollow();
       applyTheme();
@@ -890,8 +933,7 @@
     }
 
     // grow keeps the panel at the tallest its content has been in this
-    // session, as Kami's does: the bar or the follow-up line stays at the
-    // bottom. Before a session, and in a note, it follows its content.
+    // session, as Kami's does: the control bar stays at the bottom. Before a session, and in a note, it follows its content.
     function grow() {
       const cap = parseFloat(getComputedStyle(inner).maxHeight) || Infinity;
       if (isNotes() || (!S.results.size && !S.op)) {
@@ -911,11 +953,34 @@
     function followEnd() {
       const r = E.result;
       if (S.followEnd && r.scrollHeight > r.clientHeight) r.scrollTop = r.scrollHeight;
+      edges();
+    }
+
+    // edges fades the result along a side that scrolling cuts, and offers
+    // the way back to the latest once the visitor scrolls up (fadeEdges and
+    // jumpButton in view.go).
+    const jump = el("span", "k-jump", "↓");
+    jump.title = "回到底部";
+    if (interactive) {
+      jump.addEventListener("click", (e) => {
+        e.stopPropagation();
+        S.followEnd = true;
+        E.result.scrollTo({ top: E.result.scrollHeight, behavior: still() ? "auto" : "smooth" });
+      });
+    }
+    E.resultWrap.append(jump);
+    function edges() {
+      const r = E.result;
+      const over = r.scrollHeight - r.clientHeight > 1;
+      r.classList.toggle("fade-top", over && r.scrollTop > 1);
+      r.classList.toggle("fade-bottom", over && r.scrollTop < r.scrollHeight - r.clientHeight - 1);
+      jump.hidden = !over || S.followEnd;
     }
 
     E.result.addEventListener("scroll", () => {
       const r = E.result;
       S.followEnd = r.scrollTop + r.clientHeight >= r.scrollHeight - 4;
+      edges();
     });
 
     // ---------- Sessions and streaming ----------
@@ -941,18 +1006,14 @@
       return turn;
     }
 
+    // renderFoot gives each earlier turn its actions, floating in its top
+    // right corner while the pointer is over it (turnActions in view.go);
+    // the latest turn's are in the control bar.
     function renderFoot(sess) {
       sess.turns.forEach((turn, i) => {
         const last = i === sess.turns.length - 1;
         turn.foot.replaceChildren();
-        if (turn.status !== "done") return;
-        if (last && sess.undoable) turn.foot.append(button("k-icon undo", ICON.undo, "撤销这次修改 ⌘Z", () => actions.undo()));
-        // An operator reply would change the settings again; the demo
-        // does not ask twice.
-        if (last && !sess.operator) turn.foot.append(button("k-icon", ICON.retry, "重新生成", () => actions.retry(sess)));
-        const more = el("span", "k-icon");
-        more.innerHTML = ICON.more;
-        more.title = "复制为…";
+        if (last || turn.status !== "done") return;
         const copy = button("k-icon", ICON.copy, "复制 Markdown", () => {
           if (navigator.clipboard) navigator.clipboard.writeText(turn.reply).catch(() => {});
           copy.innerHTML = ICON.check;
@@ -962,8 +1023,9 @@
             copy.title = "复制 Markdown";
           }, 1500);
         });
-        turn.foot.append(more, copy);
+        turn.foot.append(copyAs(), copy);
       });
+      if (shown() === sess) renderBar();
     }
 
     // stream writes a reply into a turn: a moment of thinking, then words
@@ -1027,7 +1089,7 @@
       if (still()) return;
       const layer = E.sparkles;
       const top = E.resultWrap.offsetTop;
-      const h = Math.max(140, E.follow.offsetTop - top);
+      const h = Math.max(140, E.bar.offsetTop - top);
       const w = root.clientWidth;
       layer.style.top = top + "px";
       layer.style.height = h + "px";
@@ -1272,7 +1334,9 @@
             await guard(fadeOut());
             S.hold = isNotes() ? 0 : inner.offsetHeight;
           }
-          const id = currentId();
+          // A scene types into the source: one cut short in notes starts
+          // the next in the first mode.
+          const id = isNotes() ? "translate" : currentId();
           S.example = example;
           S.modes = config.modes || BUILTIN.slice();
           if (config.theme) setTheme(config.theme);
@@ -2098,6 +2162,14 @@
       { threshold: 0.15, rootMargin: "0px 0px -6% 0px" },
     );
     for (const n of document.querySelectorAll("[data-reveal]")) io.observe(n);
+
+    // The greeting's prompt unfolds and folds, as a long code block does.
+    for (const fold of document.querySelectorAll(".greeting .k-unfold")) {
+      fold.addEventListener("click", () => {
+        const open = fold.closest(".md").querySelector(".k-code.fold").classList.toggle("open");
+        fold.textContent = open ? "收起" : "展开";
+      });
+    }
 
     // The greeting writes itself out the first time it is seen.
     const greeting = document.querySelector(".greeting .md");

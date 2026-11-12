@@ -227,7 +227,7 @@
 
                 <div class="veil"></div>
                 <div class="selection"></div>
-                <div class="hint">Kami  │  拖动框选文字 · Esc 取消</div>
+                <div class="hint">框选文字 · esc 取消</div>
                 <svg class="crosshair" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1v18M1 10h18" stroke="#111" stroke-width="1.4"/><path d="M10 1v18M1 10h18" stroke="#fff" stroke-width="0.5"/></svg>
                 <div class="press"><kbd>⌥</kbd><kbd>S</kbd></div>
               </div>
@@ -274,24 +274,32 @@
             <div class="kami mini greeting" aria-hidden="true">
               <div class="k-source"><span class="k-placeholder">输入或粘贴，/ 查看命令</span></div>
               <div class="k-rule"></div>
-              <div class="k-bar">
-                <div class="k-modes"><span class="k-chip on">翻译</span><span class="k-chip">润色</span><span class="k-chip">问答</span><span class="k-chip notes">笔记</span></div>
-                <span class="k-spacer"></span>
-                <span class="k-kbd"><span>tab</span><span>模式</span></span>
-              </div>
-              <div class="k-rule"></div>
               <div class="k-result">
-                <div class="md clip">
-                  <p>👋 <strong>欢迎使用 Kami。</strong></p>
-                  <p>🔌 Kami 由你自己的模型提供动力（支持 Claude、OpenAI、DeepSeek、本地 Ollama 等）。</p>
-                  <p>📋 按 <strong>⏎</strong> 复制下面的配置提示词给 <strong>Claude Code</strong>、<strong>Codex</strong> 等 Coding Agent，它会协助你完成接入并自动检查。</p>
-                  <div class="k-code wrap">
+                <div class="md">
+                  <p><strong>欢迎使用 Kami</strong></p>
+                  <p>常驻在 Mac 上的 AI 文字助手，用快捷键翻译外文、润色表达、随时问答，由你自己的模型提供动力（Claude、OpenAI、DeepSeek、本地 Ollama 等）。</p>
+                  <h2>按 ⏎ 复制配置提示词</h2>
+                  <p>交给 Claude Code、Codex 等 Coding Agent，它会帮你接入模型并自动检查。配好后这里会接着显示。</p>
+                  <div class="k-code wrap fold">
                     <div class="k-code-head"><span>text</span><span>复制</span></div>
                     <pre><code>你好！请帮我把 Kami 连上一个 AI 模型。Kami 是我 Mac 菜单栏里的翻译、润色和问答小工具，只需要一个又快又便宜的模型。
 
-和我说话时请用大白话，一次只问一个问题，给编号选项让我回数字。</code></pre>
+Kami 的命令行：'/Applications/Kami.app/Contents/MacOS/Kami'
+（下文的 `Kami` 都指它，请用带引号的绝对路径运行）
+配置文件：'~/Library/Application Support/Kami/config.json'
+字段说明：'~/Library/Application Support/Kami/config.schema.json'
+
+和我说话时请用大白话，一次只问一个问题，给编号选项让我回数字。需要我动手时，告诉我点哪里，然后等我说「好了」。</code></pre>
                   </div>
+                  <span class="k-unfold">展开</span>
                 </div>
+              </div>
+              <div class="k-rule"></div>
+              <div class="k-bar">
+                <div class="k-slot"><div class="k-modes"><span class="k-chip on">翻译</span><span class="k-chip">润色</span><span class="k-chip">问答</span><span class="k-chip notes">笔记</span></div></div>
+                <span class="k-spacer"></span>
+                <div class="k-slot"><span class="k-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.6V3.2A1.7 1.7 0 0 0 8.8 1.5H4.2A1.7 1.7 0 0 0 2.5 3.2v4.6a1.7 1.7 0 0 0 1.7 1.7h.4"/></svg></span></div>
+                <div class="k-slot"><span class="k-icon k-pin"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 2.2l4 4-2.3.9-2.6 2.6.3 2.8-1.2 1.2-2.4-3.5-3.2 3.2M5.6 7.9L2.1 5.5l1.2-1.2 2.8.3 2.6-2.6z"/></svg></span></div>
               </div>
             </div>
           </div>
@@ -299,23 +307,23 @@
             <h2>一键更新</h2>
             <p>有新版本时，打开面板就能看到这一版改了什么，确认一次即可安装并重启。</p>
             <div class="kami mini update" aria-hidden="true">
-              <div class="k-head">Kami 0.1.0 可以安装</div>
-              <div class="k-rule"></div>
-              <div class="k-bar">
-                <div class="k-modes"><span class="k-chip on">安装并重启</span><span class="k-chip">稍后</span><span class="k-chip">跳过这个版本</span></div>
-                <span class="k-spacer"></span>
-                <span class="k-kbd"><span>tab</span><span>切换</span></span>
-              </div>
+              <div class="k-head">Kami 0.1.2 可以安装<span class="k-current"> · 当前 0.1.1</span></div>
               <div class="k-rule"></div>
               <div class="k-result">
                 <p class="k-caption">更新内容</p>
                 <div class="md">
                   <ul>
-                    <li>首个版本：⌥空格打开面板，双击 ⌥ 带入选中的文字，⌥S 截图识别文字。</li>
-                    <li>结果按 Markdown 流式显示，可以接着追问。</li>
-                    <li>首次打开时引导你把配置提示词交给 Coding Agent 连接模型；连上后逐项授权。</li>
+                    <li>菜单新增「检查更新…」，右侧显示当前版本；在面板里输入 /update 也能立即检查。</li>
+                    <li>截图后的文字识别更快：松手后通常约 0.1 秒出结果。</li>
+                    <li>截图结束后及时归还内存，空闲时占用更少。</li>
                   </ul>
                 </div>
+              </div>
+              <div class="k-rule"></div>
+              <div class="k-bar">
+                <div class="k-slot"><span class="k-chip">稍后</span><span class="k-chip">跳过这个版本</span></div>
+                <span class="k-spacer"></span>
+                <div class="k-slot"><span class="k-run"><span>⏎</span><span>安装并重启</span></span></div>
               </div>
             </div>
           </div>

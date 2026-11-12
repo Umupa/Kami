@@ -1441,7 +1441,7 @@ code {
   padding: 0 16px;
   border-radius: 17px;
   background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.08), 0 28px 72px rgba(26, 26, 24, 0.19);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
   color: #4e4e49;
   font-size: 12.5px;
   line-height: 34px;
@@ -2100,7 +2100,8 @@ code {
   grid-template-columns: 11.5em 5.8em minmax(0, 1fr);
   align-items: center;
   height: 2.5em;
-  padding: 0 10px;
+  padding: 0 10px 0 8px;
+  border-left: 2px solid transparent;
   border-radius: 3px;
   color: var(--text);
   white-space: nowrap;
@@ -2115,8 +2116,20 @@ code {
   cursor: pointer;
 }
 
+.k-row:hover {
+  background: color-mix(in srgb, var(--raised) 60%, transparent);
+}
+
+/* The chosen row reads as the notes list's; operator's topics take its
+   own tint (menuView in slash.go). */
 .k-row.on {
-  background: var(--raised);
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.k-menu.topics .k-row.on {
+  border-left-color: var(--operator);
+  background: var(--operator-fill);
 }
 
 .k-row b {
@@ -2151,17 +2164,54 @@ code {
   box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.35);
 }
 
-/* The control bar */
+/* The control bar: the panel's last row. Its controls sit in slots as
+   tall as the bar; the follow-up grows it as it wraps, and the slots keep
+   to its bottom. */
 
+/* While the frame glides to a taller content, the bar keeps to its bottom
+   edge, over the content still on its way. */
 .k-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  background: var(--glass);
+  flex-shrink: 0;
+  align-items: flex-end;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 0.889em;
+  white-space: nowrap;
+}
+
+.k-bar.ruled {
+  border-top: 1px solid var(--border);
+}
+
+.k-slot {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
   height: 44px;
-  padding: 0 14px;
-  font-size: 0.889em;
-  white-space: nowrap;
+}
+
+.k-slot:first-child {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* Beside the follow-up, the modes take at most a share and scroll. */
+.k-bar:has(.k-follow) .k-slot:first-child {
+  max-width: 40%;
+}
+
+.k-vrule {
+  width: 1px;
+  height: 16px;
+  margin: 0 8px;
+  background: var(--border);
 }
 
 .k-modes {
@@ -2190,9 +2240,8 @@ code {
 }
 
 .k-chip.on {
-  background: var(--raised);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
-  font-weight: 700;
 }
 
 .k-chip.notes {
@@ -2225,30 +2274,28 @@ code {
   color: var(--accent);
 }
 
-.k-bar .k-icon {
-  margin-right: 6px;
+.k-bar .k-icon,
+.k-foot .k-icon {
+  color: var(--muted);
 }
 
-.k-theme {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-right: 10px;
-  padding: 3px 6px;
-  border-radius: 3px;
+.k-bar .k-icon:hover,
+.k-foot .k-icon:hover {
+  background: var(--raised);
+  color: var(--bright);
 }
 
-.k-theme-mark {
-  color: var(--accent);
+.k-bar .k-icon.undo,
+.k-foot .k-icon.undo {
+  color: var(--operator);
 }
 
-.k-theme-name {
+.k-bar .k-pin {
   color: var(--faint);
-  font-size: 0.917em;
 }
 
-.k-theme:hover .k-theme-name {
-  color: var(--text);
+.k-bar .k-pin.on {
+  color: var(--accent);
 }
 
 .k-kbd {
@@ -2277,6 +2324,7 @@ code {
   flex-shrink: 0;
   align-items: center;
   gap: 6px;
+  margin: 0 4px;
   padding: 4px 10px;
   border-radius: 3px;
   background: var(--accent);
@@ -2311,7 +2359,7 @@ code {
   height: 14px;
 }
 
-/* The result and the follow-up line */
+/* The result */
 
 .k-result-wrap {
   position: relative;
@@ -2323,10 +2371,49 @@ code {
 
 .k-result {
   min-height: 0;
-  padding: 18px 22px 6px;
+  padding: 18px 22px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+  -webkit-mask-image: linear-gradient(transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+  mask-image: linear-gradient(transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+}
+
+/* A side that scrolling cuts fades out (fadeEdges in view.go). */
+.k-result.fade-top {
+  --fade-top: 10px;
+}
+
+.k-result.fade-bottom {
+  --fade-bottom: 10px;
+}
+
+.k-jump {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.815em;
+  line-height: 1;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+.k-jump:hover {
+  color: var(--text);
+}
+
+.k-turn {
+  position: relative;
 }
 
 .k-turn + .k-turn {
@@ -2359,33 +2446,23 @@ code {
   font-style: normal;
 }
 
+/* An earlier turn's actions float in its top right corner while the
+   pointer is over it, out of the flow, so nothing moves. */
 .k-foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: none;
   gap: 2px;
-  height: calc(0.889em + 14px);
-  margin-top: 4px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  font-size: 0.889em;
 }
 
-.k-foot .k-icon {
-  color: var(--muted);
-}
-
-.k-foot .k-icon.undo {
-  color: var(--operator);
-}
-
-.k-foot .k-icon:hover {
-  background: var(--raised);
-}
-
-.k-turn:not(:last-child) .k-foot > * {
-  visibility: hidden;
-}
-
-.k-turn:not(:last-child):hover .k-foot > * {
-  visibility: visible;
+.k-turn:hover .k-foot:not(:empty) {
+  display: flex;
 }
 
 .k-sparkles {
@@ -2405,14 +2482,18 @@ code {
   color: var(--sparkle);
 }
 
+/* The follow-up, in the bar; it wraps to four lines. */
 .k-follow {
   display: flex;
-  flex-shrink: 0;
+  flex: 1 1 auto;
   align-items: flex-start;
   gap: 8px;
-  padding: 11px 22px;
+  min-width: 0;
+  padding: 11px 4px 11px 0;
   color: var(--bright);
+  font-size: 1.125em;
   line-height: 1.5;
+  white-space: normal;
 }
 
 .k-prompt {
@@ -2427,11 +2508,9 @@ code {
 .k-follow-text {
   flex: 1 1 auto;
   min-width: 0;
+  max-height: 6em;
+  overflow: hidden;
   white-space: pre-wrap;
-}
-
-.k-follow .k-kbd {
-  margin: 1px 0 0;
 }
 
 /* Notes */
@@ -2458,6 +2537,10 @@ code {
   color: var(--bright);
   font-size: 1.111em;
   line-height: 1.5;
+}
+
+.k-current {
+  color: var(--faint);
 }
 
 .k-caption {
@@ -2705,15 +2788,37 @@ code {
   box-shadow: 0 1px 2px rgba(16, 15, 15, 0.03), 0 14px 32px -20px rgba(16, 15, 15, 0.2);
 }
 
+/* Stretched to its neighbor's height, the bar keeps to the bottom. */
 .kami.mini .k-result {
-  padding-bottom: 4px;
+  flex: 1 1 auto;
 }
 
-.kami.mini .clip {
-  max-height: 15.5em;
+/* A long code block folds to four lines that fade out (design.Markdown). */
+.k-code.fold pre {
+  height: calc(0.5em + 4 * 1.5em);
+  padding-bottom: 0;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(#000 60%, transparent);
-  mask-image: linear-gradient(#000 60%, transparent);
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 3em), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 3em), transparent);
+}
+
+.k-code.fold.open pre {
+  height: auto;
+  padding-bottom: 0.9em;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.k-unfold {
+  display: inline-block;
+  margin-top: 0.35em;
+  color: var(--muted);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.k-unfold:hover {
+  color: var(--text);
 }
 
 @keyframes k-in {
@@ -2958,27 +3063,29 @@ code {
   }
 
   .k-result {
-    padding: 14px 14px 4px;
-  }
-
-  .k-follow {
-    padding: 9px 14px;
+    padding: 14px;
   }
 
   .k-bar {
-    height: 40px;
+    min-height: 40px;
     padding: 0 6px;
   }
 
-  .k-bar .k-pin,
-  .k-theme-name,
-  .k-bar .k-kbd,
-  .k-follow .k-kbd {
-    display: none !important;
+  .k-slot {
+    height: 40px;
   }
 
-  .k-theme {
-    margin-right: 6px;
+  .k-follow {
+    padding: 9px 2px 9px 0;
+  }
+
+  .k-vrule {
+    margin: 0 6px;
+  }
+
+  .k-bar .k-kbd,
+  .k-bar .k-more {
+    display: none !important;
   }
 
   .k-menu .k-row,
